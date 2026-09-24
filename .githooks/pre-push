@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Run the leak check over every commit being pushed. Enable with: git config core.hooksPath .githooks
+set -euo pipefail
+EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+ZERO=0000000000000000000000000000000000000000
+root="$(git rev-parse --show-toplevel)"
+
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ "$local_sha" = "$ZERO" ] && continue   # branch deletion
+  if [ "$remote_sha" = "$ZERO" ]; then
+    base="$EMPTY_TREE"
+  else
+    base="$remote_sha"
+  fi
+  "$root/scripts/leakcheck.sh" "$base $local_sha"
+done

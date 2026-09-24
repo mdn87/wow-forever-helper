@@ -3,33 +3,55 @@
 __pycache__/
 *.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+dist/
+build/
 
 # Local runtime and play data — never public
 .runtime/
 play-sessions/
 captures/
 *.log
+*.sqlite
+*.sqlite3
+*.sqlite-*
 .env
 .env.*
+!.env.example
 
-# Real WoW client data — never public. Synthetic fixtures go in tests/fixtures/ as flat files (e.g. savedvariables_basic.lua), not in WTF/ or SavedVariables/ folders.
+# Real WoW client data — never public.
+# Synthetic fixtures go in tests/fixtures/ as flat files (e.g. savedvariables_basic.lua),
+# not inside WTF/ or SavedVariables/ folders, which are ignored anywhere in the tree.
 WTF/
 Logs/
+logs/
 Screenshots/
+Errors/
+Cache/
 Config.wtf
 config-cache.wtf
+bindings-cache.wtf
+layout-local.txt
+chat-cache.txt
 WoWCombatLog*.txt
 SavedVariables/
+*.dmp
+*.mdmp
 
-
-# Screenshots outside docs mock-ups
+# Images — only synthetic, metadata-stripped docs mock-ups and test fixtures
 *.png
 *.jpg
 *.jpeg
 *.webp
+*.tga
 !docs/img/**
+!tests/fixtures/**
 
-# Agent session state
+# Agent and tool session state
 .claude/handoff.md
 .claude/handoff-history/
+.claude/settings.local.json
+.codex/
 .lugos-wip/
