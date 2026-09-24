@@ -23,8 +23,10 @@ captures/
 
 # Real WoW client data — never public.
 # Synthetic fixtures go in tests/fixtures/ as flat files (e.g. savedvariables_basic.lua),
-# not inside WTF/ or SavedVariables/ folders, which are ignored anywhere in the tree.
+# not inside WTF/, Interface/, or SavedVariables/ folders, which are ignored anywhere in the
+# tree. The companion's own addon lives in wow_addon/, never in an Interface/AddOns/ copy.
 WTF/
+Interface/
 Logs/
 logs/
 Screenshots/
@@ -55,3 +57,7 @@ SavedVariables/
 .claude/settings.local.json
 .codex/
 .lugos-wip/
+
+# Autowork request staging and scratch worktrees
+.autowork/
+.worktrees/

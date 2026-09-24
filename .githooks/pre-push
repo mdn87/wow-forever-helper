@@ -1,16 +1,33 @@
 #!/usr/bin/env bash
-# Run the leak check over every commit being pushed. Enable with: git config core.hooksPath .githooks
+# Pre-push hook: run scripts/leakcheck.sh over the commits each pushed ref would add.
+# Enable once per clone:  git config core.hooksPath .githooks
+#
+# Git feeds one line per ref on stdin: "<local ref> <local sha> <remote ref> <remote sha>".
+# Only the commits the remote does not already have are scanned, so pushing a new branch
+# does not re-scan the whole tree, and a force-push scans only the rewritten commits.
 set -euo pipefail
-EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
 ZERO=0000000000000000000000000000000000000000
+EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
 root="$(git rev-parse --show-toplevel)"
+status=0
 
 while read -r _local_ref local_sha _remote_ref remote_sha; do
-  [ "$local_sha" = "$ZERO" ] && continue   # branch deletion
-  if [ "$remote_sha" = "$ZERO" ]; then
-    base="$EMPTY_TREE"
+  [ "$local_sha" = "$ZERO" ] && continue   # deleting a remote ref pushes no content
+  base=""
+  if [ "$remote_sha" != "$ZERO" ] && git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+    # Existing ref. The merge-base handles a force-push whose tip is not an ancestor.
+    base=$(git merge-base "$remote_sha" "$local_sha" 2>/dev/null || echo "$remote_sha")
   else
-    base="$remote_sha"
+    # New ref, or a remote tip this clone has not fetched: measure from the nearest commit
+    # any remote-tracking branch already has.
+    for known in $(git for-each-ref --format='%(objectname)' refs/remotes/); do
+      candidate=$(git merge-base "$known" "$local_sha" 2>/dev/null) || continue
+      if [ -z "$base" ] || git merge-base --is-ancestor "$base" "$candidate"; then
+        base="$candidate"
+      fi
+    done
+    [ -n "$base" ] || base="$EMPTY_TREE"   # first push ever: scan everything
   fi
-  "$root/scripts/leakcheck.sh" "$base $local_sha"
+  "$root/scripts/leakcheck.sh" "$base" "$local_sha" || status=1
 done
+exit "$status"

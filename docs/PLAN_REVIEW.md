@@ -1,5 +1,7 @@
 # Fable review of PLAN.md (2026-09-23)
 
+> **Historical record.** Every finding below was folded into `PLAN.md` on 2026-09-23; read the plan, not this file, for current intent.
+
 Reviewed by Fable (claude-fable-5-1) as a read-only pass. Web-sourced facts below come from the reviewer and have **not** been checked against a local Forever client.
 
 ## Blocker

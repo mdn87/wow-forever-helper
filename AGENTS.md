@@ -34,13 +34,15 @@ Everything here is world-readable: code, docs, commits, branch names, issues, PR
    git config core.hooksPath .githooks
    ```
 
-2. The `pre-push` hook runs `scripts/leakcheck.sh` over every commit being pushed. To check manually:
+2. The `pre-push` hook runs `scripts/leakcheck.sh` over the commits each pushed ref would add (new branches included). To check manually:
 
    ```bash
    scripts/leakcheck.sh origin/main...HEAD
    ```
 
-3. Investigate every hit. Bypass with `git push --no-verify` only after confirming each hit is a false positive.
+   It scans added lines only and prints `file:line: content` for each hit. Prose may name a setting such as `SET accountName`; a pasted value trips the check. Synthetic values from the fixture rules below are blanked out before matching.
+
+3. Investigate every hit. Bypass with `git push --no-verify` only after confirming each hit is a false positive (for example `issue#1234` looks like a BattleTag).
 4. GitHub secret scanning and push protection are enabled, but they catch provider tokens, not BattleTags, thread IDs, or paths. The leak check is the control for those.
 5. Add ignore rules to `.gitignore` before writing code that produces new local data.
 
@@ -53,12 +55,12 @@ Everything here is world-readable: code, docs, commits, branch names, issues, PR
 
 ## Product rules that the public nature makes stricter
 
-- **No game input, automation, or game-memory code.** Do not add input simulation, key or mouse injection, window messaging to the game, memory reading, process injection, hooks, overlays, or network interception, even disabled or behind a flag. A public repo is a public record. See `docs/PLAN.md` §2 and the ToS blocker in `docs/PLAN_REVIEW.md`.
-  - `tests/test_no_input.py` enforces a denylist over Python source and the addon's Lua. Do not weaken it to make a change pass.
+- **No game input, automation, or game-memory code.** Do not add input simulation, key or mouse injection, window messaging to the game, memory reading, process injection, hooks, overlays, or network interception, even disabled or behind a flag. A public repo is a public record. See `docs/PLAN.md` §2 (the rule) and §7 (the accepted policy risk it mitigates).
+  - `tests/test_no_input.py` enforces denylists over Python, the addon's Lua, and the PowerShell/batch launchers. Do not weaken them to make a change pass. `OpenProcess` with query-only access is allowed because capture needs the executable name behind a window; memory reads, thread injection, and hooks are not.
 - Do not describe the project as a bot, automation, or a way around game restrictions. It is an advice-only second-screen companion.
 - Parse SavedVariables with a restricted parser. Never execute Lua from disk.
 
 ## Documentation
 
-- Keep current behavior, proposed work, and verified behavior separate. Nothing in `docs/PLAN.md` is implemented yet.
+- Keep current behavior, proposed work, and verified behavior separate. Nothing in `docs/PLAN.md` is implemented yet. `docs/M1_TASKS.md` is the work breakdown; `docs/PLAN_REVIEW.md` is a historical record, already folded into the plan.
 - State exactly what was tested and on what. Do not relabel old results as new checks.
