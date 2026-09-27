@@ -1,5 +1,11 @@
 # WoW: Forever Helper — plan
 
+> Historical advice-only roadmap. On 2026-09-27 the operator authorized explicit
+> human-command assistive input. [ASSISTIVE_INPUT.md](ASSISTIVE_INPUT.md) and
+> `AGENTS.md` define the current implementation and input boundary. The input-removal
+> instructions below are superseded. The other planned features remain unimplemented;
+> client/release claims below are historical reports, not freshly verified facts.
+
 Status: **implementation-ready, 2026-09-23. Nothing is implemented yet.** This plan retargets the BG3 Companion prototype (a separate, private repository referred to here as `bg3-helper`) at *World of Warcraft: Forever* (Blizzard's Classic+ game; beta opened 2026-09-17, beta reportedly closes 2026-10-21, launch announced for 2026-11-04). The 2026-09-23 review in `PLAN_REVIEW.md` has been folded in; that file is kept only as history.
 
 Facts marked **reported** came from web sources during review and have not been checked against a client. Each has a verification task in `M1_TASKS.md`.
