@@ -55,12 +55,13 @@ Everything here is world-readable: code, docs, commits, branch names, issues, PR
 
 ## Product rules that the public nature makes stricter
 
-- **No game input, automation, or game-memory code.** Do not add input simulation, key or mouse injection, window messaging to the game, memory reading, process injection, hooks, overlays, or network interception, even disabled or behind a flag. A public repo is a public record. See `docs/PLAN.md` §2 (the rule) and §7 (the accepted policy risk it mitigates).
-  - `tests/test_no_input.py` enforces denylists over Python, the addon's Lua, and the PowerShell/batch launchers. Do not weaken them to make a change pass. `OpenProcess` with query-only access is allowed because capture needs the executable name behind a window; memory reads, thread injection, and hooks are not.
-- Do not describe the project as a bot, automation, or a way around game restrictions. It is an advice-only second-screen companion.
+- **Explicit assistive input is permitted (operator decision, 2026-09-27).** A human command may trigger one configured key chord through `wow_helper/windows_input.py`. Require an explicit execution request, enabled local state, a fresh command timestamp, a durable request ID, and a foreground WoW process. Preview by default. Do not infer actions from screenshots, advice, chat, or addon content. Do not add unattended play, repeating keys, command sequences, automatic retries, input broadcasting, arbitrary script execution, mouse automation, or automatic focus changes.
+  - `tests/test_no_input.py` retains its input denylist except for `SendInput` in the single native boundary. Memory reading, process injection, hooks, overlays, network interception, and addon automation remain excluded. `OpenProcess` with query-only access is permitted for executable identification. Do not broaden the exception to make a test pass.
+  - Add behavior tests for new commands and failure paths. Report input delivery separately from verified in-game success. There is no claim that Blizzard has approved this implementation.
+- Describe the project as a user-command accessibility helper and planned second-screen companion, not a way around game restrictions.
 - Parse SavedVariables with a restricted parser. Never execute Lua from disk.
 
 ## Documentation
 
-- Keep current behavior, proposed work, and verified behavior separate. Nothing in `docs/PLAN.md` is implemented yet. `docs/M1_TASKS.md` is the work breakdown; `docs/PLAN_REVIEW.md` is a historical record, already folded into the plan.
+- Keep current behavior, proposed work, and verified behavior separate. `docs/ASSISTIVE_INPUT.md` describes the current command component. `docs/PLAN.md` and `docs/M1_TASKS.md` preserve the earlier, unimplemented advice-only roadmap; their input-removal instructions are superseded. `docs/PLAN_REVIEW.md` is historical.
 - State exactly what was tested and on what. Do not relabel old results as new checks.

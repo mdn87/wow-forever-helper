@@ -1,21 +1,32 @@
 # WoW Forever Helper
 
-**A planned, advice-only second-screen companion for *World of Warcraft: Forever* on Windows.**
+**A Windows accessibility helper for explicit player commands, with a second-screen advice companion planned.**
 
-## What it would do
+## What works now
 
-You press a button on a small window on your second monitor. The helper takes a screenshot of the game and, once the optional addon exists, reads the snapshot that addon saved of your character at your last `/reload` or logout. It then explains what is going on and suggests what to do next: which quest to pick up, what a talent does, whether you are ready for a dungeon.
+The first component maps a request such as **“cast teleport to Orgrimmar on my mage”** to one configured action-bar keybind. It supports `SHIFT+7`, `SHIFT+F4`, and other single key chords. You choose the spell and issue each command; the helper sends the mapped key once.
 
-Think of it as a friend reading a guide over your shoulder. **It never clicks, presses keys, moves your character, or reads the game's memory.** That is a hard rule, enforced by automated tests, not a setting.
+The CLI previews by default. Live delivery requires enabling input, explicitly executing a fresh request, and having WoW in the foreground. Request IDs prevent a repeated delivery from casting twice. `stop` disables further input. Delivery confirmation means the key was sent, not that the spell succeeded.
+
+## Try it
+
+Use Python 3.11 or newer from the repository root; runtime dependencies are all standard-library modules. This example assumes you first assigned the actual spell to `Shift+F4` in WoW:
+
+```console
+python -m wow_helper bind teleport-orgrimmar --key SHIFT+F4
+python -m wow_helper request "cast teleport to Orgrimmar on my mage"
+python -m wow_helper status
+```
+
+See [assistive input setup](docs/ASSISTIVE_INPUT.md) for execution, voice-adapter integration, and limitations. The helper does not set your in-game bindings or verify your character. The phrase “on my mage” identifies your intended action, not a character-selection feature.
 
 ## Status
 
-**Planning only. There is no program to download yet.** The plan is in [docs/PLAN.md](docs/PLAN.md) and the first slice of work in [docs/M1_TASKS.md](docs/M1_TASKS.md).
+The command parser, local binding store, replay protection, Windows keyboard boundary, and CLI are implemented. Automated tests use fake input delivery; the Windows native structure layout and API initialization are checked on Windows. Actual in-game casting and end-to-end speech delivery have **not** been verified. There is no microphone listener or voice-system connection installed by this repository yet.
 
-Two honest caveats:
+The screenshot/advice panel, addon, and character journal remain planned. The earlier [plan](docs/PLAN.md) and [M1 breakdown](docs/M1_TASKS.md) are retained as historical context; their blanket input-removal requirement was superseded by the operator's assistive-input request.
 
-- Blizzard's rules on third-party programs are broad. We believe a passive screenshot-and-advice tool is in the spirit of "reading a guide", but there is no official ruling, and using any third-party tool with an online game is at your own risk. See the plan's risk section.
-- The AI behind the advice is an existing Codex conversation on your PC. Advice about brand-new Forever content will be worse than advice about classic-era content.
+Run tests with `python -m pytest -q -p no:cacheprovider`. CI runs on Windows and Linux; neither job sends live keys.
 
 ## For contributors
 

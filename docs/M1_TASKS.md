@@ -1,5 +1,10 @@
 # M1 task breakdown
 
+> Historical work breakdown, not an active instruction to strip assistive input.
+> The operator changed the input requirement on 2026-09-27. Follow
+> [ASSISTIVE_INPUT.md](ASSISTIVE_INPUT.md) and `AGENTS.md` for the current component.
+> Reconcile these porting tasks with that boundary before starting the broader panel.
+
 Work breakdown for milestone M1 in `PLAN.md` §6, written so a multi-model orchestrator can dispatch each task independently. Every task states the files it owns (no other task edits them concurrently), what it depends on, the evidence that closes it, and a routing tag.
 
 Routing tags:

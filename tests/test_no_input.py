@@ -1,6 +1,7 @@
-"""Enforce the advice-only rule: no input simulation, game-memory access, or addon automation.
+"""Enforce the assistive-input boundary and the remaining game-access restrictions.
 
-See AGENTS.md. Do not weaken these denylists to make a change pass; change the code instead.
+The operator authorized explicit command-to-keybind input on 2026-09-27.
+Only SendInput in windows_input.py is excepted; memory, hooks, and addon rules remain.
 
 Scans Python, Lua, and PowerShell/batch sources under the repo root. It skips tests/ (this file
 names the patterns), docs/, build output, and every dot-folder, which covers .git, .venv, and
@@ -57,12 +58,16 @@ def violations(pattern, *suffixes):
     found = []
     for path in sources(*suffixes):
         for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-            if pattern.search(line):
+            matches = list(pattern.finditer(line))
+            if (pattern is PYTHON_DENY
+                    and path.relative_to(ROOT).as_posix() == "wow_helper/windows_input.py"):
+                matches = [match for match in matches if match.group(0) != "SendInput"]
+            if matches:
                 found.append(f"{path.relative_to(ROOT).as_posix()}:{number}: {line.strip()}")
     return found
 
 
-def test_python_has_no_input_or_memory_access():
+def test_python_input_is_confined_and_has_no_memory_access():
     assert violations(PYTHON_DENY, ".py") == []
 
 
