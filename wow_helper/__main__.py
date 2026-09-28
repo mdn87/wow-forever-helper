@@ -16,7 +16,9 @@ def main(argv=None):
     bind.add_argument("--key", required=True)
     commands.add_parser("enable", help="Enable explicit assistive requests")
     commands.add_parser("stop", help="Disable subsequent input; cannot undo a key already sent")
-    commands.add_parser("status", help="Show enabled state and local key mappings")
+    stub = commands.add_parser("stub", help="Record key presses instead of sending them (testing without a character)")
+    stub.add_argument("state", choices=["on", "off"])
+    commands.add_parser("status", help="Show enabled state, stub mode and local key mappings")
     request = commands.add_parser("request", help="Preview a transcribed command; add --execute to send once")
     request.add_argument("text")
     request.add_argument("--execute", action="store_true")
@@ -24,16 +26,22 @@ def main(argv=None):
     request.add_argument("--issued-at", type=float, help="Unix timestamp of the original human command (15 second expiry)")
     args = parser.parse_args(argv)
     try:
-        desktop = None
-        if args.command == "request" and args.execute:
-            from .windows_input import WindowsInput
-            desktop = WindowsInput()
         # Anchor to the checkout, not caller CWD: retries share one deduplication store.
-        assistant = Assistant(Path(__file__).resolve().parents[1] / ".runtime" / "assist.sqlite", desktop)
+        store = Path(__file__).resolve().parents[1] / ".runtime" / "assist.sqlite"
+        assistant = Assistant(store, None)
+        if args.command == "request" and args.execute:
+            if assistant.stubbed():
+                from .stub_input import StubInput
+                assistant.desktop = StubInput(assistant.path.parent / "stub-presses.jsonl")
+            else:
+                from .windows_input import WindowsInput
+                assistant.desktop = WindowsInput()
         if args.command == "bind":
             result = assistant.bind(args.action, args.key)
         elif args.command in {"enable", "stop"}:
             result = assistant.enable(args.command == "enable")
+        elif args.command == "stub":
+            result = assistant.set_stub(args.state == "on")
         elif args.command == "status":
             result = assistant.status()
         else:

@@ -26,6 +26,15 @@ configured key chord. This is a command interface, not an autonomous gameplay lo
    python -m wow_helper enable
    ```
 
+### Stub mode (testing without a character)
+
+`python -m wow_helper stub on` keeps every check (binding, enabled state, fresh
+timestamp, one-time request ID) but replaces the Windows keyboard with a log: each
+accepted request appends `{"at": ..., "key": ...}` to the ignored
+`.runtime/stub-presses.jsonl` and reports `stubbed` instead of `sent`. No key is sent and
+the foreground check is skipped, so it works with no game open. Any placeholder binding
+works; rebind to the real slot before `stub off`.
+
 Input starts disabled on a new installation. Enabled state persists locally.
 `python -m wow_helper stop` disables subsequent dispatch, including across restarts.
 There are no scheduled actions, held-key loops, or repeat timers. STOP cannot undo
@@ -85,6 +94,7 @@ checks. No game edition or release-date assumption is needed for the key mapping
 
 - `preview`: the request resolved, but no input was attempted.
 - `sent`: Windows accepted one down/up packet for the chord. Spell success is unverified.
+- `stubbed`: stub mode logged the chord; nothing was sent.
 - `refused`: an explicit check failed. Read the message; input may already have been
   partially accepted if it reports an incomplete delivery.
 - `error`: local storage or the OS boundary failed. The CLI never retries automatically.

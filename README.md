@@ -18,6 +18,8 @@ python -m wow_helper request "cast teleport to Orgrimmar on my mage"
 python -m wow_helper status
 ```
 
+No character yet? `python -m wow_helper stub on` runs every check and logs the key press instead of sending it.
+
 See [assistive input setup](docs/ASSISTIVE_INPUT.md) for execution, voice-adapter integration, and limitations. The helper does not set your in-game bindings or verify your character. The phrase “on my mage” identifies your intended action, not a character-selection feature.
 
 ## Status

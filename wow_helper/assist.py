@@ -64,6 +64,7 @@ class Assistant:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS controls (name TEXT PRIMARY KEY, value TEXT NOT NULL);
                 INSERT OR IGNORE INTO controls VALUES ('enabled', '0');
+                INSERT OR IGNORE INTO controls VALUES ('stub', '0');
                 CREATE TABLE IF NOT EXISTS bindings (action TEXT PRIMARY KEY, chord TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS requests (
                     id TEXT PRIMARY KEY, action TEXT NOT NULL, outcome TEXT NOT NULL);
@@ -77,6 +78,16 @@ class Assistant:
             db.execute("UPDATE controls SET value=? WHERE name='enabled'", (str(int(enabled)),))
         return {"status": "enabled" if enabled else "stopped"}
 
+    def set_stub(self, stubbed: bool):
+        # Stub mode runs every check but records the chord instead of pressing it.
+        with closing(self.connect()) as db, db:
+            db.execute("UPDATE controls SET value=? WHERE name='stub'", (str(int(stubbed)),))
+        return {"status": "stub on" if stubbed else "stub off"}
+
+    def stubbed(self) -> bool:
+        with closing(self.connect()) as db:
+            return db.execute("SELECT value FROM controls WHERE name='stub'").fetchone()[0] == "1"
+
     def bind(self, action: str, key: str):
         if action != ACTION:
             raise AssistError("Only teleport-orgrimmar is supported in this first version.")
@@ -89,7 +100,7 @@ class Assistant:
         with closing(self.connect()) as db:
             enabled = db.execute("SELECT value FROM controls WHERE name='enabled'").fetchone()[0] == "1"
             bindings = dict(db.execute("SELECT action, chord FROM bindings"))
-        return {"enabled": enabled, "bindings": bindings}
+        return {"enabled": enabled, "stub": self.stubbed(), "bindings": bindings}
 
     def request(self, text: str, *, execute=False, request_id=None, issued_at=None):
         action = resolve(text)
@@ -127,4 +138,6 @@ class Assistant:
             # The earlier reservation survives rollback, including unknown delivery results.
             self.desktop.press(chord)
             db.execute("UPDATE requests SET outcome='sent' WHERE id=?", (request_id,))
+        if getattr(self.desktop, "stub", False):
+            return {**result, "status": "stubbed", "message": "Stub mode: the key press was recorded, not sent."}
         return {**result, "status": "sent", "message": "Key sent once; spell success is not verified."}
