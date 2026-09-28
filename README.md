@@ -20,7 +20,7 @@ python -m wow_helper status
 
 No character yet? `python -m wow_helper stub on` runs every check and logs the key press instead of sending it.
 
-A read-only **quest companion** lists the quests in your log and suggests an order: turn-ins first, then quests in your current zone, then quests you are close to finishing. A small addon copies the quest log into SavedVariables on `/reload`; `python -m wow_helper install-addon` installs it and `python -m wow_helper quests --text` reads it. See [quest companion](docs/QUESTS.md). It is advice only and never sends input.
+A read-only **quest companion** lists the quests in your log and suggests an order: turn-ins first, then quests in your current zone, then quests you are close to finishing. A small addon copies the quest log into SavedVariables on `/reload`; `python -m wow_helper install-addon` installs it and `python -m wow_helper quests --text` reads it. `python -m wow_helper character --text` reports gold, rested XP, gear durability, and bag space from the same snapshot. See [quest companion](docs/QUESTS.md). It is advice only and never sends input.
 
 See [assistive input setup](docs/ASSISTIVE_INPUT.md) for execution, voice-adapter integration, and limitations. The helper does not set your in-game bindings or verify your character. The phrase “on my mage” identifies your intended action, not a character-selection feature.
 

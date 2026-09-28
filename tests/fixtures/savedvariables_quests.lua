@@ -103,4 +103,40 @@ WoWCompanionDB = {
 	},
 	["collapsedHeaders"] = {
 	},
+	["character"] = {
+		["money"] = 123456,
+		["rested"] = 4400,
+		["gear"] = {
+			{
+				["slot"] = 1,
+				["id"] = 900101,
+				["ilvl"] = 14,
+				["durability"] = 30,
+				["durabilityMax"] = 40,
+			}, -- [1]
+			{
+				["slot"] = 4,
+				["id"] = 900102,
+				["ilvl"] = 1,
+			}, -- [2]
+			{
+				["slot"] = 7,
+				["id"] = 900103,
+				["ilvl"] = 12,
+				["durability"] = 9,
+				["durabilityMax"] = 45,
+			}, -- [3]
+			{
+				["slot"] = 16,
+				["id"] = 900104,
+				["ilvl"] = 16,
+				["durability"] = 60,
+				["durabilityMax"] = 60,
+			}, -- [4]
+		},
+		["bags"] = {
+			["free"] = 2,
+			["total"] = 40,
+		},
+	},
 }

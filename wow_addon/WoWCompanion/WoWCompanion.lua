@@ -1,4 +1,4 @@
--- WoW Companion: copies the quest log into SavedVariables for wow_helper to read.
+-- WoW Companion: copies the quest log and character status into SavedVariables for wow_helper to read.
 -- Read-only. It never casts, targets, moves, chats, accepts, abandons, or changes a setting,
 -- and it prints nothing. The game writes WoWCompanionDB to disk on /reload and on logout.
 
@@ -45,6 +45,42 @@ local function entry(index, modern)
   return title, level, group, isHeader, isCollapsed, state == 1, state == -1, questID
 end
 
+local function itemLevel(link)
+  local detailed = (C_Item and C_Item.GetDetailedItemLevelInfo) or GetDetailedItemLevelInfo
+  return link and detailed and detailed(link) or nil
+end
+
+local function gear()
+  -- Equipped items by slot number (1 head ... 19 tabard): IDs and numbers only, no names.
+  local list = {}
+  for slot = 1, 19 do
+    local id = GetInventoryItemID("player", slot)
+    if id then
+      local current, maximum = GetInventoryItemDurability(slot)
+      list[#list + 1] = { slot = slot, id = id, ilvl = itemLevel(GetInventoryItemLink("player", slot)),
+                          durability = current, durabilityMax = maximum }
+    end
+  end
+  return list
+end
+
+local function bags()
+  local numSlots = C_Container and C_Container.GetContainerNumSlots or GetContainerNumSlots
+  local numFree = C_Container and C_Container.GetContainerNumFreeSlots or GetContainerNumFreeSlots
+  if not (numSlots and numFree) then return nil end
+  local free, total = 0, 0
+  for bag = 0, 4 do -- the backpack and the four bag slots
+    total = total + (numSlots(bag) or 0)
+    free = free + (numFree(bag) or 0)
+  end
+  return { free = free, total = total }
+end
+
+local function character()
+  return { money = GetMoney(), rested = GetXPExhaustion and GetXPExhaustion() or nil,
+           gear = gear(), bags = bags() }
+end
+
 local function snapshot()
   local modern = C_QuestLog and C_QuestLog.GetInfo and true or false
   local count = modern and C_QuestLog.GetNumQuestLogEntries() or GetNumQuestLogEntries()
@@ -67,16 +103,18 @@ local function snapshot()
     schema = SCHEMA, savedAt = GetServerTime(), api = modern and "modern" or "classic",
     player = { level = UnitLevel("player"), class = class, xp = UnitXP("player"),
                xpMax = UnitXPMax("player"), zone = GetRealZoneText(), subzone = GetSubZoneText() },
-    quests = quests, collapsedHeaders = collapsed,
+    quests = quests, collapsedHeaders = collapsed, character = character(),
   }
 end
 
 local pending = false
 local frame = CreateFrame("Frame")
-frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-frame:RegisterEvent("QUEST_LOG_UPDATE")
-frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-frame:RegisterEvent("PLAYER_LOGOUT")
+for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "QUEST_LOG_UPDATE", "ZONE_CHANGED_NEW_AREA", "PLAYER_LOGOUT",
+                         "PLAYER_MONEY", "PLAYER_EQUIPMENT_CHANGED", "UPDATE_INVENTORY_DURABILITY",
+                         "BAG_UPDATE_DELAYED" }) do
+  -- Registering an event a client does not know raises an error; skip it instead.
+  pcall(frame.RegisterEvent, frame, event)
+end
 frame:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGOUT" then
     -- The quest API can come back empty during teardown; keep the last good copy then.

@@ -43,8 +43,23 @@ Each step lists the remaining objectives and a Wowhead link. The link uses Wowhe
 
 Warnings cover a snapshot older than 15 minutes, collapsed quest-log headers (the classic API hides the quests under them), and an addon data version that does not match the helper.
 
+## Character status
+
+The same snapshot also holds character status: gold, rested XP, equipped items (slot, item ID, item level, and durability; no item names), and free bag slots. The addon refreshes it on money, equipment, durability, and bag changes as well as the quest-log events. Events a client does not know are skipped.
+
+```console
+python -m wow_helper character --text   # "Character status from just now: 12g 34s 56c gold, ..."
+python -m wow_helper character          # JSON, with a Wowhead link per item
+```
+
+It warns when the most worn item is at 25% durability or less, and when two or fewer bag slots are free. The average item level leaves out the shirt and tabard. A snapshot from an addon version without character status is refused with a request to update the addon and `/reload`.
+
+### Commands through the addon: not built
+
+An addon cannot take commands from the helper. The game gives addons no way to read files or sockets while it runs, and spells can only be cast from a key or click the player makes. The legitimate pattern is an addon that owns secure action buttons with key bindings, pressed by the helper's one explicit key chord. That pattern needs `SecureActionButtonTemplate` and `SetBinding`, which `tests/test_no_input.py` bans under the operator decision of 2026-09-27 ("addon automation remain[s] excluded"). Building it is the operator's call and would change that rule first.
+
 ## What has been verified
 
 - Parser, advice order, CLI, discovery, and addon install are covered by automated tests. The tests use the synthetic fixture `tests/fixtures/savedvariables_quests.lua` and fake install folders.
 - The addon's Lua was syntax-checked with `luaparser`.
-- **Not verified:** the addon has not been loaded in any game client. That leaves the API field names, the `.toc` interface numbers, the objective text format, and the distance values unconfirmed. The first real `/reload` is the test.
+- **Not verified:** the addon has not been loaded in any game client. That leaves the API field names (quest and character status), the `.toc` interface numbers, the objective text format, and the distance values unconfirmed. The first real `/reload` is the test.
