@@ -42,8 +42,10 @@ def parse_key(value: str) -> Chord:
 def resolve(text: str) -> str:
     if not isinstance(text, str) or len(text) > 200:
         raise AssistError("Use one short, explicit spell request.")
-    normalized = " ".join(text.lower().strip().rstrip(".!?").split())
-    if re.fullmatch(r"(?:please )?(?:cast )?teleport(?: to|:)? orgrimmar(?: on my mage)?(?: please)?", normalized):
+    # Speech transcripts add commas and split or misspell the city name ("Org Grimmar").
+    normalized = " ".join(text.lower().replace(",", " ").strip(" .!?").split())
+    if re.fullmatch(r"(?:please )?(?:cast )?teleport(?: to|:)? org ?g?rimm?[ae]r(?: on my mage)?(?: please)?",
+                    normalized):
         return ACTION
     raise AssistError("Command not recognized. Say: cast teleport to Orgrimmar on my mage.")
 

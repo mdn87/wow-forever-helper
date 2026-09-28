@@ -29,7 +29,10 @@ def run(assistant, request_id="synthetic-command", issued_at=99):
 
 
 @pytest.mark.parametrize("phrase", ["cast teleport to Orgrimmar on my mage",
-    "Please cast teleport: Orgrimmar.", "teleport Orgrimmar", "  CAST  TELEPORT TO ORGRIMMAR! "])
+    "Please cast teleport: Orgrimmar.", "teleport Orgrimmar", "  CAST  TELEPORT TO ORGRIMMAR! ",
+    # Speech-transcript spellings of the same request.
+    "Cast teleport to Orgrimar.", "cast teleport to Org Grimmar, please", "Teleport to Orgrimmer.",
+    ", cast teleport to Orgrimmar on my mage."])
 def test_explicit_spell_requests(phrase):
     assert resolve(phrase) == ACTION
 

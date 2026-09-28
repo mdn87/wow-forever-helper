@@ -38,8 +38,10 @@ No default spell key is assumed. Setup does not modify any game file.
 ## Voice or conversation integration
 
 The CLI accepts the transcription from an existing voice-to-assistant system. It
-does not record audio or call an AI API. That adapter has not yet been wired to
-this repository; this is its invocation contract:
+does not record audio or call an AI API. The operator's own voice listener (a separate,
+private project) calls it for any spoken command that mentions teleporting, before the
+command can reach an assistant window. If this parser does not recognize the words, the
+listener sends them on as an ordinary request. This is the invocation contract:
 
 ```text
 python -m wow_helper request <original-command-text> --execute --request-id <event-id> --issued-at <unix-seconds>
@@ -69,11 +71,12 @@ result = helper.request(event.text, execute=True,
 Only direct player instructions may invoke execution. Explanations, suggested
 actions, quoted examples, screenshots, addon data, and in-game chat are not
 execution requests. Questions, negation, unknown spells, and compound requests
-are rejected by the narrow parser; no language model chooses a spell for it.
+are rejected by the narrow parser, which tolerates only commas and a few transcript
+spellings of Orgrimmar ("Orgrimar", "Org Grimmar", "Orgrimmer"); no language model chooses a spell for it.
 
 Keep WoW foreground when the voice adapter dispatches. If the voice system raises
-its chat window over the game, delivery is refused; focus coordination remains an
-integration task. The helper does not steal focus or send background window messages.
+its chat window over the game, delivery is refused. The operator's listener checks
+game commands before it moves any window, so WoW stays in front. The helper does not steal focus or send background window messages.
 The supported process basenames are `wow.exe`, `wowb.exe`, and `wowclassic.exe`.
 Executable names identify the foreground app; they are not cryptographic identity
 checks. No game edition or release-date assumption is needed for the key mapping.
@@ -121,7 +124,7 @@ than adding elevation or bypasses.
 Runtime state lives in ignored `.runtime/assist.sqlite`. It contains bindings,
 enabled state, request IDs, action IDs, and delivery outcomes; it contains no raw
 speech transcripts, game screenshots, or character/account names. The screenshot
-panel, addon, voice listener, and in-game acceptance test remain separate work.
+panel, addon, and in-game acceptance test remain separate work.
 
 Windows behavior follows Microsoft's [keyboard input API documentation](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput)
 and [INPUT structure layout](https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-input).
