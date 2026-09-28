@@ -1,0 +1,7 @@
+## Interface: 16001, 120001
+## Title: WoW Companion
+## Notes: Copies your quest log into SavedVariables for the WoW Forever Helper. Read-only.
+## Version: 0.1.0
+## SavedVariables: WoWCompanionDB
+
+WoWCompanion.lua

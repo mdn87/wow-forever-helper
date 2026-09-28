@@ -20,13 +20,15 @@ python -m wow_helper status
 
 No character yet? `python -m wow_helper stub on` runs every check and logs the key press instead of sending it.
 
+A read-only **quest companion** lists the quests in your log and suggests an order: turn-ins first, then quests in your current zone, then quests you are close to finishing. A small addon copies the quest log into SavedVariables on `/reload`; `python -m wow_helper install-addon` installs it and `python -m wow_helper quests --text` reads it. See [quest companion](docs/QUESTS.md). It is advice only and never sends input.
+
 See [assistive input setup](docs/ASSISTIVE_INPUT.md) for execution, voice-adapter integration, and limitations. The helper does not set your in-game bindings or verify your character. The phrase “on my mage” identifies your intended action, not a character-selection feature.
 
 ## Status
 
 The command parser, local binding store, replay protection, Windows keyboard boundary, and CLI are implemented. Automated tests use fake input delivery; the Windows native structure layout and API initialization are checked on Windows. Actual in-game casting and end-to-end speech delivery have **not** been verified. This repository installs no microphone listener; the operator's separate voice listener calls the CLI contract in [assistive input setup](docs/ASSISTIVE_INPUT.md).
 
-The screenshot/advice panel, addon, and character journal remain planned. The earlier [plan](docs/PLAN.md) and [M1 breakdown](docs/M1_TASKS.md) are retained as historical context; their blanket input-removal requirement was superseded by the operator's assistive-input request.
+The quest companion's parser, advice order, and CLI are tested against synthetic data; the addon has not yet been loaded in a game client. The screenshot/advice panel and character journal remain planned. The earlier [plan](docs/PLAN.md) and [M1 breakdown](docs/M1_TASKS.md) are retained as historical context; their blanket input-removal requirement was superseded by the operator's assistive-input request.
 
 Run tests with `python -m pytest -q -p no:cacheprovider`. CI runs on Windows and Linux; neither job sends live keys.
 
