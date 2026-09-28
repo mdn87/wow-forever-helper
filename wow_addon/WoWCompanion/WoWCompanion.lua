@@ -1,4 +1,5 @@
--- WoW Companion: copies the quest log and character status into SavedVariables for wow_helper to read.
+-- WoW Companion: copies the quest log, completed and available quests, and character status into
+-- SavedVariables for wow_helper to read.
 -- Read-only. It never casts, targets, moves, chats, accepts, abandons, or changes a setting,
 -- and it prints nothing. The game writes WoWCompanionDB to disk on /reload and on logout.
 
@@ -76,6 +77,47 @@ local function bags()
   return { free = free, total = total }
 end
 
+local function completedQuests()
+  -- Quest IDs this character has turned in. Forever and retail have the modern call;
+  -- older classic clients return a table keyed by quest ID instead.
+  if C_QuestLog and C_QuestLog.GetAllCompletedQuestIDs then
+    return C_QuestLog.GetAllCompletedQuestIDs()
+  end
+  if GetQuestsCompleted then
+    local ids = {}
+    for id in pairs(GetQuestsCompleted() or {}) do ids[#ids + 1] = id end
+    table.sort(ids)
+    return ids
+  end
+  return nil
+end
+
+local requestedMap = nil
+
+local function available()
+  -- Quests the game says can be picked up on the current map, with map coordinates (0 to 1).
+  -- Listed for Forever and retail; what Forever fills in is untested. The first read of a map
+  -- asks the game to load its quest lines; QUESTLINE_UPDATE then triggers a fresh copy.
+  if not (C_QuestLine and C_QuestLine.GetAvailableQuestLines and C_Map and C_Map.GetBestMapForUnit) then
+    return nil, nil
+  end
+  local mapID = C_Map.GetBestMapForUnit("player")
+  if not mapID then return nil, nil end
+  if mapID ~= requestedMap and C_QuestLine.RequestQuestLinesForMap then
+    requestedMap = mapID
+    C_QuestLine.RequestQuestLinesForMap(mapID)
+  end
+  local list = {}
+  for _, line in ipairs(C_QuestLine.GetAvailableQuestLines(mapID) or {}) do
+    if line.questID and not line.isHidden then
+      list[#list + 1] = { id = line.questID, title = line.questName, line = line.questLineName,
+                          x = line.x, y = line.y, daily = line.isDailyQuest and true or false,
+                          campaign = line.isCampaign and true or false }
+    end
+  end
+  return list, mapID
+end
+
 local function character()
   return { money = GetMoney(), rested = GetXPExhaustion and GetXPExhaustion() or nil,
            gear = gear(), bags = bags() }
@@ -99,11 +141,13 @@ local function snapshot()
     end
   end
   local _, class = UnitClass("player")
+  local nearby, mapID = available()
   return {
     schema = SCHEMA, savedAt = GetServerTime(), api = modern and "modern" or "classic",
     player = { level = UnitLevel("player"), class = class, xp = UnitXP("player"),
                xpMax = UnitXPMax("player"), zone = GetRealZoneText(), subzone = GetSubZoneText() },
     quests = quests, collapsedHeaders = collapsed, character = character(),
+    completedQuests = completedQuests(), available = nearby, mapID = mapID,
   }
 end
 
@@ -111,7 +155,7 @@ local pending = false
 local frame = CreateFrame("Frame")
 for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "QUEST_LOG_UPDATE", "ZONE_CHANGED_NEW_AREA", "PLAYER_LOGOUT",
                          "PLAYER_MONEY", "PLAYER_EQUIPMENT_CHANGED", "UPDATE_INVENTORY_DURABILITY",
-                         "BAG_UPDATE_DELAYED" }) do
+                         "BAG_UPDATE_DELAYED", "QUEST_TURNED_IN", "QUESTLINE_UPDATE" }) do
   -- Registering an event a client does not know raises an error; skip it instead.
   pcall(frame.RegisterEvent, frame, event)
 end

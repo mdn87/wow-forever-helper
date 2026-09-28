@@ -55,6 +55,16 @@ class Quest:
 
 
 @dataclass
+class Available:
+    id: int
+    title: str
+    line: str | None
+    x: float | None
+    y: float | None
+    daily: bool
+
+
+@dataclass
 class Snapshot:
     level: int | None
     player_class: str | None
@@ -64,6 +74,8 @@ class Snapshot:
     quests: list[Quest]
     collapsed: list[str]
     schema: int | None
+    completed: set[int] | None = None       # None: the client or addon version does not report it
+    available: list[Available] | None = None
 
 
 def _int(value):
@@ -84,6 +96,13 @@ def _str(value):
     return _MARKUP.sub("", value).strip() or None
 
 
+def _coord(value):
+    """A map coordinate from 0 to 1 as a percentage, the way map addons show it."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1:
+        return None
+    return round(value * 100, 1)
+
+
 def load(parsed):
     """Build a Snapshot from parse() output; raises SavedVariablesError when it has none."""
     db = parsed.get(VARIABLE) if isinstance(parsed, dict) else None
@@ -101,10 +120,18 @@ def load(parsed):
                             raw.get("complete") is True, raw.get("failed") is True,
                             _int(raw.get("group")) or 0, _int(raw.get("distance")), objectives))
     saved_at = db.get("savedAt")
+    completed = db.get("completedQuests")
+    completed = {i for i in map(_int, as_list(completed)) if i} if completed is not None else None
+    available = None
+    if db.get("available") is not None:
+        available = [Available(_int(a.get("id")), _str(a.get("title")), _str(a.get("line")),
+                               _coord(a.get("x")), _coord(a.get("y")), a.get("daily") is True)
+                     for a in as_list(db.get("available"))
+                     if isinstance(a, dict) and _int(a.get("id")) and _str(a.get("title"))]
     return Snapshot(_int(player.get("level")), _str(player.get("class")), _str(player.get("zone")),
                     _str(player.get("subzone")), saved_at if isinstance(saved_at, (int, float)) else None,
                     quests, [h for h in as_list(db.get("collapsedHeaders")) if isinstance(h, str)],
-                    _int(db.get("schema")))
+                    _int(db.get("schema")), completed, available)
 
 
 def gray_level(level):
@@ -195,10 +222,20 @@ def report(snapshot, mtime, *, flavor=None, now=None):
                         + ", ".join(snapshot.collapsed) + ".")
     if snapshot.schema != SCHEMA:
         warnings.append("The addon's data version differs from this helper's; update the addon.")
+    in_log = {q.id for q in snapshot.quests if q.id}
+    done = snapshot.completed or set()
+    base = LINKS.get(flavor, LINKS["classic"])
+    nearby = None
+    if snapshot.available is not None:
+        nearby = [{"id": a.id, "title": a.title, "quest_line": a.line, "x": a.x, "y": a.y, "daily": a.daily,
+                   "link": f"{base}{a.id}"}
+                  for a in snapshot.available if a.id not in in_log and a.id not in done]
     return {"status": "ok", "age_seconds": age,
             "player": {"level": snapshot.level, "class": snapshot.player_class,
                        "zone": snapshot.zone, "subzone": snapshot.subzone},
-            "quest_count": len(snapshot.quests), "plan": plan(snapshot, flavor), "warnings": warnings}
+            "quest_count": len(snapshot.quests), "plan": plan(snapshot, flavor),
+            "completed_count": len(snapshot.completed) if snapshot.completed is not None else None,
+            "available": nearby, "warnings": warnings}
 
 
 def _age(seconds):
@@ -223,5 +260,15 @@ def as_text(result):
         detail += step["remaining"][:3] + step["notes"]
         suffix = f" ({'; '.join(detail)})" if detail else ""
         lines.append(f"{step['step']}. {verbs[step['action']]}: {step['title']}{suffix}")
+    nearby = result.get("available")
+    if nearby:
+        shown = [f"{a['title']}" + (f" (at {a['x']:g}, {a['y']:g})" if a["x"] is not None and a["y"] is not None
+                                    else "") for a in nearby[:5]]
+        more = f", and {len(nearby) - 5} more" if len(nearby) > 5 else ""
+        lines.append(f"To pick up here: {'; '.join(shown)}{more}.")
+    elif nearby is not None:
+        lines.append("The game lists no quests to pick up on this map; Questie or Wowhead may know more.")
+    if result.get("completed_count") is not None:
+        lines.append(f"{result['completed_count']} quests completed on this character.")
     lines += result["warnings"]
     return "\n".join(lines)

@@ -6,7 +6,7 @@
 
 The game does not let other programs read the quest log, so a small addon copies it out:
 
-1. `wow_addon/WoWCompanion/` is a read-only addon. On login, zone changes, and quest-log updates it copies the quest log into its SavedVariables table, `WoWCompanionDB`. It records each quest's ID, title, level, suggested group size, quest-log header (usually the zone), complete and failed flags, and objectives with their counts. It also records the player's level, class, XP, and zone. On modern clients it adds the distance in yards to each quest's objective area. It stores no character or realm name, prints nothing, and calls no action, chat, targeting, or settings API. `tests/test_no_input.py` scans it for those calls.
+1. `wow_addon/WoWCompanion/` is a read-only addon. On login, zone changes, and quest-log updates it copies the quest log into its SavedVariables table, `WoWCompanionDB`. It also saves the completed quest IDs and the quests available on the current map (see below). It records each quest's ID, title, level, suggested group size, quest-log header (usually the zone), complete and failed flags, and objectives with their counts. It also records the player's level, class, XP, and zone. On modern clients it adds the distance in yards to each quest's objective area. It stores no character or realm name, prints nothing, and calls no action, chat, targeting, or settings API. `tests/test_no_input.py` scans it for those calls.
 2. The game writes that table to `WTF/Account/<ID>/SavedVariables/WoWCompanion.lua` only on `/reload` or logout. The data is therefore a snapshot, and every answer says how old it is.
 3. `wow_helper/savedvars.py` reads the file with the restricted grammar from [PLAN.md](PLAN.md) section 5.1. Nothing from disk is executed. The file must stay unchanged for one second before it is trusted, because the game may still be writing it.
 
@@ -43,6 +43,32 @@ Each step lists the remaining objectives and a Wowhead link. The link uses Wowhe
 
 Warnings cover a snapshot older than 15 minutes, collapsed quest-log headers (the classic API hides the quests under them), and an addon data version that does not match the helper.
 
+## Quests to pick up, and quests already done
+
+`quests` also lists quests you can pick up on your current map, and counts the quests this character has completed. Both come only from the game's own API:
+
+- **Completed quests:** `C_QuestLog.GetAllCompletedQuestIDs` on Forever and retail. Older classic clients use `GetQuestsCompleted`. The addon saves the quest IDs, and the helper uses them to leave finished quests out of the pick-up list.
+- **Quests to pick up:** `C_QuestLine.GetAvailableQuestLines` for the map the player is on, found with `C_Map.GetBestMapForUnit`. The addon saves each quest's ID, title, quest-line name, map coordinates, and daily flag. The helper leaves out quests already in the log or completed, and shows coordinates as percentages, the same way map addons do. The first read of a map asks the game to load its quest lines, and `QUESTLINE_UPDATE` then triggers a fresh copy.
+
+```console
+python -m wow_helper quests --text
+# ...
+# To pick up here: Synthetic Welcome (at 45.1, 62); Test Board Notice.
+# 3 quests completed on this character.
+```
+
+An empty list is reported as "the game lists no quests to pick up on this map". It doesn't prove there are none, because the game may only list quests that belong to a quest line. A client or addon version without these calls just leaves the lines out.
+
+### Why there is no quest database
+
+Quest helpers such as Questie, Guidelime, and RestedXP answer "what can I pick up" from their own databases of quest givers, prerequisites, and level ranges. Blizzard has no API that returns every available quest. We checked on 2026-09-28 and found no database we could reuse cleanly:
+
+- Questie's data comes from server-emulator databases, Wowhead scraping, and extracted game files. That clashes with this repo's rule against Blizzard and Wowhead content.
+- Its license is unclear: CurseForge says GPLv3, the GitHub repo has no license file, and QuestieDB has no license.
+- Its Forever data is converted Classic data, so the new Forever quests are probably missing.
+
+So the helper uses only what the game reports. For the full picture of what to pick up, use Questie or Wowhead in game alongside it. Reading a local Questie install would be a separate operator decision.
+
 ## Character status
 
 The same snapshot also holds character status: gold, rested XP, equipped items (slot, item ID, item level, and durability; no item names), and free bag slots. The addon refreshes it on money, equipment, durability, and bag changes as well as the quest-log events. Events a client does not know are skipped.
@@ -62,4 +88,4 @@ An addon cannot take commands from the helper. The game gives addons no way to r
 
 - Parser, advice order, CLI, discovery, and addon install are covered by automated tests. The tests use the synthetic fixture `tests/fixtures/savedvariables_quests.lua` and fake install folders.
 - The addon's Lua was syntax-checked with `luaparser`.
-- **Not verified:** the addon has not been loaded in any game client. That leaves the API field names (quest and character status), the `.toc` interface numbers, the objective text format, and the distance values unconfirmed. The first real `/reload` is the test.
+- **Not verified:** the addon has not been loaded in any game client. That leaves the API field names (quest, quest-line, and character status), whether Forever fills `GetAvailableQuestLines` for its quests, the `.toc` interface numbers, the objective text format, and the distance values unconfirmed. The first real `/reload` is the test.

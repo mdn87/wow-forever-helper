@@ -70,6 +70,29 @@ def test_text_output_reads_as_a_short_list():
     assert lines[3].startswith("3. Finish: Gather Synthetic Pelts (Testvale; Synthetic Pelt: 3/8")
 
 
+def test_available_quests_skip_ones_in_the_log_or_already_done():
+    result = quests.report(snapshot(), mtime=1000, now=1030)
+    assert result["completed_count"] == 3
+    assert [(a["id"], a["x"], a["y"], a["daily"]) for a in result["available"]] == [
+        (900020, 45.1, 62.0, False), (900021, None, None, True)]
+    assert result["available"][0]["quest_line"] == "Example Storyline"
+    assert result["available"][0]["link"] == "https://www.wowhead.com/classic/quest=900020"
+    lines = quests.as_text(result).splitlines()
+    assert lines[-2:] == ["To pick up here: Synthetic Welcome (at 45.1, 62); Test Board Notice.",
+                          "3 quests completed on this character."]
+
+
+def test_available_quests_are_optional_and_an_empty_list_is_explained():
+    old = quests.report(quests.load(parse('WoWCompanionDB = { ["schema"] = 1, ["quests"] = {} }')), mtime=1000, now=1000)
+    assert old["available"] is None and old["completed_count"] is None
+    assert quests.as_text(old).splitlines()[1:] == []
+    empty = quests.load(parse('WoWCompanionDB = { ["quests"] = {}, ["available"] = {}, '
+                              '["completedQuests"] = { 900010, "x", 0 } }'))
+    result = quests.report(empty, mtime=1000, now=1000)
+    assert result["available"] == [] and result["completed_count"] == 1
+    assert "no quests to pick up" in quests.as_text(result)
+
+
 def test_a_file_without_the_addon_table_is_refused():
     with pytest.raises(SavedVariablesError, match="/reload"):
         quests.load(parse("OtherAddonDB = {}"))

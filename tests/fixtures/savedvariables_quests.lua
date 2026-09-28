@@ -103,6 +103,40 @@ WoWCompanionDB = {
 	},
 	["collapsedHeaders"] = {
 	},
+	["mapID"] = 9001,
+	["completedQuests"] = {
+		900010, -- [1]
+		900011, -- [2]
+		900012, -- [3]
+	},
+	["available"] = {
+		{
+			["id"] = 900020,
+			["title"] = "Synthetic Welcome",
+			["line"] = "Example Storyline",
+			["x"] = 0.4512,
+			["y"] = 0.62,
+			["daily"] = false,
+			["campaign"] = false,
+		}, -- [1]
+		{
+			["id"] = 900002,
+			["title"] = "Gather Synthetic Pelts",
+			["x"] = 0.5,
+			["y"] = 0.5,
+		}, -- [2]
+		{
+			["id"] = 900011,
+			["title"] = "Finished Example",
+			["x"] = 0.1,
+			["y"] = 0.2,
+		}, -- [3]
+		{
+			["id"] = 900021,
+			["title"] = "Test Board Notice",
+			["daily"] = true,
+		}, -- [4]
+	},
 	["character"] = {
 		["money"] = 123456,
 		["rested"] = 4400,
