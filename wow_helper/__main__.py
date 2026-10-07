@@ -29,10 +29,12 @@ def main(argv=None):
     request.add_argument("--issued-at", type=float, help="Unix timestamp of the original human command (15 second expiry)")
     quests = commands.add_parser("quests", help="List the current quests from the companion addon, with a suggested order")
     quests.add_argument("--file", help="Read this SavedVariables file instead of searching the install")
+    quests.add_argument("--flavor", help="Search only this game folder for this report, for example _classic_beta_; cannot combine with --file")
     quests.add_argument("--wow-root", help="WoW install folder (the one holding _retail_ or _classic_ folders); remembered")
     quests.add_argument("--text", action="store_true", help="Print readable lines instead of JSON")
     character = commands.add_parser("character", help="Show gold, rested XP, gear, durability, and bag space from the companion addon")
     character.add_argument("--file", help="Read this SavedVariables file instead of searching the install")
+    character.add_argument("--flavor", help="Search only this game folder for this report, for example _classic_beta_; cannot combine with --file")
     character.add_argument("--wow-root", help="WoW install folder; remembered")
     character.add_argument("--text", action="store_true", help="Print readable lines instead of JSON")
     addon = commands.add_parser("install-addon", help="Copy the read-only companion addon into the game's AddOns folder")
@@ -78,6 +80,8 @@ def companion(args, *, now=None, wait=1.0):
     from .savedvars import SavedVariablesError, read_stable
     settings = SETTINGS
     try:
+        if args.command != "install-addon" and args.file and args.flavor is not None:
+            raise SavedVariablesError("Choose either an explicit snapshot file or a game edition, not both.")
         if args.wow_root:
             wtf.save_settings(settings, wow_root=str(Path(args.wow_root).resolve()))
         install_roots = wtf.roots(wtf.load_settings(settings).get("wow_root"))
@@ -91,8 +95,10 @@ def companion(args, *, now=None, wait=1.0):
         if args.file:
             path, flavor = Path(args.file), wtf.flavor_of(args.file)
         else:
-            found = wtf.newest(install_roots)
+            found = wtf.newest(install_roots, only=args.flavor)
             if not found:
+                if args.flavor is not None:
+                    raise SavedVariablesError("No snapshot found for the selected game edition. Install the addon there, then /reload in that edition.")
                 raise SavedVariablesError("No quest snapshot found. Install the addon, then /reload in game.")
             flavor, path = found
         parsed, mtime = read_stable(path, wait=wait)

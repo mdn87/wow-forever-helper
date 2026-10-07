@@ -1,6 +1,7 @@
 """Quest snapshot, advice order, and the quests/install-addon CLI, with synthetic data only."""
 
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -134,6 +135,64 @@ def test_cli_finds_the_newest_snapshot_and_never_prints_paths(run, tmp_path):
 def test_cli_reads_an_explicit_file(run):
     code, out = run("quests", "--file", str(FIXTURE))
     assert code == 0 and json.loads(out)["quest_count"] == 6
+
+
+@pytest.mark.parametrize("command,items", [("quests", "plan"), ("character", "gear")])
+def test_cli_can_select_an_older_edition_snapshot(run, tmp_path, command, items):
+    root = tmp_path / "Games"
+    classic = fake_install(root) / "WoWCompanion.lua"
+    retail = fake_install(root, "_retail_") / "WoWCompanion.lua"
+    retail.write_text(FIXTURE.read_text(encoding="utf-8")
+                      .replace("Synthetic Delivery", "Synthetic Retail Delivery")
+                      .replace("123456", "200000"), encoding="utf-8")
+    os.utime(classic, (1000, 1000))
+    os.utime(retail, (2000, 2000))
+
+    code, out = run(command, "--wow-root", str(root), "--flavor", "_classic_beta_")
+    assert code == 0
+    report = json.loads(out)
+    assert "/classic/" in report[items][0]["link"]
+    assert (report["plan"][0]["title"] == "Synthetic Delivery" if command == "quests"
+            else report["gold"] == "12g 34s 56c")
+    assert str(tmp_path) not in out and "000000000" not in out
+
+    # The edition selection applies to this call only; the default stays newest overall.
+    code, out = run(command)
+    assert code == 0
+    report = json.loads(out)
+    assert "/classic/" not in report[items][0]["link"]
+    assert (report["plan"][0]["title"] == "Synthetic Retail Delivery" if command == "quests"
+            else report["gold"] == "20g")
+
+
+@pytest.mark.parametrize("command", ["quests", "character"])
+def test_cli_refuses_a_missing_edition_without_falling_back(run, tmp_path, command):
+    root = tmp_path / "Games"
+    fake_install(root, "_retail_")
+    code, out = run(command, "--wow-root", str(root), "--flavor", "_classic_beta_")
+    assert code == 2
+    assert json.loads(out) == {"status": "refused", "message":
+        "No snapshot found for the selected game edition. Install the addon there, then /reload in that edition."}
+
+
+@pytest.mark.parametrize("command", ["quests", "character"])
+def test_cli_refuses_combining_file_and_edition(run, command):
+    code, out = run(command, "--file", str(FIXTURE), "--flavor", "_retail_")
+    assert code == 2
+    assert json.loads(out) == {"status": "refused", "message":
+        "Choose either an explicit snapshot file or a game edition, not both."}
+
+
+def test_newest_selects_the_latest_matching_snapshot_across_roots(tmp_path):
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    older = fake_install(first) / "WoWCompanion.lua"
+    newer = fake_install(second) / "WoWCompanion.lua"
+    retail = fake_install(first, "_retail_") / "WoWCompanion.lua"
+    for path, at in [(older, 1000), (newer, 2000), (retail, 3000)]:
+        os.utime(path, (at, at))
+    assert wtf.newest([first, second], only="_classic_beta_") == ("_classic_beta_", newer)
+    assert wtf.newest([first, second]) == ("_retail_", retail)
 
 
 def test_cli_without_a_snapshot_explains_the_next_step(run, tmp_path):

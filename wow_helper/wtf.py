@@ -61,10 +61,12 @@ def snapshots(install_roots):
                 yield flavor.name, path
 
 
-def newest(install_roots):
-    """The most recently written snapshot as (flavour, file), or None."""
+def newest(install_roots, *, only=None):
+    """The newest snapshot, optionally restricted to one flavour, or None."""
     found = []
     for flavor, path in snapshots(install_roots):
+        if only is not None and flavor != only:
+            continue
         try:
             found.append((path.stat().st_mtime, flavor, path))
         except OSError:

@@ -24,6 +24,8 @@ A read-only **quest companion** lists the quests in your log and suggests an ord
 
 See [assistive input setup](docs/ASSISTIVE_INPUT.md) for execution, voice-adapter integration, and limitations. The helper does not set your in-game bindings or verify your character. The phrase “on my mage” identifies your intended action, not a character-selection feature.
 
+Use `--flavor _classic_beta_` with `quests` or `character` to read that edition's newest snapshot. If none exists, the report is refused. Without this option, the newest snapshot across editions is used.
+
 ## Status
 
 The command parser, local binding store, replay protection, Windows keyboard boundary, and CLI are implemented. Automated tests use fake input delivery; the Windows native structure layout and API initialization are checked on Windows. Actual in-game casting and end-to-end speech delivery have **not** been verified. This repository installs no microphone listener; the operator's separate voice listener calls the CLI contract in [assistive input setup](docs/ASSISTIVE_INPUT.md).

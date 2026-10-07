@@ -12,6 +12,8 @@ The game does not let other programs read the quest log, so a small addon copies
 
 `wow_helper/wtf.py` finds the install through the Windows uninstall registry, the default Program Files folders, or `--wow-root`. When several game folders (`_retail_`, `_classic_`, `_classic_beta_`, ...) have a snapshot, it uses the most recently written one. The account folder name and local paths are never printed.
 
+Use `--flavor` with `quests` or `character` to read only one game edition. The helper chooses the newest snapshot within that edition and refuses the request if none exists; it never falls back to another edition. This choice applies only to the current report and is not remembered. It does not select a character or account within that edition.
+
 ## Setup
 
 ```console
@@ -25,7 +27,11 @@ This copies the two addon files into `Interface/AddOns/WoWCompanion` in each gam
 ```console
 python -m wow_helper quests --text     # readable lines, suitable for speech
 python -m wow_helper quests            # JSON: player, plan steps, warnings, snapshot age
+python -m wow_helper quests --flavor _classic_beta_ --text
+python -m wow_helper character --flavor _retail_ --text
 ```
+
+An explicit `--file` already selects the snapshot; combining it with `--flavor` is refused.
 
 By voice, a question such as "what quests am I on" goes to Claude, which runs the command above. It never goes through the teleport path, which only takes spell requests. `/reload` first for current data.
 
