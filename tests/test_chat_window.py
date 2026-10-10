@@ -8,18 +8,6 @@ import pytest
 from wow_helper.chat import Message, Session
 
 
-@pytest.fixture(scope="module")
-def desktop():
-    tk = pytest.importorskip("tkinter")
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("Tk requires a graphical desktop")
-    root.withdraw()
-    yield tk, root
-    root.destroy()
-
-
 @pytest.fixture
 def window(desktop):
     tk, parent = desktop
@@ -37,6 +25,7 @@ def window(desktop):
     settle(view)
     yield view
     view.close()
+    view.worker.shutdown(wait=True)
 
 
 def settle(window):
@@ -50,7 +39,8 @@ def settle(window):
 
 
 def choose(window, index):
-    window.tree.selection_set(window.tree.get_children()[index])
+    window.session_picker.current(index)
+    window.session_picker.event_generate("<<ComboboxSelected>>")
     window.root.update()
     settle(window)
 

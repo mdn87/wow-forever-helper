@@ -139,6 +139,38 @@
           "message": "Native chat, Codex queue delivery, Claude polling, and docs implemented. All 154 Windows tests passed; synthetic UI visually checked; live chat round trip unverified."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "multi-chat-workspace",
+      "projectId": "wow-forever-helper",
+      "title": "Arrange independent chats in a movable panel workspace",
+      "summary": "Open multiple chat panels with independent sessions, drag and resize them, and remember the workspace locally.",
+      "stage": "done",
+      "sequence": 4,
+      "prereqs": [
+        "chat-window-live-cli"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-10T20:35:28.515Z",
+        "updatedAt": "2026-10-10T20:46:28.624Z"
+      },
+      "evidence": [
+        {
+          "entryId": "multi-chat-workspace-active",
+          "at": "2026-10-10T20:35:28.515Z",
+          "kind": "stage-change",
+          "message": "Operator requested multiple movable and resizable chat windows, each connected to a different session. Building independent chat panels inside a companion workspace."
+        },
+        {
+          "entryId": "multi-chat-workspace-done",
+          "at": "2026-10-10T20:46:28.624Z",
+          "kind": "stage-change",
+          "message": "Independent chat panels, title-bar dragging, corner resizing, tiling, raising covered panels, and local layout restoration are implemented. All 162 tests passed on Windows. A synthetic two-panel workspace was visually checked. Separate connections read two different live Codex and Claude histories concurrently; no live message was sent."
+        }
+      ]
     }
   ]
 }
