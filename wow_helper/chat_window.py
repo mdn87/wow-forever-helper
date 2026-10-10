@@ -6,12 +6,7 @@ import uuid
 
 from .chat import ChatError, ChatService, claude_connection_text
 from .window_state import history_state, restored_history, saved_selection
-
-BACKGROUND = "#101820"
-PANEL = "#192630"
-TEXT = "#e9f0f5"
-MUTED = "#a4b4c1"
-ACCENT = "#80d5bf"
+from .theme import ACCENT, BACKGROUND, EDITOR, MUTED, PANEL, TEXT, apply_theme, display_font
 
 
 class ChatWindow:
@@ -62,10 +57,7 @@ class ChatWindow:
             root.geometry("760x650")
             root.minsize(420, 420)
             root.protocol("WM_DELETE_WINDOW", self.close)
-        style = ttk.Style(root)
-        style.theme_use("clam")
-        style.configure("TButton", font=("Segoe UI", 10), padding=(10, 6))
-        style.configure("TCombobox", font=("Segoe UI", 10))
+        apply_theme(root)
 
         selector = tk.Frame(root, bg=PANEL, padx=12, pady=10)
         selector.pack(fill="x")
@@ -87,7 +79,7 @@ class ChatWindow:
         self.title = tk.StringVar(master=root, value="Choose a session")
         self.subtitle = tk.StringVar(master=root, value="Each chat connects independently.")
         self.title_label = tk.Label(conversation, textvariable=self.title, anchor="w", fg=TEXT, bg=PANEL,
-                                   font=("Segoe UI", 13, "bold"))
+                                   font=display_font(root, 15))
         self.title_label.pack(fill="x")
         self.subtitle_label = tk.Label(conversation, textvariable=self.subtitle, anchor="w", fg=ACCENT,
                                       bg=PANEL, font=("Segoe UI", 9))
@@ -96,7 +88,7 @@ class ChatWindow:
         transcript_frame.pack(fill="both", expand=True)
         self.transcript = tk.Text(transcript_frame, wrap="word", state="disabled", bg=PANEL,
                                   fg=TEXT, font=("Segoe UI", 11), relief="flat", padx=6,
-                                  pady=6, height=1, width=1, cursor="arrow", selectbackground="#385869")
+                                  pady=6, height=1, width=1, cursor="arrow", selectbackground="#554228")
         scrollbar = ttk.Scrollbar(transcript_frame, command=self.transcript.yview)
         self.transcript.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
@@ -104,7 +96,7 @@ class ChatWindow:
         self.transcript.tag_configure("role", foreground=ACCENT, font=("Segoe UI", 10, "bold"), spacing1=14)
         self.transcript.tag_configure("body", spacing1=4, spacing3=12)
         self.transcript.tag_configure("note", foreground=MUTED, spacing1=8, spacing3=8)
-        self.editor = tk.Text(conversation, height=3, width=1, wrap="word", bg="#233744", fg=TEXT,
+        self.editor = tk.Text(conversation, height=3, width=1, wrap="word", bg=EDITOR, fg=TEXT,
                               insertbackground=TEXT, font=("Segoe UI", 11), padx=10, pady=8,
                               relief="flat", undo=True)
         self.editor.pack(fill="x", pady=(8, 6))
@@ -284,18 +276,21 @@ class ChatWindow:
         if not self.selected or self.selected.provider != "claude":
             return
         from tkinter import ttk
+        from .window_frame import WindowFrame
         dialog = self.tk.Toplevel(self.root)
         dialog.title("Connect this Claude session")
         dialog.transient(self.root.winfo_toplevel())
         dialog.attributes("-topmost", self.root.winfo_toplevel().attributes("-topmost"))
-        dialog.geometry("700x420")
-        self.tk.Label(dialog, text="Paste these instructions into the selected, already-open Claude session.",
-                      padx=16, pady=16, wraplength=650).pack(anchor="w")
+        dialog.geometry("700x460")
+        dialog._companion_frame = WindowFrame(dialog, title="Connect this Claude session", minimum=(500, 400))
+        surface = dialog._companion_frame.content
+        self.tk.Label(surface, text="Paste these instructions into the selected, already-open Claude session.",
+                      bg=BACKGROUND, fg=TEXT, padx=16, pady=16, wraplength=650).pack(anchor="w")
         content = claude_connection_text(self.selected)
-        frame = self.tk.Frame(dialog)
+        frame = self.tk.Frame(surface, bg=BACKGROUND)
         frame.pack(fill="both", expand=True, padx=16)
         text = self.tk.Text(frame, wrap="word", height=1, width=1,
-                            font=("Segoe UI", 10), padx=16, pady=10)
+                            bg=PANEL, fg=TEXT, font=("Segoe UI", 10), padx=16, pady=10)
         scrollbar = ttk.Scrollbar(frame, command=text.yview)
         text.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
@@ -307,7 +302,8 @@ class ChatWindow:
             self.root.clipboard_clear()
             self.root.clipboard_append(content)
             self.status.set("Connection instructions copied. Paste them into the selected Claude session.")
-        ttk.Button(dialog, text="Copy connection instructions", command=copy).pack(pady=16)
+        ttk.Button(surface, text="Copy connection instructions", command=copy).pack(pady=16)
+        dialog._companion_frame.apply_native()
 
     def _tick(self):
         if self.closed:

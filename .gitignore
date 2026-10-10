@@ -50,6 +50,8 @@ SavedVariables/
 *.tga
 !docs/img/**
 !tests/fixtures/**
+# Original companion textures; never extracted game art or screenshots.
+!wow_helper/assets/*.png
 
 # Agent and tool session state
 .claude/handoff.md
