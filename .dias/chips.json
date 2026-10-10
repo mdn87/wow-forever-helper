@@ -50,6 +50,50 @@
           "message": "Saved and pushed as commit 515c967. Windows and Linux CI passed. The leak check passed; live game verification remains outstanding."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "snapshot-check-report",
+      "projectId": "wow-forever-helper",
+      "title": "Check the first real addon snapshot",
+      "summary": "Add a read-only check command and client build info so the first in-game reload reports which addon assumptions held, with no identity in the output.",
+      "stage": "done",
+      "sequence": 2,
+      "prereqs": [
+        "select-snapshot-edition"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-10T16:23:57.000Z",
+        "updatedAt": "2026-10-10T16:29:39.000Z"
+      },
+      "evidence": [
+        {
+          "entryId": "snapshot-check-created",
+          "at": "2026-10-10T16:23:57.000Z",
+          "kind": "created",
+          "message": "Repository review: live verification is next but needs the operator in game. This builds the tool that turns that reload into a checklist result."
+        },
+        {
+          "entryId": "snapshot-check-active",
+          "at": "2026-10-10T16:24:33.000Z",
+          "kind": "stage-change",
+          "message": "Board and status passed Dias validation. Implementing the check command, addon client info, synthetic tests, and docs."
+        },
+        {
+          "entryId": "snapshot-check-done",
+          "at": "2026-10-10T16:29:39.000Z",
+          "kind": "stage-change",
+          "message": "check-snapshot command, addon 0.4.0 client info, and docs shipped as commit bf62989. 119 tests passed on Windows with synthetic fixtures; leak check clean; pushed to main."
+        },
+        {
+          "entryId": "snapshot-check-handoff",
+          "at": "2026-10-10T16:29:39.000Z",
+          "kind": "note",
+          "message": "Next: the operator installs the addon, reloads once in game, and runs check-snapshot. Its output decides the .toc fix and whether Forever lists quests to pick up."
+        }
+      ]
     }
   ]
 }

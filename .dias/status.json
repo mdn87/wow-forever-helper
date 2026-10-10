@@ -8,13 +8,13 @@
   "milestonePhase": "build-and-validate",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-07T02:57:32.002Z",
+  "assessedAt": "2026-10-10T16:29:39.000Z",
   "confidence": "inferred",
   "currentMilestone": "Make the existing read-only companion reliable before extending the second-screen interface.",
-  "remainingSummary": "Verify the addon in a game client with the operator, then plan the companion panel and journal. Edition selection is complete.",
+  "remainingSummary": "The snapshot check is built. The operator runs it after the first in-game reload; its result drives the .toc fix. The panel and journal come after that.",
   "nextChipId": null,
   "source": {
-    "label": "Repository review and planning session",
-    "updatedAt": "2026-10-07"
+    "label": "Planning session, snapshot check shipped",
+    "updatedAt": "2026-10-10"
   }
 }
