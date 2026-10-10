@@ -8,13 +8,13 @@
   "milestonePhase": "build-and-validate",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-10T16:29:39.000Z",
+  "assessedAt": "2026-10-10T16:30:41.000Z",
   "confidence": "inferred",
   "currentMilestone": "Make the existing read-only companion reliable before extending the second-screen interface.",
-  "remainingSummary": "The snapshot check is built. The operator runs it after the first in-game reload; its result drives the .toc fix. The panel and journal come after that.",
-  "nextChipId": null,
+  "remainingSummary": "Next: the chat window linked to a live CLI session, per the operator. The in-game snapshot check by the operator and the journal remain after that.",
+  "nextChipId": "chat-window-live-cli",
   "source": {
-    "label": "Planning session, snapshot check shipped",
+    "label": "Planning session, operator set the next feature",
     "updatedAt": "2026-10-10"
   }
 }

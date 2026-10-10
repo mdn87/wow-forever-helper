@@ -94,6 +94,33 @@
           "message": "Next: the operator installs the addon, reloads once in game, and runs check-snapshot. Its output decides the .toc fix and whether Forever lists quests to pick up."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "chat-window-live-cli",
+      "projectId": "wow-forever-helper",
+      "title": "Interactive chat window linked to a live CLI session",
+      "summary": "Add a companion chat window that attaches to a currently running CLI terminal session, so the player talks to the live agent from the second screen.",
+      "stage": "planned",
+      "sequence": 3,
+      "prereqs": [
+        "select-snapshot-edition",
+        "snapshot-check-report"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-10T16:30:41.000Z",
+        "updatedAt": "2026-10-10T16:30:41.000Z"
+      },
+      "evidence": [
+        {
+          "entryId": "chat-window-created",
+          "at": "2026-10-10T16:30:41.000Z",
+          "kind": "created",
+          "message": "Operator request on 2026-10-10: make this the first planned feature. Open before work starts: which CLI session it attaches to and how it is discovered."
+        }
+      ]
     }
   ]
 }
