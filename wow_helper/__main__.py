@@ -14,7 +14,7 @@ SETTINGS = Path(__file__).resolve().parents[1] / ".runtime" / "companion.json"
 def main(argv=None):
     parser = argparse.ArgumentParser(description="WoW Forever Helper: one human request, one mapped key chord; plus a read-only quest companion.")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("chat", help="Open a second-screen chat window for existing Codex and Claude sessions")
+    commands.add_parser("chat", help="Open persistent companion windows for existing Codex and Claude sessions")
     poll = commands.add_parser("chat-poll", help="Read one queued chat message from an existing Claude session")
     poll.add_argument("--session", required=True, help="Session selected in the chat window's connection instructions")
     poll.add_argument("--wait", type=float, default=25, help="Wait for a message, at most 50 seconds")

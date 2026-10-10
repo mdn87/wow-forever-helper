@@ -5,6 +5,7 @@ import queue
 import uuid
 
 from .chat import ChatError, ChatService, claude_connection_text
+from .window_state import history_state, restored_history, saved_selection
 
 BACKGROUND = "#101820"
 PANEL = "#192630"
@@ -16,14 +17,17 @@ ACCENT = "#80d5bf"
 class ChatWindow:
     """One independent conversation, usable in a window or a workspace panel."""
 
-    def __init__(self, root, service=None, *, embedded=False, selection=None, on_change=None):
+    def __init__(self, root, service=None, *, embedded=False, selection=None, on_change=None, state=None):
         import tkinter as tk
         from tkinter import ttk
 
         self.tk, self.root = tk, root
         self.service = service or ChatService()
         self.on_change = on_change or (lambda: None)
-        self.desired_key = tuple(selection) if selection else None
+        state = state if isinstance(state, dict) else {}
+        self.desired_key = tuple(selection) if selection else saved_selection(state.get("session"))
+        self.session_title = state.get("title", "") if isinstance(state.get("title"), str) else ""
+        self.inflight = None
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="chat")
         self.results = queue.Queue()
         self.sessions = []
@@ -37,6 +41,21 @@ class ChatWindow:
         self.observed = {}
         self.confirmed = {}
         self.auto_refresh = 0
+        if self.desired_key:
+            self.history_cache[self.desired_key] = restored_history(state.get("messages"))
+            draft = state.get("draft", "")
+            self.drafts[self.desired_key] = draft[:32_000] if isinstance(draft, str) else ""
+            pending = state.get("pending")
+            if isinstance(pending, list):
+                for item in pending[-10:]:
+                    if not isinstance(item, dict) or not isinstance(item.get("body"), str):
+                        continue
+                    ids = item.get("previous_ids", [])
+                    ids = frozenset(i[:200] for i in ids[:200] if isinstance(i, str)) if isinstance(ids, list) else frozenset()
+                    status = item.get("status")
+                    if status not in ("queued", "waiting for Claude to poll", "delivery unconfirmed"):
+                        status = "delivery unconfirmed"
+                    self.sent.setdefault(self.desired_key, []).append((item["body"][:6000], status, ids))
         root.configure(bg=PANEL)
         if not embedded:
             root.title("WoW Forever Helper · Companion chat")
@@ -90,6 +109,7 @@ class ChatWindow:
                               relief="flat", undo=True)
         self.editor.pack(fill="x", pady=(8, 6))
         self.editor.bind("<Control-Return>", self.send)
+        self.editor.bind("<<Modified>>", self._edited)
         actions = tk.Frame(conversation, bg=PANEL)
         actions.pack(fill="x")
         tk.Label(actions, text="Ctrl+Enter to send", fg=MUTED, bg=PANEL,
@@ -103,13 +123,42 @@ class ChatWindow:
                                     justify="left", wraplength=380, padx=12, pady=8, font=("Segoe UI", 9))
         self.status_label.pack(fill="x")
         root.bind("<Configure>", self._resize, add="+")
-        self._show([])
+        self._show(self.history_cache.get(self.desired_key, []))
+        if self.desired_key:
+            self.title.set(self.session_title or "Saved session")
+            self.subtitle.set("Saved history · checking whether this session is available")
+            self.editor.insert("1.0", self.drafts.get(self.desired_key, ""))
+        elif isinstance(state.get("draft"), str):
+            self.editor.insert("1.0", state["draft"][:32_000])
         self._after_id = root.after(100, self._tick)
         self.refresh()
 
     @property
     def selection_key(self):
         return self.selected.key if self.selected else self.desired_key
+
+    def _edited(self, _event=None):
+        if self.editor.edit_modified():
+            self.editor.edit_modified(False)
+            if self.selection_key:
+                self.drafts[self.selection_key] = self.editor.get("1.0", "end-1c")
+            self.on_change()
+
+    def snapshot(self, remember=True):
+        key = self.selection_key
+        if not key:
+            return {"draft": self.editor.get("1.0", "end-1c")[:32_000]} if remember else {}
+        data = {"session": {"provider": key[0], "id": key[1]}, "title": self.session_title[:100]}
+        if remember:
+            pending = list(self.sent.get(key, []))
+            if self.inflight and self.inflight[0] == key:
+                _, body, ids = self.inflight
+                pending.append((body, "delivery unconfirmed", ids))
+            data.update(draft=self.editor.get("1.0", "end-1c")[:32_000],
+                        messages=history_state(self.history_cache.get(key, [])),
+                        pending=[{"body": body, "status": status, "previous_ids": sorted(ids)[-200:]}
+                                 for body, status, ids in pending[-10:]])
+        return data
 
     def _resize(self, event):
         if event.widget is self.root:
@@ -146,15 +195,19 @@ class ChatWindow:
             self.selected = session
             self.subtitle.set(self._description(session))
             return
-        if self.selected:
-            self.drafts[self.selected.key] = self.editor.get("1.0", "end-1c")
+        if self.selection_key:
+            self.drafts[self.selection_key] = self.editor.get("1.0", "end-1c")
+        elif session.key not in self.drafts:
+            self.drafts[session.key] = self.editor.get("1.0", "end-1c")
         self.selected = session
         self.desired_key = session.key
+        self.session_title = session.title
         self.last_messages = None
         self.editor.delete("1.0", "end")
         self.editor.insert("1.0", self.drafts.get(session.key, ""))
         self.title.set(session.title[:65].replace("\n", " "))
-        self.subtitle.set(self._description(session))
+        self.subtitle.set("Saved history · refreshing conversation" if self.history_cache.get(session.key)
+                          else self._description(session))
         self.setup_button.configure(state="normal" if session.provider == "claude" else "disabled")
         self._show(self.history_cache.get(session.key, []))
         self.send_button.configure(state="disabled" if self.busy else "normal")
@@ -173,7 +226,7 @@ class ChatWindow:
             self._submit("history", lambda: self.service.history(session), session.key)
 
     def _show(self, messages):
-        pending = self.sent.get(self.selected.key, []) if self.selected else []
+        pending = self.sent.get(self.selection_key, [])
         if self.selected:
             key = self.selected.key
             confirmed = self.confirmed.setdefault(key, set())
@@ -210,6 +263,7 @@ class ChatWindow:
             self.transcript.see("end")
         else:
             self.transcript.yview_moveto(position)
+        self.on_change()
 
     def send(self, _event=None):
         if not self.selected or self.busy:
@@ -221,7 +275,9 @@ class ChatWindow:
             return "break"
         previous_ids = frozenset(self.observed.get(session.key, set()))
         if self._submit("send", lambda: self.service.send(session, body, request_id), (session.key, body, previous_ids)):
+            self.inflight = (session.key, body, previous_ids)
             self.status.set("Sending to the selected session…")
+            self.on_change()
         return "break"
 
     def claude_setup(self):
@@ -230,6 +286,8 @@ class ChatWindow:
         from tkinter import ttk
         dialog = self.tk.Toplevel(self.root)
         dialog.title("Connect this Claude session")
+        dialog.transient(self.root.winfo_toplevel())
+        dialog.attributes("-topmost", self.root.winfo_toplevel().attributes("-topmost"))
         dialog.geometry("700x420")
         self.tk.Label(dialog, text="Paste these instructions into the selected, already-open Claude session.",
                       padx=16, pady=16, wraplength=650).pack(anchor="w")
@@ -262,8 +320,12 @@ class ChatWindow:
         else:
             self.busy = False
             self.refresh_button.configure(state="normal")
+            if kind == "send":
+                self.inflight = None
             if error:
                 self.status.set(error)
+                if kind == "history":
+                    self.subtitle.set("Saved history · conversation could not refresh")
             elif kind == "sessions":
                 self.sessions, notices = result
                 previous = self.selection_key
@@ -284,14 +346,15 @@ class ChatWindow:
                         self.drafts[self.selected.key] = self.editor.get("1.0", "end-1c")
                     self.selected = None
                     self.session_picker.set("Saved session unavailable — choose another or refresh")
-                    self.title.set("Session disconnected")
-                    self.subtitle.set("No messages will be sent until a session is selected.")
+                    self.title.set(self.session_title or "Session disconnected")
+                    self.subtitle.set("Saved history · session unavailable · sending disabled")
                     self.setup_button.configure(state="disabled")
                     self.on_change()
                 else:
                     self.session_picker.set("Choose an open session…")
             elif kind == "history" and self.selected and context == self.selected.key:
                 self._show(result)
+                self.subtitle.set(self._description(self.selected))
                 if self.status.get() == "Loading conversation…":
                     self.status.set("Conversation updated. Approvals and tool activity remain in the terminal.")
             elif kind == "send":
@@ -307,6 +370,7 @@ class ChatWindow:
                     self.drafts[key] = ""
                 self.status.set("Message " + result + ". This does not yet confirm an agent reply.")
             self.send_button.configure(state="normal" if self.selected and not self.busy else "disabled")
+            self.on_change()
         self.auto_refresh += 1
         if not self.busy and self.auto_refresh % 30 == 0:
             self._history()
@@ -332,9 +396,12 @@ def launch():
     except Exception:
         raise ChatError("The chat window could not open on this desktop.") from None
     try:
-        from .workspace import ChatWorkspace
-        ChatWorkspace(root)
+        from .workspace import WindowManager
+        WindowManager(root)
         root.mainloop()
+    except ChatError:
+        root.destroy()
+        raise
     except Exception:
         root.destroy()
         raise ChatError("The chat window could not run on this desktop.") from None
