@@ -10,6 +10,9 @@ requires-python = ">=3.11"
 license = "MIT"
 dependencies = []
 
+[project.optional-dependencies]
+chat = ["websocket-client>=1.8,<2"]
+
 [project.scripts]
 wow-helper = "wow_helper.__main__:main"
 

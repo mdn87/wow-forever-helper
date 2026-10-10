@@ -1,6 +1,6 @@
 # WoW Forever Helper
 
-**A Windows accessibility helper for explicit player commands, with a second-screen advice companion planned.**
+**A Windows accessibility helper for explicit player commands, with a second-screen agent chat and a read-only quest companion.**
 
 ## What works now
 
@@ -10,7 +10,17 @@ The CLI previews by default. Live delivery requires enabling input, explicitly e
 
 ## Try it
 
-Use Python 3.11 or newer from the repository root; runtime dependencies are all standard-library modules. This example assumes you first assigned the actual spell to `Shift+F4` in WoW:
+For **interactive chat with an open agent session**, install the optional chat dependency in a local environment and open the window:
+
+```console
+python -m venv .venv
+.venv/Scripts/python -m pip install -e ".[chat]"
+.venv/Scripts/python -m wow_helper chat
+```
+
+The window lists open Codex and Claude Code sessions. Select a Codex session and send a message; replies appear as the agent writes them. For Claude, select the session and use **Connect Claude…** to copy polling instructions into that existing terminal once. See [interactive chat](docs/CHAT.md) for requirements and delivery states.
+
+Use Python 3.11 or newer from the repository root. Commands other than chat need only the standard library. This example assumes you first assigned the actual spell to `Shift+F4` in WoW:
 
 ```console
 python -m wow_helper bind teleport-orgrimmar --key SHIFT+F4
@@ -29,6 +39,8 @@ Use `--flavor _classic_beta_` with `quests` or `character` to read that edition'
 ## Status
 
 The command parser, local binding store, replay protection, Windows keyboard boundary, and CLI are implemented. Automated tests use fake input delivery; the Windows native structure layout and API initialization are checked on Windows. Actual in-game casting and end-to-end speech delivery have **not** been verified. This repository installs no microphone listener; the operator's separate voice listener calls the CLI contract in [assistive input setup](docs/ASSISTIVE_INPUT.md).
+
+The native chat window, session picker, Codex queue adapter, and Claude polling inbox are implemented. Live session discovery and transcript reading were checked on Windows with Codex CLI 0.162.1 and Claude Code 2.1.296. Message delivery and acknowledgment are tested with synthetic sessions; a live user-message/reply round trip remains unverified. The window does not send game input.
 
 The quest companion's parser, advice order, and CLI are tested against synthetic data; the addon has not yet been loaded in a game client. The screenshot/advice panel and character journal remain planned. The earlier [plan](docs/PLAN.md) and [M1 breakdown](docs/M1_TASKS.md) are retained as historical context; their blanket input-removal requirement was superseded by the operator's assistive-input request.
 

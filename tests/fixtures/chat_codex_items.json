@@ -1,0 +1,9 @@
+{
+  "_comment": "Synthetic Codex chat items, written by hand; no real session data.",
+  "items": [
+    {"type": "userMessage", "id": "synthetic-user", "content": [{"type": "text", "text": "Which quest should I do next?"}, {"type": "image", "imageUrl": "synthetic-image"}]},
+    {"type": "reasoning", "id": "synthetic-thinking", "text": "synthetic hidden reasoning"},
+    {"type": "commandExecution", "id": "synthetic-tool", "aggregatedOutput": "synthetic private tool output"},
+    {"type": "agentMessage", "id": "synthetic-agent", "text": "Check your nearby turn-ins first.", "phase": "final_answer"}
+  ]
+}

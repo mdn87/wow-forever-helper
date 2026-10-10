@@ -1,0 +1,7 @@
+{"_comment":"Synthetic Claude transcript, written by hand; no real session data."}
+{"type":"user","uuid":"synthetic-user","timestamp":"2026-01-01T12:00:00Z","message":{"role":"user","content":"Which quest should I do next?"}}
+{"type":"assistant","uuid":"synthetic-thinking","timestamp":"2026-01-01T12:00:01Z","message":{"role":"assistant","content":[{"type":"thinking","thinking":"synthetic hidden reasoning"},{"type":"tool_use","name":"Read","input":{"file_path":"synthetic-file"}}]}}
+{"type":"user","uuid":"synthetic-result","timestamp":"2026-01-01T12:00:02Z","message":{"role":"user","content":[{"type":"tool_result","content":"synthetic private tool output"}]}}
+{"type":"assistant","uuid":"synthetic-agent","timestamp":"2026-01-01T12:00:03Z","message":{"role":"assistant","content":[{"type":"text","text":"Check your nearby turn-ins first."}]}}
+{"type":"assistant","uuid":"synthetic-child","isSidechain":true,"message":{"role":"assistant","content":[{"type":"text","text":"synthetic subagent output"}]}}
+{"type":"user","uuid":"synthetic-meta","isMeta":true,"message":{"role":"user","content":"synthetic internal instruction"}}

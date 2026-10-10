@@ -14,6 +14,13 @@ SETTINGS = Path(__file__).resolve().parents[1] / ".runtime" / "companion.json"
 def main(argv=None):
     parser = argparse.ArgumentParser(description="WoW Forever Helper: one human request, one mapped key chord; plus a read-only quest companion.")
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("chat", help="Open a second-screen chat window for existing Codex and Claude sessions")
+    poll = commands.add_parser("chat-poll", help="Read one queued chat message from an existing Claude session")
+    poll.add_argument("--session", required=True, help="Session selected in the chat window's connection instructions")
+    poll.add_argument("--wait", type=float, default=25, help="Wait for a message, at most 50 seconds")
+    ack = commands.add_parser("chat-ack", help="Acknowledge a chat message after Claude has replied")
+    ack.add_argument("--session", required=True)
+    ack.add_argument("--request-id", required=True)
     bind = commands.add_parser("bind", help="Map a supported spell to its existing in-game keybind")
     bind.add_argument("action", choices=[ACTION])
     bind.add_argument("--key", required=True)
@@ -46,6 +53,23 @@ def main(argv=None):
     addon.add_argument("--wow-root", help="WoW install folder; remembered")
     addon.add_argument("--flavor", help="Only this game folder, for example _classic_beta_")
     args = parser.parse_args(argv)
+    if args.command in {"chat", "chat-poll", "chat-ack"}:
+        from .chat import ChatError, acknowledge_claude, poll_claude
+        try:
+            if args.command == "chat":
+                from .chat_window import launch
+                launch()
+            elif args.command == "chat-poll":
+                print(json.dumps(poll_claude(args.session, wait=args.wait)))
+            else:
+                print(json.dumps(acknowledge_claude(args.session, args.request_id)))
+            return 0
+        except ChatError as error:
+            print(json.dumps({"status": "refused", "message": str(error)}))
+            return 2
+        except OSError:
+            print(json.dumps({"status": "error", "message": "Local chat storage is unavailable."}))
+            return 3
     if args.command in {"quests", "character", "check-snapshot", "install-addon"}:
         return companion(args)
     try:
