@@ -20,7 +20,7 @@ Use `--flavor` with `quests` or `character` to read only one game edition. The h
 python -m wow_helper install-addon            # or --wow-root "<install folder>" --flavor _classic_beta_
 ```
 
-This copies the two addon files into `Interface/AddOns/WoWCompanion` in each game folder that has a `WTF` folder, meaning the game has run there. Then enable **WoW Companion** at character select. If the client calls it out of date, tick "Load out of date AddOns". The `.toc` interface numbers (`16001` for Forever, `120001` for retail) are unverified guesses. Then `/reload` once in game.
+This copies the two addon files into `Interface/AddOns/WoWCompanion` in each game folder that has a `WTF` folder, meaning the game has run there. Then enable **WoW Companion** at character select. If the client calls it out of date, tick "Load out of date AddOns". The `.toc` interface number `16001` was confirmed on Classic Forever beta client 1.60.1, build 70338, on 2026-10-10; `120001` for retail remains unverified. Then `/reload` once in game.
 
 ## Use
 
@@ -116,4 +116,5 @@ The check reads the same snapshot as `quests` and `character`, so a snapshot tha
 
 - Parser, advice order, CLI, discovery, addon install, and the snapshot check are covered by automated tests. The tests use the synthetic fixtures `tests/fixtures/savedvariables_quests.lua` and `tests/fixtures/savedvariables_check.lua` and fake install folders.
 - The addon's Lua was syntax-checked with `luaparser`.
-- **Not verified:** the addon has not been loaded in any game client. That leaves the API field names (quest, quest-line, character status, and `GetBuildInfo`), whether Forever fills `GetAvailableQuestLines` for its quests, the `.toc` interface numbers, the objective text format, and the distance values unconfirmed. The first real `/reload` followed by `check-snapshot` is the test; the check itself has only run against the synthetic fixtures.
+- **Live check on 2026-10-10:** addon 0.4.0 was installed in `_classic_beta_` on Windows. After the operator enabled it and ran `/reload`, `check-snapshot --flavor _classic_beta_ --text` reported 13 confirmed, 0 missing, and 0 mismatched checks. The client reported version 1.60.1, build 70338, interface 16001, and the modern quest-log API. Quest objectives with counters, distance values, completed quest IDs, and character status were present. Both `quests --flavor _classic_beta_` and `character --flavor _classic_beta_` returned `status: ok` without warnings; the character report included money, rested XP, gear, durability, and bag counts. The real snapshot remains local and is not a test fixture.
+- **Still unverified:** the available-quest API returned an empty list in this check, so a populated result and coverage of quests visible in game need testing. The presence of objective counters, distances, and character stats does not establish their accuracy against the in-game display. Retail and other clients, the classic text-only objective fallback, and Forever quest links have not been verified by this live check. Chat does not yet attach quest or character reports automatically.

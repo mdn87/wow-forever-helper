@@ -42,7 +42,7 @@ The command parser, local binding store, replay protection, Windows keyboard bou
 
 The native chat window, session picker, Codex queue adapter, and Claude polling inbox are implemented. Live session discovery and transcript reading were checked on Windows with Codex CLI 0.162.1 and Claude Code 2.1.296. Message delivery and acknowledgment are tested with synthetic sessions; a live user-message/reply round trip remains unverified. The window does not send game input.
 
-The quest companion's parser, advice order, and CLI are tested against synthetic data; the addon has not yet been loaded in a game client. The screenshot/advice panel and character journal remain planned. The earlier [plan](docs/PLAN.md) and [M1 breakdown](docs/M1_TASKS.md) are retained as historical context; their blanket input-removal requirement was superseded by the operator's assistive-input request.
+The quest companion's parser, advice order, and CLI are tested against synthetic data. On 2026-10-10, addon 0.4.0 produced a real Classic Forever beta snapshot on Windows: all 13 snapshot checks passed, and the quest and character reports returned successfully. Available-quest coverage and accuracy against the in-game display still need checking; see [verification details](docs/QUESTS.md#what-has-been-verified). Connecting these reports to chat, the screenshot/advice panel, and the character journal remain planned. The earlier [plan](docs/PLAN.md) and [M1 breakdown](docs/M1_TASKS.md) are retained as historical context; their blanket input-removal requirement was superseded by the operator's assistive-input request.
 
 Run tests with `python -m pytest -q -p no:cacheprovider`. CI runs on Windows and Linux; neither job sends live keys.
 

@@ -8,13 +8,13 @@
   "milestonePhase": "build-and-validate",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-10T19:42:51.884Z",
+  "assessedAt": "2026-10-10T20:20:25.000Z",
   "confidence": "inferred",
   "currentMilestone": "Deliver interactive chat with an existing agent session from the second screen.",
-  "remainingSummary": "Verify a live chat round trip and the addon snapshot with the operator. The character journal remains planned.",
+  "remainingSummary": "Verify a live chat round trip. Attaching quest and character context to chat, screenshot advice, and the character journal remain planned. The first beta addon snapshot passed its live checks; available-quest coverage still needs validation.",
   "nextChipId": null,
   "source": {
-    "label": "Implemented chat; Windows tests and read-only provider checks",
+    "label": "Implemented chat; Windows tests, provider reads, and live beta snapshot checks",
     "updatedAt": "2026-10-10"
   }
 }

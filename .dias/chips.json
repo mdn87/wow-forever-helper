@@ -66,7 +66,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-10T16:23:57.000Z",
-        "updatedAt": "2026-10-10T16:29:39.000Z"
+        "updatedAt": "2026-10-10T20:20:25.000Z"
       },
       "evidence": [
         {
@@ -92,6 +92,12 @@
           "at": "2026-10-10T16:29:39.000Z",
           "kind": "note",
           "message": "Next: the operator installs the addon, reloads once in game, and runs check-snapshot. Its output decides the .toc fix and whether Forever lists quests to pick up."
+        },
+        {
+          "entryId": "snapshot-check-live-beta",
+          "at": "2026-10-10T20:20:25.000Z",
+          "kind": "note",
+          "message": "Operator enabled addon 0.4.0 and reloaded Classic Forever beta on Windows. Client 1.60.1 build 70338 confirmed interface 16001; all 13 snapshot checks passed. Quest and character reports returned successfully without warnings. Available-quest coverage and comparison with the in-game display remain unverified. No real snapshot or identity was committed."
         }
       ]
     },
