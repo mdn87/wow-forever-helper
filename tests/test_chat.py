@@ -234,6 +234,59 @@ def test_codex_rpc_refuses_mutating_methods():
             client.rpc(method, {})
 
 
+@pytest.mark.parametrize("invalid_utf8", [False, True])
+def test_large_codex_frames_use_strict_native_decoding(monkeypatch, invalid_utf8):
+    websocket = pytest.importorskip("websocket")
+    import websocket._abnf as framing
+
+    def frame(data):
+        return websocket.ABNF(1, 0, 0, 0, websocket.ABNF.OPCODE_TEXT, 0, data).format()
+
+    body = b'{"id": 2, "result": {"text": "' + b"x" * 5_000_000
+    body += b'\xff"}}' if invalid_utf8 else 'café"}}'.encode("utf-8")
+
+    class Pipe:
+        closed = False
+        data = frame(b'{"id": 1, "result": {}}') + frame(body)
+        def __init__(self, _): pass
+        def send(self, data): return len(data)
+        def settimeout(self, _): pass
+        def gettimeout(self): return 6
+        def close(self): self.closed = True
+        def recv(self, size):
+            data, self.data = self.data[:size], self.data[size:]
+            return data
+
+    def connect(_url, *, socket, **options):
+        ws = websocket.WebSocket(**options)
+        ws.sock = socket
+        ws.connected = True
+        return ws
+
+    validation_calls = []
+    original = framing.validate_utf8
+    def validate(data):
+        validation_calls.append(len(data))
+        return original(data)
+
+    monkeypatch.setattr(framing, "validate_utf8", validate)
+    monkeypatch.setattr(codex_chat, "codex_executable", lambda: "synthetic-codex.exe")
+    monkeypatch.setattr(codex_chat.subprocess, "Popen", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(codex_chat, "PipeSocket", Pipe)
+    monkeypatch.setattr(websocket, "create_connection", connect)
+    client = codex_chat.CodexClient()
+    try:
+        if invalid_utf8:
+            with pytest.raises(ChatError, match="connection closed"):
+                client.rpc("thread/read", {})
+            assert client.ws is None
+        else:
+            assert client.rpc("thread/read", {})["text"] == "x" * 5_000_000 + "café"
+        assert validation_calls == []  # No byte-by-byte Python pass competing with Tk.
+    finally:
+        client.close()
+
+
 def test_codex_loaded_sessions_are_paginated_and_children_excluded(monkeypatch):
     client = codex_chat.CodexClient()
     def rpc(method, params):

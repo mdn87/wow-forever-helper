@@ -86,20 +86,20 @@ class WindowFrame:
         self.shell.bind("<Configure>", self._draw_frame)
         inner = tk.Frame(self.shell, bg=BACKGROUND)
         inner.pack(fill="both", expand=True, padx=7, pady=7)
-        self.titlebar = tk.Canvas(inner, bg=TITLE, height=42, borderwidth=0,
+        self.titlebar = tk.Canvas(inner, bg=TITLE, height=30, borderwidth=0,
                                   highlightthickness=1, highlightbackground=EDGE, cursor="fleur")
         self.titlebar.pack(fill="x")
         self.close_button = ttk.Button(self.titlebar, text="×", style="Window.TButton",
                                         command=close or root.destroy)
-        self.close_button.pack(side="right", padx=(3, 5), pady=4)
+        self.close_button.pack(side="right", padx=(3, 5), pady=2)
         self.maximize_button = ttk.Button(self.titlebar, text="□", style="Window.TButton", command=self.maximize)
-        self.maximize_button.pack(side="right", padx=(3, 0), pady=4)
+        self.maximize_button.pack(side="right", padx=(3, 0), pady=2)
         if os.name != "nt":
             self.maximize_button.configure(state="disabled")
         self.minimize_button = ttk.Button(self.titlebar, text="−", style="Window.TButton", command=root.iconify)
-        self.minimize_button.pack(side="right", padx=(3, 0), pady=4)
+        self.minimize_button.pack(side="right", padx=(3, 0), pady=2)
         self.caption = tk.StringVar(master=root, value=title)
-        self.title_font = font.Font(root=root, font=display_font(root, 14))
+        self.title_font = font.Font(root=root, font=display_font(root, 12))
         self.caption.trace_add("write", self._draw_title)
         self.titlebar.bind("<Configure>", self._draw_title)
         self.titlebar.bind("<ButtonPress-1>", lambda event: self.begin(event, "move"))
