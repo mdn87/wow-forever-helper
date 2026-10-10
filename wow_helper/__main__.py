@@ -37,11 +37,16 @@ def main(argv=None):
     character.add_argument("--flavor", help="Search only this game folder for this report, for example _classic_beta_; cannot combine with --file")
     character.add_argument("--wow-root", help="WoW install folder; remembered")
     character.add_argument("--text", action="store_true", help="Print readable lines instead of JSON")
+    check = commands.add_parser("check-snapshot", help="Report which addon assumptions the newest snapshot confirms; prints no names or paths")
+    check.add_argument("--file", help="Read this SavedVariables file instead of searching the install")
+    check.add_argument("--flavor", help="Search only this game folder for this report, for example _classic_beta_; cannot combine with --file")
+    check.add_argument("--wow-root", help="WoW install folder; remembered")
+    check.add_argument("--text", action="store_true", help="Print readable lines instead of JSON")
     addon = commands.add_parser("install-addon", help="Copy the read-only companion addon into the game's AddOns folder")
     addon.add_argument("--wow-root", help="WoW install folder; remembered")
     addon.add_argument("--flavor", help="Only this game folder, for example _classic_beta_")
     args = parser.parse_args(argv)
-    if args.command in {"quests", "character", "install-addon"}:
+    if args.command in {"quests", "character", "check-snapshot", "install-addon"}:
         return companion(args)
     try:
         # Anchor to the checkout, not caller CWD: retries share one deduplication store.
@@ -76,7 +81,7 @@ def main(argv=None):
 
 def companion(args, *, now=None, wait=1.0):
     """Quest and character reading, and addon install. Read-only toward the game; never touches input."""
-    from . import character, quests, wtf
+    from . import character, check, quests, wtf
     from .savedvars import SavedVariablesError, read_stable
     settings = SETTINGS
     try:
@@ -102,6 +107,10 @@ def companion(args, *, now=None, wait=1.0):
                 raise SavedVariablesError("No quest snapshot found. Install the addon, then /reload in game.")
             flavor, path = found
         parsed, mtime = read_stable(path, wait=wait)
+        if args.command == "check-snapshot":
+            result = check.report(parsed, mtime, flavor=flavor, now=time.time() if now is None else now)
+            print(check.as_text(result) if args.text else json.dumps(result))
+            return 0
         if args.command == "character":
             result = character.report(parsed, mtime, flavor=flavor, now=time.time() if now is None else now)
             print(character.as_text(result) if args.text else json.dumps(result))

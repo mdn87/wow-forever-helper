@@ -6,7 +6,7 @@
 
 The game does not let other programs read the quest log, so a small addon copies it out:
 
-1. `wow_addon/WoWCompanion/` is a read-only addon. On login, zone changes, and quest-log updates it copies the quest log into its SavedVariables table, `WoWCompanionDB`. It also saves the completed quest IDs and the quests available on the current map (see below). It records each quest's ID, title, level, suggested group size, quest-log header (usually the zone), complete and failed flags, and objectives with their counts. It also records the player's level, class, XP, and zone. On modern clients it adds the distance in yards to each quest's objective area. It stores no character or realm name, prints nothing, and calls no action, chat, targeting, or settings API. `tests/test_no_input.py` scans it for those calls.
+1. `wow_addon/WoWCompanion/` is a read-only addon. On login, zone changes, and quest-log updates it copies the quest log into its SavedVariables table, `WoWCompanionDB`. It also saves the completed quest IDs and the quests available on the current map (see below). It records each quest's ID, title, level, suggested group size, quest-log header (usually the zone), complete and failed flags, and objectives with their counts. It also records the player's level, class, XP, and zone. On modern clients it adds the distance in yards to each quest's objective area. Since addon 0.4.0 it also records the client's version, build, and interface number from `GetBuildInfo`, and which API each feature read, so the helper can report what the client actually offered. It stores no character or realm name, prints nothing, and calls no action, chat, targeting, or settings API. `tests/test_no_input.py` scans it for those calls.
 2. The game writes that table to `WTF/Account/<ID>/SavedVariables/WoWCompanion.lua` only on `/reload` or logout. The data is therefore a snapshot, and every answer says how old it is.
 3. `wow_helper/savedvars.py` reads the file with the restricted grammar from [PLAN.md](PLAN.md) section 5.1. Nothing from disk is executed. The file must stay unchanged for one second before it is trusted, because the game may still be writing it.
 
@@ -90,8 +90,30 @@ It warns when the most worn item is at 25% durability or less, and when two or f
 
 An addon cannot take commands from the helper. The game gives addons no way to read files or sockets while it runs, and spells can only be cast from a key or click the player makes. The legitimate pattern is an addon that owns secure action buttons with key bindings, pressed by the helper's one explicit key chord. That pattern needs `SecureActionButtonTemplate` and `SetBinding`, which `tests/test_no_input.py` bans under the operator decision of 2026-09-27 ("addon automation remain[s] excluded"). Building it is the operator's call and would change that rule first.
 
+## Checking the first real snapshot
+
+`python -m wow_helper check-snapshot --text` reads the newest snapshot (or one edition with `--flavor`, or one file with `--file`) and reports, check by check, which of the helper's assumptions the game client confirmed. Each line is `confirmed`, `missing`, or `mismatch`, with the fix spelled out where there is one. It takes no action and sends no input.
+
+The output names counts, the client's version, build, and interface number, and the API each feature came from. It never prints a character, realm, account, zone, quest title, or path, so it can be pasted into an issue or a commit message as evidence.
+
+To run the first live check:
+
+1. `python -m wow_helper install-addon`, enable **WoW Companion** at character select, and tick "Load out of date AddOns" if the client asks.
+2. Log in on a character with at least one quest that has a counter, then `/reload`.
+3. `python -m wow_helper check-snapshot --text`.
+
+What each result means:
+
+- `toc_interface` mismatch: the client's interface number is not in the `.toc`. The addon still loads with "Load out of date AddOns" ticked; update the `## Interface:` line with the reported number.
+- `distance` missing on a client that reported the modern API: the client has no `GetDistanceSqToQuest`, or no quest objective is on the current continent. The `api_sources` line says which.
+- `available_quests` confirmed with 0 quests: the API answered but listed nothing. Compare with the map before concluding Forever does not fill it.
+- `objective_counts` missing with objectives present: the classic leaderboard API is in use and counts come only from the objective text.
+- `addon_version` or `client_build` missing: the snapshot came from an older addon. Reinstall and `/reload`.
+
+The check reads the same snapshot as `quests` and `character`, so a snapshot that passes here is the one they report from.
+
 ## What has been verified
 
-- Parser, advice order, CLI, discovery, and addon install are covered by automated tests. The tests use the synthetic fixture `tests/fixtures/savedvariables_quests.lua` and fake install folders.
+- Parser, advice order, CLI, discovery, addon install, and the snapshot check are covered by automated tests. The tests use the synthetic fixtures `tests/fixtures/savedvariables_quests.lua` and `tests/fixtures/savedvariables_check.lua` and fake install folders.
 - The addon's Lua was syntax-checked with `luaparser`.
-- **Not verified:** the addon has not been loaded in any game client. That leaves the API field names (quest, quest-line, and character status), whether Forever fills `GetAvailableQuestLines` for its quests, the `.toc` interface numbers, the objective text format, and the distance values unconfirmed. The first real `/reload` is the test.
+- **Not verified:** the addon has not been loaded in any game client. That leaves the API field names (quest, quest-line, character status, and `GetBuildInfo`), whether Forever fills `GetAvailableQuestLines` for its quests, the `.toc` interface numbers, the objective text format, and the distance values unconfirmed. The first real `/reload` followed by `check-snapshot` is the test; the check itself has only run against the synthetic fixtures.

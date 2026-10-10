@@ -6,6 +6,7 @@
 WoWCompanionDB = WoWCompanionDB or {}
 
 local SCHEMA = 1
+local ADDON_VERSION = "0.4.0" -- keep equal to the .toc Version line
 
 local function objectives(index, questID)
   local list = {}
@@ -123,6 +124,31 @@ local function character()
            gear = gear(), bags = bags() }
 end
 
+local function client()
+  -- The running client's version, build, and interface number, so the helper can tell whether
+  -- the .toc Interface guess matched. GetBuildInfo returns version, build, date, interface.
+  if not GetBuildInfo then return nil end
+  local version, build, _, interface = GetBuildInfo()
+  return { version = version, build = build, interface = interface }
+end
+
+local function sources()
+  -- Which API each feature read on this client, so the first real snapshot shows what exists.
+  local function pick(modernName, classicName, modern, classic)
+    if modern then return modernName elseif classic then return classicName end
+    return "none"
+  end
+  return {
+    objectives = pick("C_QuestLog", "leaderboard", C_QuestLog and C_QuestLog.GetQuestObjectives, GetNumQuestLeaderBoards),
+    distance = (C_QuestLog and C_QuestLog.GetDistanceSqToQuest) and "C_QuestLog" or "none",
+    completed = pick("C_QuestLog", "GetQuestsCompleted", C_QuestLog and C_QuestLog.GetAllCompletedQuestIDs, GetQuestsCompleted),
+    available = (C_QuestLine and C_QuestLine.GetAvailableQuestLines and C_Map and C_Map.GetBestMapForUnit)
+                and "C_QuestLine" or "none",
+    itemLevel = pick("C_Item", "global", C_Item and C_Item.GetDetailedItemLevelInfo, GetDetailedItemLevelInfo),
+    bags = pick("C_Container", "global", C_Container and C_Container.GetContainerNumSlots, GetContainerNumSlots),
+  }
+end
+
 local function snapshot()
   local modern = C_QuestLog and C_QuestLog.GetInfo and true or false
   local count = modern and C_QuestLog.GetNumQuestLogEntries() or GetNumQuestLogEntries()
@@ -143,7 +169,8 @@ local function snapshot()
   local _, class = UnitClass("player")
   local nearby, mapID = available()
   return {
-    schema = SCHEMA, savedAt = GetServerTime(), api = modern and "modern" or "classic",
+    schema = SCHEMA, addon = ADDON_VERSION, savedAt = GetServerTime(), api = modern and "modern" or "classic",
+    client = client(), sources = sources(),
     player = { level = UnitLevel("player"), class = class, xp = UnitXP("player"),
                xpMax = UnitXPMax("player"), zone = GetRealZoneText(), subzone = GetSubZoneText() },
     quests = quests, collapsedHeaders = collapsed, character = character(),
