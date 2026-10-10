@@ -122,6 +122,9 @@ class CodexClient:
             self.pipe = PipeSocket(process)
             self.ws = websocket.create_connection(
                 "ws://localhost/", socket=self.pipe, timeout=6, suppress_origin=True,
+                # recv() still decodes text with strict UTF-8 in native code. The
+                # duplicate Python validator can starve Tk on multi-MB histories.
+                skip_utf8_validation=True,
             )
             self._rpc("initialize", {
                 "clientInfo": {"name": "wow_helper", "version": "0.1.0"},

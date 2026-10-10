@@ -349,6 +349,33 @@ def test_minimum_size_keeps_chat_controls_visible_and_max_windows_is_enforced(ma
     assert str(first.new_button["state"]) == "normal"
 
 
+@pytest.mark.parametrize("size", ["440x580", "620x700"])
+def test_compact_toolbar_keeps_all_chat_actions_on_one_row(manager_factory, size):
+    manager = manager_factory()
+    window = manager.windows[0]
+    window.chrome.place(size + "+100+100")
+    window.root.update()
+    view = window.view
+    controls = [window.new_button, view.session_picker, view.refresh_button,
+                view.send_button, window.menu_button]
+    centers = [widget.winfo_rooty() + widget.winfo_height() / 2 for widget in controls]
+    assert max(centers) - min(centers) <= 2
+    assert max(widget.winfo_height() for widget in controls) <= 30
+    assert view.session_picker.winfo_width() >= 120
+    for left, right in zip(controls, controls[1:]):
+        assert left.winfo_rootx() + left.winfo_width() <= right.winfo_rootx()
+    assert controls[-1].winfo_rootx() + controls[-1].winfo_width() < window.root.winfo_rootx() + window.root.winfo_width()
+    assert view.transcript.winfo_height() >= window.root.winfo_height() / 2
+    choose(window, 1)
+    assert window.options_menu.entrycget(view.setup_menu_index, "state") == "normal"
+    window.options_menu.invoke(view.setup_menu_index)
+    dialog = next(child for child in view.root.winfo_children() if isinstance(child, manager.tk.Toplevel))
+    assert dialog.title() == "Connect this Claude session"
+    dialog.destroy()
+    choose(window, 0)
+    assert window.options_menu.entrycget(view.setup_menu_index, "state") == "disabled"
+
+
 def test_window_menu_recovers_minimized_window(manager_factory):
     manager = manager_factory()
     first = manager.windows[0]

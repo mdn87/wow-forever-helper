@@ -6,13 +6,14 @@ import uuid
 
 from .chat import ChatError, ChatService, claude_connection_text
 from .window_state import history_state, restored_history, saved_selection
-from .theme import ACCENT, BACKGROUND, EDITOR, MUTED, PANEL, TEXT, apply_theme, display_font
+from .theme import ACCENT, BACKGROUND, EDITOR, MUTED, PANEL, TEXT, apply_theme, display_font, menu as themed_menu
 
 
 class ChatWindow:
     """One independent conversation, usable in a window or a workspace panel."""
 
-    def __init__(self, root, service=None, *, embedded=False, selection=None, on_change=None, state=None):
+    def __init__(self, root, service=None, *, embedded=False, selection=None, on_change=None,
+                 state=None, toolbar=None, actions_menu=None):
         import tkinter as tk
         from tkinter import ttk
 
@@ -27,7 +28,7 @@ class ChatWindow:
         self.results = queue.Queue()
         self.sessions = []
         self.selected = None
-        self.busy = False
+        self.jobs = set()
         self.closed = False
         self.last_messages = None
         self.drafts = {}
@@ -59,31 +60,39 @@ class ChatWindow:
             root.protocol("WM_DELETE_WINDOW", self.close)
         apply_theme(root)
 
-        selector = tk.Frame(root, bg=PANEL, padx=12, pady=10)
-        selector.pack(fill="x")
-        tk.Label(selector, text="AGENT SESSION", fg=MUTED, bg=PANEL,
-                 font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 5))
-        self.session_picker = ttk.Combobox(selector, state="readonly", width=1)
+        selector = tk.Frame(toolbar if toolbar is not None else root, bg=PANEL,
+                            padx=0 if toolbar is not None else 8, pady=0 if toolbar is not None else 5)
+        selector.pack(side="left" if toolbar is not None else "top", fill="x", expand=toolbar is not None)
+        self.actions_menu = actions_menu if actions_menu is not None else themed_menu(selector)
+        if actions_menu is None:
+            self.menu_button = ttk.Menubutton(selector, text="Menu", menu=self.actions_menu)
+            self.menu_button.pack(side="right", padx=(4, 0))
+        else:
+            self.actions_menu.add_separator()
+        self.actions_menu.add_command(label="Connect selected Claude session…", command=self.claude_setup,
+                                      state="disabled")
+        self.setup_menu_index = self.actions_menu.index("end")
+        self.send_button = ttk.Button(selector, text="Send", command=self.send, state="disabled")
+        self.send_button.pack(side="right", padx=(4, 0))
+        self.refresh_button = ttk.Button(selector, text="↻", style="Window.TButton", command=self.refresh)
+        self.refresh_button.pack(side="right", padx=(4, 0))
+        self.actions_menu.add_command(label="Refresh open sessions", command=self.refresh)
+        self.session_picker = ttk.Combobox(selector, state="readonly", width=1, font=("Segoe UI", 9))
         self.session_picker.set("Choose an open session…")
-        self.session_picker.pack(fill="x")
+        self.session_picker.pack(side="left", fill="x", expand=True)
         self.session_picker.bind("<<ComboboxSelected>>", self.select)
-        controls = tk.Frame(selector, bg=PANEL)
-        controls.pack(fill="x", pady=(8, 0))
-        self.refresh_button = ttk.Button(controls, text="Refresh sessions", command=self.refresh)
-        self.refresh_button.pack(side="left")
-        self.setup_button = ttk.Button(controls, text="Connect Claude…", command=self.claude_setup, state="disabled")
-        self.setup_button.pack(side="left", padx=(8, 0))
 
-        conversation = tk.Frame(root, bg=PANEL, padx=12)
+        conversation = tk.Frame(root, bg=PANEL, padx=8)
         conversation.pack(fill="both", expand=True)
         self.title = tk.StringVar(master=root, value="Choose a session")
         self.subtitle = tk.StringVar(master=root, value="Each chat connects independently.")
         self.title_label = tk.Label(conversation, textvariable=self.title, anchor="w", fg=TEXT, bg=PANEL,
                                    font=display_font(root, 15))
-        self.title_label.pack(fill="x")
+        if not embedded:
+            self.title_label.pack(fill="x")
         self.subtitle_label = tk.Label(conversation, textvariable=self.subtitle, anchor="w", fg=ACCENT,
-                                      bg=PANEL, font=("Segoe UI", 9))
-        self.subtitle_label.pack(fill="x", pady=(2, 8))
+                                      bg=PANEL, font=("Segoe UI", 8))
+        self.subtitle_label.pack(fill="x", pady=(0, 3))
         transcript_frame = tk.Frame(conversation, bg=PANEL)
         transcript_frame.pack(fill="both", expand=True)
         self.transcript = tk.Text(transcript_frame, wrap="word", state="disabled", bg=PANEL,
@@ -99,20 +108,14 @@ class ChatWindow:
         self.editor = tk.Text(conversation, height=3, width=1, wrap="word", bg=EDITOR, fg=TEXT,
                               insertbackground=TEXT, font=("Segoe UI", 11), padx=10, pady=8,
                               relief="flat", undo=True)
-        self.editor.pack(fill="x", pady=(8, 6))
+        self.editor.pack(fill="x", pady=(5, 0))
         self.editor.bind("<Control-Return>", self.send)
         self.editor.bind("<<Modified>>", self._edited)
-        actions = tk.Frame(conversation, bg=PANEL)
-        actions.pack(fill="x")
-        tk.Label(actions, text="Ctrl+Enter to send", fg=MUTED, bg=PANEL,
-                 font=("Segoe UI", 9)).pack(side="left")
-        self.send_button = ttk.Button(actions, text="Send message", command=self.send, state="disabled")
-        self.send_button.pack(side="right")
         self.status = tk.StringVar(master=root, value="Looking for open sessions…")
         if not embedded:
             root.report_callback_exception = lambda *_: self.status.set("The window could not finish that action. Refresh and try again.")
         self.status_label = tk.Label(root, textvariable=self.status, fg=MUTED, bg=PANEL, anchor="w",
-                                    justify="left", wraplength=380, padx=12, pady=8, font=("Segoe UI", 9))
+                                    justify="left", wraplength=380, padx=8, pady=4, font=("Segoe UI", 8))
         self.status_label.pack(fill="x")
         root.bind("<Configure>", self._resize, add="+")
         self._show(self.history_cache.get(self.desired_key, []))
@@ -128,6 +131,17 @@ class ChatWindow:
     @property
     def selection_key(self):
         return self.selected.key if self.selected else self.desired_key
+
+    @property
+    def busy(self):
+        return bool(self.jobs)
+
+    def _update_controls(self):
+        foreground = bool(self.jobs - {"history"})
+        self.send_button.configure(state="normal" if self.selected and not foreground else "disabled")
+        self.refresh_button.configure(state="disabled" if foreground else "normal")
+        self.actions_menu.entryconfigure(self.setup_menu_index,
+                                         state="normal" if self.selected and self.selected.provider == "claude" else "disabled")
 
     def _edited(self, _event=None):
         if self.editor.edit_modified():
@@ -157,11 +171,12 @@ class ChatWindow:
             self.status_label.configure(wraplength=max(200, event.width - 32))
 
     def _submit(self, kind, action, context=None):
-        if self.busy or self.closed:
+        # Allow one explicit action behind a background poll. All provider work
+        # remains serialized, with no duplicate sends or overlapping socket reads.
+        if self.closed or kind in self.jobs or self.jobs - {"history"} or (kind == "history" and self.busy):
             return False
-        self.busy = True
-        self.send_button.configure(state="disabled")
-        self.refresh_button.configure(state="disabled")
+        self.jobs.add(kind)
+        self._update_controls()
 
         def work():
             try:
@@ -200,9 +215,8 @@ class ChatWindow:
         self.title.set(session.title[:65].replace("\n", " "))
         self.subtitle.set("Saved history · refreshing conversation" if self.history_cache.get(session.key)
                           else self._description(session))
-        self.setup_button.configure(state="normal" if session.provider == "claude" else "disabled")
         self._show(self.history_cache.get(session.key, []))
-        self.send_button.configure(state="disabled" if self.busy else "normal")
+        self._update_controls()
         self.status.set("Loading conversation…")
         self.on_change()
         self._history()
@@ -258,7 +272,7 @@ class ChatWindow:
         self.on_change()
 
     def send(self, _event=None):
-        if not self.selected or self.busy:
+        if not self.selected or self.jobs - {"history"}:
             return "break"
         session = self.selected
         body = self.editor.get("1.0", "end-1c").strip()
@@ -314,14 +328,23 @@ class ChatWindow:
         except queue.Empty:
             pass
         else:
-            self.busy = False
-            self.refresh_button.configure(state="normal")
+            self.jobs.discard(kind)
             if kind == "send":
+                context = self.inflight or context
                 self.inflight = None
+            if kind == "history" and not error and self.inflight and context == self.inflight[0]:
+                # This read completed before the queued send started. Its user
+                # messages cannot be receipts for that new outgoing message.
+                key, body, previous_ids = self.inflight
+                self.inflight = (key, body, previous_ids | frozenset(m.id for m in result))
             if error:
-                self.status.set(error)
                 if kind == "history":
-                    self.subtitle.set("Saved history · conversation could not refresh")
+                    if self.selected and context == self.selected.key:
+                        self.subtitle.set("Saved history · conversation could not refresh")
+                        if not self.jobs:
+                            self.status.set(error)
+                else:
+                    self.status.set(error)
             elif kind == "sessions":
                 self.sessions, notices = result
                 previous = self.selection_key
@@ -344,7 +367,6 @@ class ChatWindow:
                     self.session_picker.set("Saved session unavailable — choose another or refresh")
                     self.title.set(self.session_title or "Session disconnected")
                     self.subtitle.set("Saved history · session unavailable · sending disabled")
-                    self.setup_button.configure(state="disabled")
                     self.on_change()
                 else:
                     self.session_picker.set("Choose an open session…")
@@ -352,7 +374,7 @@ class ChatWindow:
                 self._show(result)
                 self.subtitle.set(self._description(self.selected))
                 if self.status.get() == "Loading conversation…":
-                    self.status.set("Conversation updated. Approvals and tool activity remain in the terminal.")
+                    self.status.set("Ctrl+Enter to send · Approvals and tools stay in the terminal.")
             elif kind == "send":
                 key, body, previous_ids = context
                 self.sent.setdefault(key, []).append((body, result, previous_ids))
@@ -365,8 +387,9 @@ class ChatWindow:
                 else:
                     self.drafts[key] = ""
                 self.status.set("Message " + result + ". This does not yet confirm an agent reply.")
-            self.send_button.configure(state="normal" if self.selected and not self.busy else "disabled")
-            self.on_change()
+            self._update_controls()
+            if kind != "history":
+                self.on_change()
         self.auto_refresh += 1
         if not self.busy and self.auto_refresh % 30 == 0:
             self._history()

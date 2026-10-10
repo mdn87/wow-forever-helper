@@ -101,23 +101,23 @@ def apply_theme(root):
     style.element_create("Companion.button", "image", images["normal"],
                          ("disabled", images["disabled"]), ("pressed", images["pressed"]),
                          ("active", images["active"]), ("focus", images["focus"]),
-                         border=5, sticky="nswe", width=32, height=32)
+                         border=5, sticky="nswe", width=24, height=24)
     style.layout("TButton", [("Companion.button", {"sticky": "nswe", "children": [
         ("Button.padding", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})]})])
-    style.configure("TButton", font=display_font(root, 12), foreground=ACCENT,
-                    background=BACKGROUND, padding=(12, 7), anchor="center")
+    style.configure("TButton", font=display_font(root, 10), foreground=ACCENT,
+                    background=BACKGROUND, padding=(6, 1), width=0, anchor="center")
     style.map("TButton", foreground=[("disabled", "#837862"), ("active", "#ffe7a0")])
-    style.configure("Window.TButton", font=("Segoe UI", 11, "bold"), padding=(4, 1), width=2)
+    style.configure("Window.TButton", font=("Segoe UI", 9, "bold"), padding=(2, 0), width=2)
     style.layout("TMenubutton", [("Companion.button", {"sticky": "nswe", "children": [
         ("Menubutton.padding", {"sticky": "nswe", "children": [
             ("Menubutton.indicator", {"side": "right", "sticky": ""}),
             ("Menubutton.label", {"sticky": "nswe"})]})]})])
-    style.configure("TMenubutton", font=display_font(root, 12), foreground=ACCENT,
-                    background=BACKGROUND, arrowcolor=ACCENT, padding=(8, 7), width=0)
+    style.configure("TMenubutton", font=display_font(root, 10), foreground=ACCENT,
+                    background=BACKGROUND, arrowcolor=ACCENT, padding=(5, 1), width=0)
     style.map("TMenubutton", foreground=[("disabled", MUTED), ("active", "#ffe7a0")])
     style.configure("TCombobox", font=("Segoe UI", 10), foreground=TEXT,
                     fieldbackground=EDITOR, background=TITLE, bordercolor=EDGE,
-                    lightcolor=EDGE, darkcolor=BACKGROUND, arrowcolor=ACCENT, padding=5)
+                    lightcolor=EDGE, darkcolor=BACKGROUND, arrowcolor=ACCENT, padding=2)
     style.map("TCombobox", fieldbackground=[("readonly", EDITOR)],
               foreground=[("readonly", TEXT)], selectbackground=[("readonly", EDITOR)],
               selectforeground=[("readonly", TEXT)], background=[("active", "#4a3724")])

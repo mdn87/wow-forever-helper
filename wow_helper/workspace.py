@@ -39,31 +39,30 @@ class CompanionWindow:
                                   minimum=(MIN_WIDTH, MIN_HEIGHT))
         surface = self.chrome.content
 
-        bar = tk.Frame(surface, bg=BACKGROUND, padx=10, pady=9)
+        bar = self.toolbar = tk.Frame(surface, bg=BACKGROUND, padx=8, pady=5)
         bar.pack(fill="x")
-        self.new_button = ttk.Button(bar, text="+ New window", command=lambda: manager.new_window(self))
-        self.new_button.pack(side="left")
-        switch = ttk.Menubutton(bar, text="Windows")
-        switch.pack(side="right")
-        self.windows_menu = themed_menu(switch)
-        switch.configure(menu=self.windows_menu)
-        options = ttk.Menubutton(bar, text="Options")
-        options.pack(side="right", padx=6)
+        self.new_button = ttk.Button(bar, text="+ New", command=lambda: manager.new_window(self))
+        self.new_button.pack(side="left", padx=(0, 4))
+        options = self.menu_button = ttk.Menubutton(bar, text="Menu")
+        options.pack(side="right", padx=(4, 0))
         self.options_menu = themed_menu(options)
+        self.windows_menu = themed_menu(self.options_menu)
         options.configure(menu=self.options_menu)
         self.options_menu.add_checkbutton(label="Keep above other windows", variable=self.topmost,
                                           command=self.set_topmost)
         self.options_menu.add_checkbutton(label="Remember draft and recent chat", variable=self.remember,
                                           command=manager.save_layout)
         self.options_menu.add_separator()
+        self.options_menu.add_cascade(label="Windows", menu=self.windows_menu)
+        self.options_menu.add_command(label="New window", command=lambda: manager.new_window(self))
         self.options_menu.add_command(label="Bring all windows to this screen", command=lambda: manager.arrange(self))
         self.options_menu.add_command(label="Close this window", command=lambda: manager.close_window(self))
         self.options_menu.add_separator()
         self.options_menu.add_command(label="Quit companion (keep all windows)", command=manager.close)
         self.notice = tk.StringVar(master=self.root, value="Layout and selected session save automatically.")
         self.notice_label = tk.Label(surface, textvariable=self.notice, bg=BACKGROUND, fg=MUTED,
-                                    anchor="w", justify="left", padx=12, pady=7, wraplength=400,
-                                    font=("Segoe UI", 9))
+                                    anchor="w", justify="left", padx=8, pady=3, wraplength=400,
+                                    font=("Segoe UI", 8))
         self.notice_label.pack(side="bottom", fill="x")
         self.body = tk.Frame(surface, bg=PANEL)
         self.body.pack(fill="both", expand=True)
@@ -105,7 +104,8 @@ class CompanionWindow:
             child.destroy()
         self.kind = "chat"
         self.view = ChatWindow(self.body, self.manager.service_factory(), embedded=True,
-                               state=state, on_change=lambda: self.manager.changed(self))
+                               state=state, on_change=lambda: self.manager.changed(self),
+                               toolbar=self.toolbar, actions_menu=self.options_menu)
         self.manager.changed(self)
 
     def set_topmost(self):

@@ -1,6 +1,7 @@
 """Synthetic Tk interaction tests; skipped when a graphical desktop is unavailable."""
 
 import time
+import threading
 import uuid
 
 import pytest
@@ -64,6 +65,72 @@ def test_send_does_not_erase_text_typed_during_delivery(window):
     window.editor.insert("end", " and a new thought")
     settle(window)
     assert window.editor.get("1.0", "end-1c") == "First message and a new thought"
+
+
+def test_history_poll_keeps_controls_available_and_accepts_one_send(window):
+    choose(window, 0)
+    gate, started = threading.Event(), threading.Event()
+    calls = []
+
+    def history(_):
+        started.set()
+        assert gate.wait(3)
+        return [Message("synthetic-existing", "user", "Hello")]
+
+    window.service.history = history
+    window.service.send = lambda session, body, request: calls.append((session.key, body)) or "queued"
+    try:
+        window.auto_refresh = 29
+        window._tick()
+        assert started.wait(1)
+        assert str(window.send_button["state"]) == "normal"
+        assert str(window.refresh_button["state"]) == "normal"
+        window.editor.insert("1.0", "Hello")
+        window.send()
+        window.send()  # A second click must not queue the same draft again.
+        window.editor.insert("end", " and keep typing")
+        window.root.update()
+        assert window.editor.get("1.0", "end-1c") == "Hello and keep typing"
+        assert str(window.send_button["state"]) == "disabled"
+        assert calls == []  # The provider connection remains single-worker.
+    finally:
+        gate.set()
+        settle(window)
+    assert calls == [(window.selected.key, "Hello")]
+    assert window.editor.get("1.0", "end-1c") == "Hello and keep typing"
+    assert "QUEUED" in window.transcript.get("1.0", "end")
+    window._show([Message("synthetic-existing", "user", "Hello"),
+                  Message("synthetic-delivered", "user", "Hello")])
+    assert "QUEUED" not in window.transcript.get("1.0", "end")
+
+
+def test_unchanged_poll_does_not_schedule_another_layout_save(window):
+    choose(window, 0)
+    changes = []
+    window.on_change = lambda: changes.append(True)
+    window._history()
+    settle(window)
+    assert changes == []
+
+
+def test_refresh_clicked_during_history_still_detects_a_disconnected_session(window):
+    choose(window, 0)
+    gate = threading.Event()
+    def history(_):
+        assert gate.wait(3)
+        return []
+    window.service.history = history
+    try:
+        window._history()
+        window.service.sessions = []
+        window.editor.insert("1.0", "Keep this draft")
+        window.refresh_button.invoke()
+    finally:
+        gate.set()
+        settle(window)
+    assert window.selected is None
+    assert str(window.send_button["state"]) == "disabled"
+    assert window.editor.get("1.0", "end-1c") == "Keep this draft"
 
 
 def test_identical_old_text_cannot_hide_a_new_queued_message(window):
