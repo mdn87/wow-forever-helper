@@ -8,13 +8,13 @@
   "milestonePhase": "build-and-validate",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-10T16:30:41.000Z",
+  "assessedAt": "2026-10-10T19:42:51.884Z",
   "confidence": "inferred",
-  "currentMilestone": "Make the existing read-only companion reliable before extending the second-screen interface.",
-  "remainingSummary": "Next: the chat window linked to a live CLI session, per the operator. The in-game snapshot check by the operator and the journal remain after that.",
-  "nextChipId": "chat-window-live-cli",
+  "currentMilestone": "Deliver interactive chat with an existing agent session from the second screen.",
+  "remainingSummary": "Verify a live chat round trip and the addon snapshot with the operator. The character journal remains planned.",
+  "nextChipId": null,
   "source": {
-    "label": "Planning session, operator set the next feature",
+    "label": "Implemented chat; Windows tests and read-only provider checks",
     "updatedAt": "2026-10-10"
   }
 }
