@@ -107,12 +107,15 @@ def test_close_cancels_the_refresh_callback(window):
     assert callback not in window.root.tk.call("after", "info")
 
 
-def test_claude_connection_dialog_keeps_copy_button_visible(window):
+@pytest.mark.parametrize("geometry", ["700x460", "500x400"])
+def test_claude_connection_dialog_keeps_copy_button_visible(window, geometry):
     choose(window, 1)
     window.claude_setup()
     window.root.update()
     dialog = next(child for child in window.root.winfo_children() if isinstance(child, window.tk.Toplevel))
-    button = next(child for child in dialog.winfo_children() if child.winfo_class() == "TButton")
+    dialog.geometry(geometry)
+    dialog.update()
+    button = next(child for child in dialog._companion_frame.content.winfo_children() if child.winfo_class() == "TButton")
     assert button.winfo_rooty() + button.winfo_height() <= dialog.winfo_rooty() + dialog.winfo_height()
 
 

@@ -1,6 +1,7 @@
 """Synthetic window lifecycle checks; no real agent connection or game input."""
 
 import json
+import os
 import threading
 import time
 import uuid
@@ -88,12 +89,13 @@ def new_chat(manager, source):
     return window
 
 
-def test_first_launch_starts_one_chat_and_new_window_copies_size_with_chooser(manager_factory):
+@pytest.mark.parametrize("height", [MIN_HEIGHT, 600])
+def test_first_launch_starts_one_chat_and_new_window_copies_size_with_chooser(manager_factory, height):
     manager = manager_factory()
     assert len(manager.windows) == 1
     first = manager.windows[0]
     assert first.kind == "chat"
-    first.root.geometry("560x560+40+40")
+    first.root.geometry(f"560x{height}+40+40")
     first.root.update()
     first.new_button.invoke()
     second = manager.windows[1]
@@ -101,7 +103,7 @@ def test_first_launch_starts_one_chat_and_new_window_copies_size_with_chooser(ma
     assert second.kind == "chooser" and second.view is None
     assert second.root.winfo_toplevel() is not first.root
     assert second.capture_bounds()["width"] == first.capture_bounds()["width"] == 560
-    assert second.capture_bounds()["height"] == first.capture_bounds()["height"] == 560
+    assert second.capture_bounds()["height"] == first.capture_bounds()["height"] == height
     assert second.capture_bounds()["x"] == first.capture_bounds()["x"] + 32
     assert second.topmost.get() and second.root.attributes("-topmost")
     second.chat_button.invoke()
@@ -249,13 +251,81 @@ def test_close_one_removes_it_but_last_close_keeps_final_window_for_restart(mana
     manager = manager_factory()
     first = manager.windows[0]
     second = manager.new_window(first)
-    manager.close_window(second)
+    second.chrome.close_button.invoke()
     assert len(manager.windows) == 1
-    manager.close_window(first)
+    first.chrome.close_button.invoke()
     assert manager.closed
     restored = manager_factory()
     assert len(restored.windows) == 1
     assert restored.windows[0].id == first.id
+
+
+def test_custom_title_drag_and_corner_resize_preserve_window_bounds(manager_factory):
+    manager = manager_factory()
+    window = manager.windows[0]
+    window.root.geometry("620x700+100+100")
+    window.root.update()
+    moved_sizes = []
+    window.root.bind("<Configure>", lambda event: moved_sizes.append((event.width, event.height))
+                     if event.widget is window.root else None, add="+")
+
+    def drag(widget, dx, dy):
+        widget.event_generate("<ButtonPress-1>", x=10, y=10, rootx=200, rooty=200)
+        widget.event_generate("<B1-Motion>", x=10, y=10, rootx=200 + dx, rooty=200 + dy)
+        widget.event_generate("<ButtonRelease-1>", x=10, y=10, rootx=200 + dx, rooty=200 + dy)
+        window.root.update()
+
+    drag(window.chrome.titlebar, 80, 60)
+    assert window.capture_bounds() == {"width": 620, "height": 700, "x": 180, "y": 160}
+    if os.name == "nt":
+        assert moved_sizes and set(moved_sizes) == {(620, 700)}
+    drag(window.chrome.grip, 60, 40)
+    assert window.capture_bounds() == {"width": 680, "height": 740, "x": 180, "y": 160}
+    drag(window.chrome.grip, -1000, -1000)
+    assert window.capture_bounds() == {"width": MIN_WIDTH, "height": MIN_HEIGHT, "x": 180, "y": 160}
+    assert window.chrome.drag_start is None
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows native frame behavior")
+def test_custom_caption_keeps_native_resize_minimize_maximize_and_saved_normal_size(manager_factory):
+    import ctypes
+    from ctypes import wintypes
+    from tkinter import font
+
+    manager = manager_factory()
+    window = manager.windows[0]
+    window.root.geometry(f"560x{MIN_HEIGHT}+100+100")
+    window.root.update()
+    normal = window.capture_bounds()
+    assert normal["height"] == MIN_HEIGHT
+    assert font.Font(root=window.root, font=window.chrome.title_font).actual("family") == "Marcellus"
+    assert window.chrome.native_caption_hidden
+    user32 = ctypes.WinDLL("user32")
+    get_style = getattr(user32, "GetWindowLongPtrW" if ctypes.sizeof(ctypes.c_void_p) == 8 else "GetWindowLongW")
+    get_style.argtypes = [wintypes.HWND, ctypes.c_int]
+    get_style.restype = ctypes.c_ssize_t
+    style = get_style(int(window.root.frame(), 0), -16)
+    assert style & 0x00C00000 != 0x00C00000  # WS_CAPTION requires both bits.
+    assert style & 0x00070000 == 0x00070000  # Native resize, minimize, maximize.
+    window.chrome.maximize_button.invoke()
+    window.root.update()
+    assert window.root.state() == "zoomed"
+    assert window.capture_bounds() == normal
+    window.chrome.maximize_button.invoke()
+    window.root.update()
+    assert window.root.state() == "normal"
+    assert window.capture_bounds() == normal
+    window.chrome.minimize_button.invoke()
+    window.root.update()
+    assert window.root.state() == "iconic"
+    manager.reveal(window)
+    window.root.update()
+    assert window.capture_bounds() == normal
+    window.topmost.set(False)
+    window.set_topmost()
+    window.root.update()
+    assert get_style(int(window.root.frame(), 0), -16) & 0x00C00000 != 0x00C00000
+    assert window.capture_bounds() == normal
 
 
 def test_minimum_size_keeps_chat_controls_visible_and_max_windows_is_enforced(manager_factory):
@@ -267,6 +337,9 @@ def test_minimum_size_keeps_chat_controls_visible_and_max_windows_is_enforced(ma
     assert first.view.editor.winfo_height() > 20
     assert first.view.transcript.winfo_height() > 20
     assert first.view.send_button.winfo_rooty() + first.view.send_button.winfo_height() < bottom
+    toolbar_buttons = first.new_button.master.winfo_children()
+    for button in toolbar_buttons:
+        assert button.winfo_width() >= button.winfo_reqwidth()
     for _ in range(MAX_WINDOWS - 1):
         manager.new_window(first)
     assert len(manager.windows) == MAX_WINDOWS

@@ -19,5 +19,8 @@ wow-helper = "wow_helper.__main__:main"
 [tool.setuptools.packages.find]
 include = ["wow_helper*"]
 
+[tool.setuptools.package-data]
+wow_helper = ["assets/*.png", "assets/*.ttf", "assets/*.txt", "assets/*.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

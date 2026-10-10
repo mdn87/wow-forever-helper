@@ -4,8 +4,10 @@ from pathlib import Path
 import uuid
 
 from .chat import CHAT_STATE, ChatError, ChatService, read_json, write_json
-from .chat_window import ACCENT, BACKGROUND, MUTED, PANEL, TEXT, ChatWindow
+from .chat_window import ChatWindow
 from .window_state import LayoutLock, MAX_WINDOWS, MIN_HEIGHT, MIN_WIDTH, display_workareas, window_bounds
+from .theme import ACCENT, BACKGROUND, MUTED, PANEL, TEXT, apply_theme, display_font, menu as themed_menu
+from .window_frame import WindowFrame
 
 LAYOUT_PATH = CHAT_STATE / "windows.json"
 
@@ -33,18 +35,21 @@ class CompanionWindow:
         self.root.protocol("WM_DELETE_WINDOW", lambda: manager.close_window(self))
         self.root.bind("<Configure>", self._configure, add="+")
         self._place()
+        self.chrome = WindowFrame(self.root, close=lambda: manager.close_window(self),
+                                  minimum=(MIN_WIDTH, MIN_HEIGHT))
+        surface = self.chrome.content
 
-        bar = tk.Frame(self.root, bg=BACKGROUND, padx=10, pady=10)
+        bar = tk.Frame(surface, bg=BACKGROUND, padx=10, pady=9)
         bar.pack(fill="x")
         self.new_button = ttk.Button(bar, text="+ New window", command=lambda: manager.new_window(self))
         self.new_button.pack(side="left")
         switch = ttk.Menubutton(bar, text="Windows")
         switch.pack(side="right")
-        self.windows_menu = tk.Menu(switch, tearoff=False)
+        self.windows_menu = themed_menu(switch)
         switch.configure(menu=self.windows_menu)
         options = ttk.Menubutton(bar, text="Options")
         options.pack(side="right", padx=6)
-        self.options_menu = tk.Menu(options, tearoff=False)
+        self.options_menu = themed_menu(options)
         options.configure(menu=self.options_menu)
         self.options_menu.add_checkbutton(label="Keep above other windows", variable=self.topmost,
                                           command=self.set_topmost)
@@ -56,11 +61,11 @@ class CompanionWindow:
         self.options_menu.add_separator()
         self.options_menu.add_command(label="Quit companion (keep all windows)", command=manager.close)
         self.notice = tk.StringVar(master=self.root, value="Layout and selected session save automatically.")
-        self.notice_label = tk.Label(self.root, textvariable=self.notice, bg=BACKGROUND, fg=MUTED,
+        self.notice_label = tk.Label(surface, textvariable=self.notice, bg=BACKGROUND, fg=MUTED,
                                     anchor="w", justify="left", padx=12, pady=7, wraplength=400,
                                     font=("Segoe UI", 9))
         self.notice_label.pack(side="bottom", fill="x")
-        self.body = tk.Frame(self.root, bg=PANEL)
+        self.body = tk.Frame(surface, bg=PANEL)
         self.body.pack(fill="both", expand=True)
         if self.kind == "chat":
             self.open_chat(record.get("chat"))
@@ -68,6 +73,7 @@ class CompanionWindow:
             self.kind = "chooser"
             self.show_chooser()
         self.root.deiconify()
+        self.chrome.apply_native()
 
     def show_chooser(self):
         tk = self.manager.tk
@@ -75,7 +81,7 @@ class CompanionWindow:
         chooser = tk.Frame(self.body, bg=PANEL, padx=24, pady=28)
         chooser.pack(fill="both", expand=True)
         tk.Label(chooser, text="New window", bg=PANEL, fg=TEXT, anchor="w",
-                 font=("Segoe UI", 23, "bold")).pack(fill="x")
+                 font=display_font(self.root, 21)).pack(fill="x")
         tk.Label(chooser, text="Choose what to open here.", bg=PANEL, fg=MUTED,
                  font=("Segoe UI", 11), anchor="w").pack(fill="x", pady=(6, 28))
         self.chat_button = ttk.Button(chooser, text="Open agent chat", command=self.open_chat)
@@ -103,6 +109,7 @@ class CompanionWindow:
         self.manager.changed(self)
 
     def set_topmost(self):
+        self.root.update_idletasks()
         self.root.attributes("-topmost", self.topmost.get())
         self.manager.schedule_save()
 
@@ -110,12 +117,17 @@ class CompanionWindow:
         b = self.bounds
         # A leading '+' before a negative coordinate means an absolute virtual-screen
         # position in Tk; a plain '-' would anchor to the opposite screen edge.
-        self.root.geometry(f"{b['width']}x{b['height']}+{b['x']}+{b['y']}")
+        geometry = f"{b['width']}x{b['height']}+{b['x']}+{b['y']}"
+        if hasattr(self, "chrome"):
+            self.chrome.place(geometry)
+        else:
+            self.root.geometry(geometry)
 
     def _configure(self, event):
         if event.widget is not self.root or self.closed:
             return
-        if hasattr(self, "notice_label"):
+        if hasattr(self, "notice_label") and getattr(self, "_wrap_width", None) != event.width:
+            self._wrap_width = event.width
             self.notice_label.configure(wraplength=max(200, event.width - 24))
         if self.root.state() == "normal" and self.root.winfo_width() > 1:
             self.capture_bounds()
@@ -147,7 +159,6 @@ class CompanionWindow:
 class WindowManager:
     def __init__(self, root, *, service_factory=ChatService, layout_path=LAYOUT_PATH, areas=None):
         import tkinter as tk
-        from tkinter import ttk
 
         self.tk, self.root = tk, root
         self.service_factory = service_factory
@@ -161,9 +172,7 @@ class WindowManager:
         self.areas = areas or display_workareas(root)
         root.withdraw()
         root.report_callback_exception = self._callback_error
-        style = ttk.Style(root)
-        style.theme_use("clam")
-        style.configure("TButton", font=("Segoe UI", 10), padding=(10, 6))
+        apply_theme(root)
         try:
             layout = self._load()
             records = layout.get("windows", [])
@@ -239,8 +248,9 @@ class WindowManager:
             window.caption = f"Chat {window.number} · {suffix}"
         else:
             window.caption = f"Window {window.number} · Choose a window type"
-        window.root.title("WoW Companion · " + window.caption)
         if previous != window.caption:
+            window.root.title("WoW Companion · " + window.caption)
+            window.chrome.caption.set(window.caption)
             self.refresh_menus()
         self.schedule_save()
 
@@ -258,9 +268,10 @@ class WindowManager:
         if self.closed or window not in self.windows:
             return
         self.areas = display_workareas(self.root)
-        window.bounds = window_bounds(window.capture_bounds(), self.areas)
-        window._place()
+        bounds = window_bounds(window.capture_bounds(), self.areas)
         window.root.deiconify()
+        window.bounds = bounds
+        window._place()
         window.root.lift()
 
     def arrange(self, source):
@@ -272,9 +283,10 @@ class WindowManager:
         for index, window in enumerate(self.windows):
             raw = window.capture_bounds()
             raw.update(x=area[0] + 24 + index * 32, y=area[1] + 24 + index * 32)
-            window.bounds = window_bounds(raw, [area])
-            window._place()
+            bounds = window_bounds(raw, [area])
             window.root.deiconify()
+            window.bounds = bounds
+            window._place()
         self.schedule_save()
 
     def close_window(self, window):

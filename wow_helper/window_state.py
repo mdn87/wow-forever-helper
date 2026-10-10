@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .chat import ChatError, Message, identifier
 
-MIN_WIDTH, MIN_HEIGHT = 440, 540
+MIN_WIDTH, MIN_HEIGHT = 440, 580
 MAX_WINDOWS = 8
 MAX_HISTORY_CHARS = 200_000
 
