@@ -20,6 +20,8 @@ python -m venv .venv
 
 The workspace opens with two chat panels, each with its own session picker. Choose different Codex or Claude Code sessions to chat with both at once. Drag a panel by its title bar, resize it from the lower-right corner, or use **Tile chats** to arrange the panels. **New chat** adds another panel; positions, sizes, and session choices are remembered locally. For Claude, use **Connect Claude…** to copy polling instructions into that existing terminal once. See [interactive chat](docs/CHAT.md) for requirements and delivery states.
 
+The chat workspace is a separate desktop application. Installing **WoW Companion** does not show a chatbox or other panels inside WoW: the current addon only exports data. In-game agent chat has not been implemented.
+
 Use Python 3.11 or newer from the repository root. Commands other than chat need only the standard library. This example assumes you first assigned the actual spell to `Shift+F4` in WoW:
 
 ```console

@@ -22,6 +22,8 @@ python -m wow_helper install-addon            # or --wow-root "<install folder>"
 
 This copies the two addon files into `Interface/AddOns/WoWCompanion` in each game folder that has a `WTF` folder, meaning the game has run there. Then enable **WoW Companion** at character select. If the client calls it out of date, tick "Load out of date AddOns". The `.toc` interface number `16001` was confirmed on Classic Forever beta client 1.60.1, build 70338, on 2026-10-10; `120001` for retail remains unverified. Then `/reload` once in game.
 
+The current addon has no visible windows, buttons, or slash commands. It exports snapshots in the background. Use `check-snapshot` to verify that it is working; the separate [desktop chat workspace](CHAT.md) is launched from the helper CLI, not from WoW.
+
 ## Use
 
 ```console

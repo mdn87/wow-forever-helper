@@ -2,6 +2,8 @@
 
 Open a second-screen workspace connected to agent sessions you already have open. Each chat panel has its own session picker, conversation, composer, and connection. Choose a session, type a message, and press **Send message** or **Ctrl+Enter**. Enter inserts a new line. Each panel keeps separate unsent drafts for the sessions you visit while that panel is open.
 
+This workspace runs as a separate desktop application. It is not an in-game addon window and does not stay above WoW automatically. The installed **WoW Companion** addon currently exports quest and character snapshots without displaying any UI; enabling it or using `/reload` will not make a chatbox appear. In-game agent chat remains unimplemented.
+
 ## Setup
 
 Use Python 3.11 or newer with Tk, plus an installed and signed-in agent CLI. In a local virtual environment on Windows:
