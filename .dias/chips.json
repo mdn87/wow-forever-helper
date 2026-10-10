@@ -171,6 +171,32 @@
           "message": "Independent chat panels, title-bar dragging, corner resizing, tiling, raising covered panels, and local layout restoration are implemented. All 162 tests passed on Windows. A synthetic two-panel workspace was visually checked. Separate connections read two different live Codex and Claude histories concurrently; no live message was sent."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "persistent-companion-windows",
+      "projectId": "wow-forever-helper",
+      "title": "Create and restore independent companion windows",
+      "summary": "Start with one chat, create same-size windows with a type chooser, and restore their sessions, drafts, and cached conversations.",
+      "stage": "done",
+      "sequence": 5,
+      "prereqs": [
+        "multi-chat-workspace"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-10T21:40:41.111Z",
+        "updatedAt": "2026-10-10T21:40:41.111Z"
+      },
+      "evidence": [
+        {
+          "entryId": "persistent-windows-done",
+          "at": "2026-10-10T21:40:41.111Z",
+          "kind": "stage-change",
+          "message": "Independent floating desktop windows, a new-window chooser, local window and chat restoration, pin controls, monitor recovery, and exclusive layout access are implemented. All 173 Windows tests passed. Synthetic chat and chooser windows were visually checked at 620 by 700; minimum controls were checked at 440 by 540. A live agent message/reply round trip remains unverified."
+        }
+      ]
     }
   ]
 }

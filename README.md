@@ -1,6 +1,6 @@
 # WoW Forever Helper
 
-**A Windows accessibility helper for explicit player commands, with a second-screen agent chat workspace and a read-only quest companion.**
+**A Windows accessibility helper for explicit player commands, with floating agent chat windows and a read-only quest companion.**
 
 ## What works now
 
@@ -18,9 +18,9 @@ python -m venv .venv
 .venv/Scripts/python -m wow_helper chat
 ```
 
-The workspace opens with two chat panels, each with its own session picker. Choose different Codex or Claude Code sessions to chat with both at once. Drag a panel by its title bar, resize it from the lower-right corner, or use **Tile chats** to arrange the panels. **New chat** adds another panel; positions, sizes, and session choices are remembered locally. For Claude, use **Connect Claude…** to copy polling instructions into that existing terminal once. See [interactive chat](docs/CHAT.md) for requirements and delivery states.
+The companion starts with one chat window. Choose an open Codex or Claude Code session. **New window** opens another window at the same size with a chooser; select **Open agent chat** and connect it to a different session. Move and resize each window using its desktop title bar and edges. Windows can stay above WoW, and their positions, sizes, session choices, drafts, and recent conversations return on the next helper launch. Use **Quit companion (keep all windows)** to preserve the whole set. For Claude, use **Connect Claude…** once in the existing terminal. See [interactive chat](docs/CHAT.md) for retention controls and delivery states.
 
-The chat workspace is a separate desktop application. Installing **WoW Companion** does not show a chatbox or other panels inside WoW: the current addon only exports data. In-game agent chat has not been implemented.
+The chat windows are a separate desktop application. The **WoW Companion** addon still only exports data; it does not display a chatbox inside WoW. Launch the desktop companion separately and use WoW in windowed or windowed fullscreen mode.
 
 Use Python 3.11 or newer from the repository root. Commands other than chat need only the standard library. This example assumes you first assigned the actual spell to `Shift+F4` in WoW:
 
@@ -42,7 +42,7 @@ Use `--flavor _classic_beta_` with `quests` or `character` to read that edition'
 
 The command parser, local binding store, replay protection, Windows keyboard boundary, and CLI are implemented. Automated tests use fake input delivery; the Windows native structure layout and API initialization are checked on Windows. Actual in-game casting and end-to-end speech delivery have **not** been verified. This repository installs no microphone listener; the operator's separate voice listener calls the CLI contract in [assistive input setup](docs/ASSISTIVE_INPUT.md).
 
-The native chat workspace, independent movable and resizable panels, session pickers, Codex queue adapter, and Claude polling inbox are implemented. Synthetic Windows checks cover concurrent panel sends, session and draft isolation, closing one panel independently, dragging, resizing, and restoring layouts. Live session discovery and transcript reading were previously checked on Windows with Codex CLI 0.162.1 and Claude Code 2.1.296. Message delivery and acknowledgment are tested with synthetic sessions; a live user-message/reply round trip remains unverified. The workspace does not send game input.
+Independent desktop chat windows, the new-window chooser, saved layouts, cached conversations and drafts, session pickers, the Codex queue adapter, and the Claude polling inbox are implemented. Synthetic Windows checks cover independent sends, restoration, unavailable sessions, interrupted delivery without replay, monitor recovery, and save failures. A chat and chooser were visually checked at 620 × 700 on 2026-10-10. Live session discovery and transcript reading were previously checked with Codex CLI 0.162.1 and Claude Code 2.1.296; a live user-message/reply round trip remains unverified. Chat does not send game input. The other window types shown as planned in the chooser are not implemented.
 
 The quest companion's parser, advice order, and CLI are tested against synthetic data. On 2026-10-10, addon 0.4.0 produced a real Classic Forever beta snapshot on Windows: all 13 snapshot checks passed, and the quest and character reports returned successfully. Available-quest coverage and accuracy against the in-game display still need checking; see [verification details](docs/QUESTS.md#what-has-been-verified). Connecting these reports to chat, the screenshot/advice panel, and the character journal remain planned. The earlier [plan](docs/PLAN.md) and [M1 breakdown](docs/M1_TASKS.md) are retained as historical context; their blanket input-removal requirement was superseded by the operator's assistive-input request.
 
