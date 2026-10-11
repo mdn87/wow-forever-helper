@@ -126,6 +126,7 @@ def apply_theme(root):
                     background=BACKGROUND, padding=(6, 1), width=0, anchor="center")
     style.map("TButton", foreground=[("disabled", "#837862"), ("active", "#ffe7a0")])
     style.configure("Window.TButton", font=("Segoe UI", 9, "bold"), padding=(2, 0), width=2)
+    style.configure("Agent.TButton", font=("Segoe UI", 8), padding=(3, 0), width=0)
     style.layout("TMenubutton", [("Companion.button", {"sticky": "nswe", "children": [
         ("Menubutton.padding", {"sticky": "nswe", "children": [
             ("Menubutton.indicator", {"side": "right", "sticky": ""}),
@@ -143,6 +144,9 @@ def apply_theme(root):
               foreground=[("selected", ACCENT), ("active", TEXT)])
     style.configure("TCheckbutton", background=PANEL, foreground=TEXT, font=("Segoe UI", 10))
     style.map("TCheckbutton", background=[("active", PANEL)], foreground=[("active", ACCENT)])
+    style.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT,
+                    rowheight=24, font=("Segoe UI", 10), borderwidth=0)
+    style.map("Treeview", background=[("selected", "#554228")], foreground=[("selected", ACCENT)])
     for name in ("TEntry", "TSpinbox"):
         style.configure(name, foreground=TEXT, fieldbackground=EDITOR, background=TITLE,
                         bordercolor=EDGE, arrowcolor=ACCENT, insertcolor=TEXT, padding=3)

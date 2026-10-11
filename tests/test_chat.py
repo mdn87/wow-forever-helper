@@ -10,6 +10,21 @@ import pytest
 from wow_helper import chat, codex_chat, __main__ as cli
 from wow_helper.chat import ChatError, ChatService, Session
 
+
+def test_atomic_json_write_retries_a_transient_reader_without_exposing_partial_state(tmp_path, monkeypatch):
+    path = tmp_path / "state.json"
+    chat.write_json(path, {"before": True})
+    replace, attempts = chat.os.replace, []
+    def shared(source, destination):
+        attempts.append(True)
+        if len(attempts) == 1:
+            assert chat.read_json(path) == {"before": True}
+            raise PermissionError("Synthetic reader still has the destination open")
+        replace(source, destination)
+    monkeypatch.setattr(chat.os, "replace", shared)
+    chat.write_json(path, {"after": True})
+    assert len(attempts) == 2 and chat.read_json(path) == {"after": True}
+
 FIXTURES = Path(__file__).parent / "fixtures"
 SESSION = str(uuid.UUID(int=0))
 OTHER = str(uuid.UUID(int=1))

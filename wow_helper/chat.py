@@ -42,7 +42,17 @@ def write_json(path, data):
         json.dump(data, stream, ensure_ascii=False)
         stream.flush()
         os.fsync(stream.fileno())
-    os.replace(temporary, path)
+    # A Windows reader can briefly deny replacement while loading the old
+    # snapshot. Retry the atomic rename, never the action recorded in it.
+    deadline = time.monotonic() + 0.5
+    while True:
+        try:
+            os.replace(temporary, path)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.01)
 
 
 @dataclass(frozen=True)
@@ -53,6 +63,7 @@ class Session:
     project: str
     status: str
     transcript: Path | None = None
+    managed: bool = False
 
     @property
     def key(self):
@@ -193,6 +204,8 @@ class ChatService:
         self.state = Path(state)
         self.codex = codex or CodexClient()
         self.claude_home = claude_home
+        from .agent_sessions import AgentSessions
+        self.agents = AgentSessions(self.state / "agents")
 
     def close(self):
         self.codex.close()
@@ -208,9 +221,20 @@ class ChatService:
         except ChatError as error:
             notices.append(str(error))
         found.extend(claude_sessions(self.claude_home))
+        owned = self.agents.discover()
+        # Companion conversations keep stable local identities even while their
+        # native CLI turn is finishing. Do not attach through the external bridge.
+        native_ids = {read_json(self.agents.folder(s.id) / "session.json").get("native_id") for s in owned}
+        found = [s for s in found if s.id not in native_ids]
+        found.extend(owned)
         return found, notices
 
+    def create(self, provider, *, title="Companion chat", startup="", creation_id=None):
+        return self.agents.create(provider, title, startup=startup, creation_id=creation_id)
+
     def history(self, session):
+        if session.managed:
+            return self.agents.history(session)
         if session.provider == "codex":
             return codex_messages(self.codex.messages(session.id))
         messages = claude_messages(session.transcript)
@@ -228,6 +252,8 @@ class ChatService:
         if not body or len(body) > MAX_MESSAGE or "\0" in body:
             raise ChatError(f"Enter a message between 1 and {MAX_MESSAGE} characters, without null characters.")
         session_id, request_id = identifier(session.id), identifier(request_id)
+        if session.managed:
+            return self.agents.send(session, body, request_id)
         current, _ = self.discover()
         if session.key not in {item.key for item in current}:
             raise ChatError("That session is no longer available. Refresh and select an open session.")

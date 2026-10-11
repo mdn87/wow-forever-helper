@@ -129,6 +129,20 @@ def test_import_strips_metadata_and_preparation_uses_only_managed_images(tmp_pat
         service.prepare("screen", profile_settings("screen"), image="../synthetic.png")
 
 
+def test_clipboard_image_is_copied_without_metadata_and_empty_clipboard_is_reported(tmp_path, monkeypatch):
+    from PIL import Image, ImageGrab
+    from wow_helper.screen_capture import paste_image, saved_image
+    source = Image.new("RGB", (80, 60), "gold")
+    source.info["comment"] = "Synthetic metadata"
+    monkeypatch.setattr(ImageGrab, "grabclipboard", lambda: source)
+    path = saved_image(tmp_path, paste_image(tmp_path))
+    with Image.open(path) as result:
+        assert result.size == (80, 60) and result.info == {}
+    monkeypatch.setattr(ImageGrab, "grabclipboard", lambda: None)
+    with pytest.raises(ChatError, match="No single image"):
+        paste_image(tmp_path)
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Windows native capture process")
 def test_capture_failure_never_falls_back_to_a_desktop_capture(tmp_path, monkeypatch):
     from wow_helper import screen_capture
