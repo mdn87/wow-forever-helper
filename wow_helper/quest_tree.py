@@ -49,6 +49,7 @@ class QuestTree:
         if self.quests:
             self.opened = set(self.open_ids())
         self.report, self.tier = report, tier
+        self.edition = edition
         self.quests = {self.key(quest, edition): quest for quest in report.get("plan", [])}
         self.guides = {key: value for key, value in self.guides.items() if key in self.quests}
         self.links.clear()

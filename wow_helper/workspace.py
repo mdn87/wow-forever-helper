@@ -115,6 +115,7 @@ class CompanionWindow:
         self.kind = kind
         self.view = TaskWindow(self.body, self.manager.service_factory(), embedded=True, kind=kind,
                                activity=self.manager.activity_factory(), window_id=self.id,
+                               service_factory=self.manager.service_factory,
                                state=state, on_change=lambda: self.manager.changed(self),
                                toolbar=self.toolbar, actions_menu=self.options_menu)
         self.options_menu.entryconfigure(self.appearance_menu_index, state="normal")
@@ -422,8 +423,8 @@ class WindowManager:
             self._save_after = None
         if self.layout_path is None:
             return True
-        data = {"version": 1, "windows": [window.snapshot() for window in self.windows]}
         try:
+            data = {"version": 1, "windows": [window.snapshot() for window in self.windows]}
             write_json(self.layout_path, data)
         except OSError:
             for window in self.windows:

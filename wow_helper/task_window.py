@@ -8,10 +8,11 @@ import uuid
 
 from .activities import FLAVORS, SKILLS, STEPS, TYPES, ActivityService, packet_preview, profile_settings
 from .appearance import style_text
-from .chat import ChatError, read_json, write_json
+from .chat import ChatError, ChatService, read_json, write_json
 from .chat_window import ChatWindow, BACKGROUND_JOBS
 from .guidance import guidance, quest_tier
-from .theme import ACCENT, BACKGROUND, MUTED, PANEL, TEXT
+from .theme import ACCENT, BACKGROUND, EDGE, MUTED, PANEL, TEXT
+from .quest_chat import MAX_QUEST_CHATS, OPENING, QuestChat, quest_context, quest_identity
 from .window_frame import WindowFrame
 
 
@@ -35,7 +36,8 @@ def replace_text(widget, body):
 
 
 class TaskWindow(ChatWindow):
-    def __init__(self, root, service, *, kind="chat", activity=None, window_id=None, **kwargs):
+    def __init__(self, root, service, *, kind="chat", activity=None, window_id=None,
+                 service_factory=ChatService, **kwargs):
         import tkinter as tk
         from tkinter import ttk
         state = kwargs.get("state")
@@ -56,6 +58,10 @@ class TaskWindow(ChatWindow):
         self._source_image = None
         self._image_after = None
         self.buttons = []
+        self.quest_chats = {}
+        self.service_factory = service_factory
+        self.shared_toolbar = kwargs.get("toolbar")
+        self._saved_quest_chats = {}
         self.panel_report = {}
         self._panel_base = ""
         self._view_ready = False
@@ -87,9 +93,14 @@ class TaskWindow(ChatWindow):
         self.actions_menu.add_command(label="Load window preset…", command=self.load_preset)
         if self.book is not None:
             self._build_panel(raw)
-            self.book.select(1 if raw.get("tab") == 1 else 0)
-            self.book.bind("<<NotebookTabChanged>>", lambda _: self.on_change())
+            if kind == "quests":
+                self._restore_quest_chats(raw.get("quest_chats"))
+            index = raw.get("tab", 0)
+            self.book.select(index if type(index) is int and 0 <= index < len(self.book.tabs()) else 0)
+            self.book.bind("<<NotebookTabChanged>>", self._tab_changed)
+            self.book.bind("<Configure>", lambda _: self._quest_tab_labels(), add="+")
         self._view_ready = True
+        self._tab_changed()
 
     @staticmethod
     def _valid_id(raw):
@@ -119,6 +130,8 @@ class TaskWindow(ChatWindow):
             self.report_button = self._button(actions, "Refresh", self.refresh_panel)
         if self.kind == "character":
             self.gear_button = self._button(actions, "Find better gear", self.find_gear)
+        if self.kind == "quests":
+            self.quest_chat_button = self._button(actions, "Quest chat", self.open_quest_chat)
         self.ask_button = self._button(actions, "Ask agent", lambda: self.prepare_request(review=False))
         self.setup_button = self._button(actions, "Setup", self.show_setup)
         footer = tk.Label(self.panel, textvariable=self.activity_notice, bg=PANEL, fg=ACCENT,
@@ -138,7 +151,8 @@ class TaskWindow(ChatWindow):
             self.note_button = ttk.Button(composer, text="Add note", command=self.add_note)
             self.note_button.pack(side="right", padx=(5, 0))
             self.buttons.append(self.note_button)
-            self.note = tk.Text(composer, height=3, width=1, wrap="word", relief="flat")
+            self.note = tk.Text(composer, height=3, width=1, wrap="word", relief="flat", borderwidth=0,
+                                highlightthickness=1, highlightbackground=EDGE, highlightcolor=ACCENT)
             self.note.pack(side="left", fill="x", expand=True)
             style_text(self.note, self.appearance, composer=True)
             self.note.insert("1.0", raw.get("note_draft", "") if isinstance(raw.get("note_draft"), str) else "")
@@ -202,6 +216,8 @@ class TaskWindow(ChatWindow):
 
     def _update_controls(self):
         super()._update_controls()
+        if self.active_quest_chat():
+            self.actions_menu.entryconfigure(self.setup_menu_index, state="disabled")
         for button in self.buttons:
             button.configure(state="disabled" if self.jobs - BACKGROUND_JOBS else "normal")
 
@@ -212,6 +228,8 @@ class TaskWindow(ChatWindow):
                 style_text(getattr(self, name), self.appearance, composer=name == "note")
         if hasattr(self, "quest_tree"):
             self.quest_tree.set_appearance(self.appearance)
+        for view in self.quest_chats.values():
+            view.set_appearance(self.appearance)
 
     def snapshot(self, remember=True):
         data = super().snapshot(remember)
@@ -226,9 +244,126 @@ class TaskWindow(ChatWindow):
             data["activity"]["pending_note"] = self.pending_note
         if self.kind == "quests" and hasattr(self, "quest_tree"):
             data["activity"].update(opened_quests=self.quest_tree.open_ids(), guide_keys=self.guide_keys)
+            # Separate bounded files keep multi-tab histories out of the layout's size limit.
+            data["activity"]["quest_chats"] = list(self.quest_chats)
+            for tab_id, view in self.quest_chats.items():
+                saved = view.snapshot(remember)
+                if saved != self._saved_quest_chats.get(tab_id):
+                    write_json(self._quest_chat_path(tab_id), saved)
+                    self._saved_quest_chats[tab_id] = saved
         if self.kind == "character" and hasattr(self, "gear_goal"):
             data["activity"].update(gear_key=self.gear_key, gear_goal=self.gear_goal.get()[:200], gear_slot=self.gear_slot.get())
         return data
+
+    def _quest_chat_path(self, tab_id):
+        return self.activity.storage / "quest-chats" / (str(uuid.UUID(tab_id)) + ".json")
+
+    def active_quest_chat(self):
+        if self.book:
+            selected = self.book.select()
+            return next((view for view in self.quest_chats.values() if str(view.root) == selected), None)
+        return None
+
+    def _tab_changed(self, _event=None):
+        if not self._view_ready:
+            return
+        if self.shared_toolbar is not None:
+            active = self.active_quest_chat() or self
+            for view in [self, *self.quest_chats.values()]:
+                view.selector.pack_forget()
+            active.selector.pack(side="left", fill="x", expand=True)
+        self._update_controls()
+        self._quest_tab_labels()
+        self.on_change()
+
+    def _quest_tab_labels(self):
+        if self.book and self.quest_chats:
+            available = max(200, self.book.winfo_width() - 155)
+            length = max(6, min(24, int(available / len(self.quest_chats) / 8) - 3))
+            for view in self.quest_chats.values():
+                title = view.quest_title
+                self.book.tab(view.root, text=title if len(title) <= length else title[:length - 1] + "…")
+
+    def _add_quest_chat(self, tab_id, context, state=None):
+        from tkinter import ttk
+        surface = self.tk.Frame(self.book, bg=PANEL)
+        self.book.add(surface, text=str(context["quest"]["title"])[:18])
+        state = state or {"provider": self.selected.provider if self.selected else self.default_provider,
+                          "appearance": self.appearance}
+        view = QuestChat(surface, self.service_factory(), activity=self.activity, context=context,
+                         profile=state.get("profile", self.profile), state=state, embedded=True,
+                         on_change=self.on_change, toolbar=self.shared_toolbar)
+        self.quest_chats[tab_id] = view
+        if self.shared_toolbar is not None:
+            view.menu_button.pack_forget()  # The window's cog controls appearance for all its tabs.
+            view.selector.pack_forget()
+        view.close_tab_button = ttk.Button(view.selector, text="×", style="Window.TButton",
+                                           command=lambda: self.close_quest_chat(tab_id))
+        view.close_tab_button.pack(side="right", before=view.refresh_button, padx=(3, 0))
+        view.actions_menu.add_command(label="Close quest chat tab", command=lambda: self.close_quest_chat(tab_id))
+        return view
+
+    def _restore_quest_chats(self, raw):
+        if not isinstance(raw, list):
+            return
+        for tab_id in raw[:MAX_QUEST_CHATS]:
+            if not self._valid_id(tab_id) or tab_id in self.quest_chats:
+                continue
+            try:
+                path = self._quest_chat_path(tab_id)
+                saved = read_json(path) if path.stat().st_size <= 2_000_000 else {}
+            except OSError:
+                saved = {}
+            context = saved.get("context")
+            if (not isinstance(context, dict) or not isinstance(context.get("quest"), dict)
+                    or not isinstance(context["quest"].get("title"), str)
+                    or not isinstance(context.get("edition"), str) or context["edition"] not in FLAVORS):
+                self.activity_notice.set("A saved quest tab could not be loaded. Its local file has been kept.")
+                continue
+            self._add_quest_chat(tab_id, context, saved)
+            self._saved_quest_chats[tab_id] = saved
+
+    def open_quest_chat(self):
+        key = self.quest_tree.selected()
+        if key is None:
+            self.activity_notice.set("Select a quest, then click Quest chat.")
+            return
+        quest = self.quest_tree.quests[key]
+        edition = next(k for k, v in FLAVORS.items() if v == self.quest_tree.edition)
+        identity = quest_identity(quest, edition)
+        for view in self.quest_chats.values():
+            if quest_identity(view.context["quest"], view.context["edition"]) == identity:
+                self.book.select(view.root)
+                return
+        if len(self.quest_chats) >= MAX_QUEST_CHATS:
+            self.activity_notice.set("Four quest chats are open. Use × in a quest chat's toolbar to close a tab first.")
+            return
+        context = quest_context(quest, self.quest_tree.report, self.quest_tree.guides.get(key, {}), edition,
+                                self.panel_report.get("quests", {}).get("snapshot_at"))
+        view = self._add_quest_chat(str(uuid.uuid4()), context)
+        self.book.select(view.root)
+        # Wait for initial session discovery, then perform this explicit request once.
+        # The callback is deliberately not persisted or replayed after a restart.
+        def opened(_result, _error):
+            view.send_message(OPENING)
+        view.job_callbacks["sessions"] = opened
+        self.on_change()
+
+    def close_quest_chat(self, tab_id):
+        view = self.quest_chats.pop(tab_id, None)
+        if view is None:
+            return
+        self.book.forget(view.root)
+        view.close()
+        self._saved_quest_chats.pop(tab_id, None)
+        self._tab_changed()
+
+    def refresh(self):
+        active = self.active_quest_chat()
+        if active:
+            active.refresh()
+        else:
+            super().refresh()
 
     def create_session(self, provider, creation_id):
         profile = profile_settings(self.kind, self.profile)
@@ -627,6 +762,9 @@ class TaskWindow(ChatWindow):
                 self.status.set(str(error) if isinstance(error, ChatError) else "The preset could not be read.")
 
     def close(self):
+        self._view_ready = False
+        for view in self.quest_chats.values():
+            view.close()
         if hasattr(self, "quest_tree"):
             self.quest_tree.close()
         for dialog in (self._setup_dialog, self._request_dialog):

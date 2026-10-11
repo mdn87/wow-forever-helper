@@ -99,6 +99,8 @@ def manager_factory(tmp_path, desktop):
         manager.close()
     for view in views:
         view.worker.shutdown(wait=True)
+        for child in view.quest_chats.values():
+            child.worker.shutdown(wait=True)
     parent.update()
 
 
@@ -807,6 +809,242 @@ def test_report_windows_work_without_agent_and_do_not_repeat_preparation_on_rest
     assert restored.windows[1].kind == kind
     assert activity.calls == [([kind], "_classic_beta_")] * 2
     assert restored.windows[1].view.service.sent == []
+
+
+def open_synthetic_quest_chat(view, key=None):
+    settle(view)
+    key = key or next(iter(view.quest_tree.quests))
+    view.quest_tree.tree.focus(key)
+    view.quest_tree.tree.selection_set(key)
+    view.quest_chat_button.invoke()
+    child = view.active_quest_chat()
+    assert child is not None
+    settle(child)
+    return key, child
+
+
+def test_quest_chat_carries_only_selected_quest_and_gathered_sources(manager_factory, tmp_path):
+    activity = SyntheticActivities(tmp_path)
+    manager = manager_factory(service=CreatingService, activity=lambda: activity)
+    window = manager.new_window(kind="quests")
+    view = window.view
+    settle(view)
+    choose(window, 1)  # Match the explicitly selected Claude provider, using a new conversation.
+    view.editor.insert("1.0", "Keep the general chat draft")
+    key = next(iter(view.quest_tree.quests))
+    view.quest_tree.set_guide(key, {"status": "completed", "tier": "easy", "session": "private-worker-id",
+                                   "guide": {"summary": "Synthetic directions", "steps": ["Go to Example Village"],
+                                             "sources": [{"title": "Synthetic source", "url": "https://example.com/quest"}],
+                                             "caveats": ["Beta details unverified"]}})
+    _, child = open_synthetic_quest_chat(view, key)
+    assert len(child.service.created) == len(child.service.sent) == 1
+    assert child.selected.provider == "claude" and child.selected.key != view.selected.key
+    assert view.service.sent == [] and view.editor.get("1.0", "end-1c") == "Keep the general chat draft"
+    session, options = child.service.created[0]
+    packet = json.loads((tmp_path / "prepared" / (session.id + ".json")).read_text(encoding="utf-8"))
+    context = packet["reports"]["quest_context"]["data"]
+    assert context["quest"] == view.quest_tree.quests[key]
+    assert context["edition"] == "Classic Forever beta" and context["snapshot_at"] == 1000
+    assert context["research"]["guide"]["sources"][0]["url"] == "https://example.com/quest"
+    assert "session" not in context["research"] and "quest" in options["startup"].lower()
+    assert list(packet["reports"]) == ["quest_context"]
+    assert packet["skills"] and "historical" in packet["instructions"]
+    assert activity.calls == [(["quests"], "_classic_beta_"), ([], "_classic_beta_")]
+    assert not view.selector.winfo_ismapped() and child.selector.winfo_ismapped()
+    assert not child.session_picker.winfo_ismapped()
+    # Reopening, even after progress changes, neither duplicates the tab nor sends again.
+    view.quest_tree.quests[key]["remaining"] = ["Updated synthetic progress"]
+    view.book.select(0)
+    view.open_quest_chat()
+    assert view.active_quest_chat() is child and len(view.quest_chats) == 1
+    assert len(child.service.sent) == 1
+
+
+def test_quest_chat_uses_the_displayed_snapshot_edition_after_setup_changes(manager_factory):
+    manager = manager_factory(service=CreatingService)
+    view = manager.new_window(kind="quests").view
+    settle(view)
+    view.profile["flavor"] = "_retail_"  # Setup changed, but the report has not refreshed yet.
+    view.profile["startup_context"] = False
+    _, child = open_synthetic_quest_chat(view)
+    assert child.context["edition"] == "Classic Forever beta"
+    packet = json.loads((view.activity.storage / "prepared" / (child.selected.id + ".json")).read_text(encoding="utf-8"))
+    assert packet["edition"] == "Classic Forever beta"
+    assert packet["skills"] == [] and packet["context_files"] == []
+    assert packet["reports"]["quest_context"]["data"]["quest"] == child.context["quest"]
+
+
+def test_quest_tabs_restore_drafts_waits_and_context_without_dispatch(manager_factory, tmp_path):
+    manager = manager_factory(service=CreatingService)
+    view = manager.new_window(kind="quests").view
+    key, child = open_synthetic_quest_chat(view)
+    child.editor.insert("1.0", "Quest follow-up draft")
+    saved_key, saved_context = child.selection_key, child.context
+    assert manager.save_layout()
+    layout = json.loads((tmp_path / "windows.json").read_text())
+    tab_id = layout["windows"][1]["chat"]["activity"]["quest_chats"][0]
+    assert isinstance(tab_id, str)  # Large history lives in a separate private file.
+    manager.close()
+    restored = manager_factory(service=CreatingService)
+    loaded = restored.windows[1].view
+    chat = loaded.quest_chats[tab_id]
+    settle(chat)
+    assert loaded.active_quest_chat() is chat
+    assert chat.selection_key == saved_key and chat.context == saved_context
+    assert chat.editor.get("1.0", "end-1c") == "Quest follow-up draft"
+    assert chat.response_waits[saved_key]
+    assert chat.service.created == [] and chat.service.sent == []
+    assert not loaded.service.sent
+    restored.windows[1].remember.set(False)
+    assert restored.save_layout()
+    state = json.loads(loaded._quest_chat_path(tab_id).read_text(encoding="utf-8"))
+    assert "draft" not in state and "response_waits" not in state and "messages" not in state
+    assert state["context"] == saved_context
+
+
+def test_quest_tab_close_is_independent_and_context_survives_research_failure(manager_factory):
+    manager = manager_factory(service=CreatingService)
+    view = manager.new_window(kind="quests").view
+    settle(view)
+    view.open_quest_chat()
+    assert "Select a quest" in view.activity_notice.get()
+    keys = list(view.quest_tree.quests)
+    view.quest_tree.set_guide(keys[0], {"status": "failed", "tier": "complicated"})
+    _, first = open_synthetic_quest_chat(view, keys[0])
+    view.book.select(0)
+    _, second = open_synthetic_quest_chat(view, keys[1])
+    assert first.service is not second.service
+    assert first.context["research"]["status"] == "failed"
+    assert first.context["quest"]["id"] != second.context["quest"]["id"]
+    second.editor.insert("1.0", "Second quest draft")
+    view.book.select(first.root)
+    view.outer.update()
+    first.close_tab_button.invoke()
+    first.worker.shutdown(wait=True)
+    assert first.closed and first.service.closed
+    assert len(view.quest_chats) == 1 and not second.closed and not view.service.closed
+    assert second.editor.get("1.0", "end-1c") == "Second quest draft"
+    assert not first.selector.winfo_exists()
+    manager.close()
+    assert second.closed
+
+
+def test_failed_quest_tab_save_keeps_the_previous_layout(manager_factory, tmp_path, monkeypatch):
+    from wow_helper import task_window
+    manager = manager_factory(service=CreatingService)
+    view = manager.new_window(kind="quests").view
+    _, child = open_synthetic_quest_chat(view)
+    assert manager.save_layout()
+    before = (tmp_path / "windows.json").read_bytes()
+    child.editor.insert("1.0", "Unsaved follow-up")
+    def fail(*_): raise OSError("Synthetic disk full")
+    monkeypatch.setattr(task_window, "write_json", fail)
+    assert not manager.save_layout()
+    assert (tmp_path / "windows.json").read_bytes() == before
+    assert "Could not save" in manager.windows[1].notice.get()
+    assert not child.closed
+
+
+def test_quest_creation_failure_stays_in_the_new_tab_and_can_be_retried(manager_factory):
+    class Missing(CreatingService):
+        def create(self, *args, **kwargs): raise ChatError("Synthetic CLI unavailable")
+    manager = manager_factory(service=Missing)
+    view = manager.new_window(kind="quests").view
+    _, child = open_synthetic_quest_chat(view)
+    assert "CLI unavailable" in child.status.get()
+    assert child.service.sent == [] and child.context["quest"]
+    assert not child.pending_creation and not child.selected
+    child.service.create = lambda *args, **kwargs: CreatingService.create(child.service, *args, **kwargs)
+    child.editor.insert("1.0", "Retry with the saved quest context")
+    child.send()
+    settle(child)
+    assert len(child.service.created) == len(child.service.sent) == 1
+
+
+def test_closed_quest_tab_during_creation_does_not_send_later(manager_factory):
+    gate = threading.Event()
+    class Slow(CreatingService):
+        def create(self, *args, **kwargs):
+            if not gate.wait(4): raise ChatError("Synthetic timeout")
+            return super().create(*args, **kwargs)
+    manager = manager_factory(service=Slow)
+    view = manager.new_window(kind="quests").view
+    settle(view)
+    view.quest_tree.tree.focus(next(iter(view.quest_tree.quests)))
+    view.open_quest_chat()
+    child = view.active_quest_chat()
+    deadline = time.monotonic() + 3
+    try:
+        while not child.pending_creation and time.monotonic() < deadline:
+            child.root.update()
+            time.sleep(.01)
+        assert child.pending_creation
+        child.close_tab_button.invoke()
+    finally:
+        gate.set()
+        child.worker.shutdown(wait=True)
+    assert not child.service.sent and not view.quest_chats and child.closed
+
+
+def test_unreadable_saved_quest_context_keeps_its_file_and_other_tabs(manager_factory):
+    manager = manager_factory(service=CreatingService)
+    view = manager.new_window(kind="quests").view
+    _, child = open_synthetic_quest_chat(view)
+    tab_id = next(iter(view.quest_chats))
+    manager.close()
+    path = view._quest_chat_path(tab_id)
+    state = json.loads(path.read_text(encoding="utf-8"))
+    state["context"]["edition"] = []  # Malformed local data must not crash the workspace.
+    path.write_text(json.dumps(state), encoding="utf-8")
+    restored = manager_factory(service=CreatingService)
+    restored_view = restored.windows[1].view
+    assert not restored_view.quest_chats and len(restored_view.book.tabs()) == 2
+    assert "could not be loaded" in restored_view.activity_notice.get() and path.exists()
+
+
+def test_quest_tab_limit_keeps_existing_conversations_and_all_tabs_accessible(manager_factory):
+    from wow_helper.quest_chat import MAX_QUEST_CHATS
+    manager = manager_factory(service=CreatingService)
+    window = manager.new_window(kind="quests")
+    window.root.geometry("440x580")
+    view = window.view
+    settle(view)
+    keys = list(view.quest_tree.quests)
+    for key in keys[:MAX_QUEST_CHATS]:
+        open_synthetic_quest_chat(view, key)
+    assert len(view.quest_chats) == MAX_QUEST_CHATS
+    view.book.select(0)
+    view.quest_tree.tree.focus(keys[MAX_QUEST_CHATS])
+    view.quest_chat_button.invoke()
+    assert "Four quest chats" in view.activity_notice.get()
+    assert len(view.quest_chats) == MAX_QUEST_CHATS
+    # Every tab must have a clickable position at the minimum window width.
+    view.outer.update()
+    visible = set()
+    for x in range(view.book.winfo_width()):
+        try:
+            visible.add(view.book.index(f"@{x},10"))
+        except view.tk.TclError:
+            pass
+    assert visible == set(range(MAX_QUEST_CHATS + 2))
+
+
+def test_response_completed_during_restart_is_observed_without_resending(manager_factory):
+    receipt = {"status": "running"}
+    class Receipts(Service):
+        def response_status(self, *_): return receipt["status"]
+    manager = manager_factory(service=Receipts)
+    window = manager.windows[0]
+    choose(window, 0)
+    window.view.send_message("Synthetic restart question")
+    settle(window.view)
+    assert window.view.response_waits[window.view.selection_key]
+    manager.close()
+    receipt["status"] = "completed"
+    restored = manager_factory(service=Receipts)
+    view = restored.windows[0].view
+    assert not view.service.sent and not view.response_waits[view.selection_key]
+    assert "Response complete" in view.status.get()
 
 
 def test_setup_preview_and_delivery_preserve_the_chat_draft_and_do_not_replay(manager_factory, tmp_path):
