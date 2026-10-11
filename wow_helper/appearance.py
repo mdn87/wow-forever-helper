@@ -2,10 +2,10 @@
 
 import re
 
-from .theme import ACCENT, BACKGROUND, MUTED, PANEL, TEXT
+from .theme import ACCENT, PANEL, TEXT, palette, is_modern
 
 DEFAULTS = {"background": PANEL, "text": TEXT, "user_text": ACCENT,
-            "font_family": "Segoe UI", "font_size": 11}
+            "font_family": "Segoe UI", "font_size": 11, "use_theme_colors": True}
 COLORS = (("background", "Background"), ("text", "Agent text"), ("user_text", "Your text"))
 MIN_FONT_SIZE, MAX_FONT_SIZE = 8, 36
 
@@ -25,15 +25,31 @@ def appearance_settings(raw):
     size = raw.get("font_size")
     if type(size) is int:
         settings["font_size"] = max(MIN_FONT_SIZE, min(size, MAX_FONT_SIZE))
+    default_colors = all(settings[key] == DEFAULTS[key] for key, _ in COLORS)
+    settings["use_theme_colors"] = default_colors and raw.get("use_theme_colors", True) is True
+    return settings
+
+
+def resolved_appearance(settings, root):
+    if settings.get("use_theme_colors"):
+        colors = palette(root)
+        return {**settings, "background": colors.PANEL, "text": colors.TEXT, "user_text": colors.ACCENT}
     return settings
 
 
 def style_text(widget, settings, *, composer=False):
+    widget._companion_appearance = (dict(settings), composer)
+    settings = resolved_appearance(settings, widget)
     family, size = settings["font_family"], settings["font_size"]
     foreground = settings["user_text"] if composer else settings["text"]
     widget.configure(bg=settings["background"], fg=foreground,
                      insertbackground=foreground, font=(family, size),
                      selectbackground=foreground, selectforeground=settings["background"])
+    if composer:
+        widget.configure(highlightthickness=1, highlightbackground=palette(widget).EDGE,
+                         highlightcolor=palette(widget).ACCENT, borderwidth=0, relief="flat")
+        if settings.get("use_theme_colors") and is_modern(widget):
+            widget.configure(bg=palette(widget).EDITOR)
     widget.tag_configure("user", foreground=settings["user_text"])
     widget.tag_configure("assistant", foreground=settings["text"])
     widget.tag_configure("body", spacing1=0, spacing2=0, spacing3=0)
@@ -101,16 +117,17 @@ class AppearanceDialog:
         self.root.bind("<Escape>", lambda _: self.close())
         self.chrome = WindowFrame(self.root, title="Chat appearance", close=self.close, minimum=(440, 480))
         surface = self.chrome.content
-        tk.Label(surface, text="For this window's conversation and message box.", bg=BACKGROUND,
-                 fg=MUTED, font=("Segoe UI", 9), anchor="w").pack(fill="x", padx=14, pady=(12, 8))
+        tk.Label(surface, text="For this window's conversation and message box.", bg=palette(self.root).BACKGROUND,
+                 fg=palette(self.root).MUTED, font=("Segoe UI", 9), anchor="w").pack(fill="x", padx=14, pady=(12, 8))
+        current = resolved_appearance(view.appearance, self.root)
         self.variables = {key: tk.StringVar(master=self.root, value=value)
-                          for key, value in view.appearance.items()}
-        fields = tk.Frame(surface, bg=BACKGROUND)
+                          for key, value in current.items() if key != "use_theme_colors"}
+        fields = tk.Frame(surface, bg=palette(self.root).BACKGROUND)
         fields.pack(fill="x", padx=14)
         fields.columnconfigure(1, weight=1)
         self.swatches = {}
         for row, (key, label) in enumerate(COLORS):
-            tk.Label(fields, text=label, bg=BACKGROUND, fg=TEXT, font=("Segoe UI", 10),
+            tk.Label(fields, text=label, bg=palette(self.root).BACKGROUND, fg=palette(self.root).TEXT, font=("Segoe UI", 10),
                      anchor="w").grid(row=row, column=0, sticky="w", padx=(0, 12), pady=5)
             ttk.Entry(fields, textvariable=self.variables[key], width=12).grid(row=row, column=1, sticky="ew")
             swatch = tk.Button(fields, text="…", width=3, relief="raised", borderwidth=1,
@@ -119,17 +136,20 @@ class AppearanceDialog:
             self.swatches[key] = swatch
         self.families = sorted({name for name in font.families(self.root) if not name.startswith("@")} |
                                {view.appearance["font_family"], DEFAULTS["font_family"]}, key=str.casefold)
-        tk.Label(fields, text="Font", bg=BACKGROUND, fg=TEXT, font=("Segoe UI", 10)).grid(row=3, column=0, sticky="w", pady=5)
+        tk.Label(fields, text="Font", bg=palette(self.root).BACKGROUND, fg=palette(self.root).TEXT, font=("Segoe UI", 10)).grid(row=3, column=0, sticky="w", pady=5)
         self.font_picker = ttk.Combobox(fields, textvariable=self.variables["font_family"],
                                         values=self.families, state="readonly", width=18, height=12)
         self.font_picker.grid(row=3, column=1, columnspan=2, sticky="ew")
-        tk.Label(fields, text="Size (points)", bg=BACKGROUND, fg=TEXT,
+        tk.Label(fields, text="Size (points)", bg=palette(self.root).BACKGROUND, fg=palette(self.root).TEXT,
                  font=("Segoe UI", 10)).grid(row=4, column=0, sticky="w", pady=5)
         self.size_picker = ttk.Spinbox(fields, textvariable=self.variables["font_size"],
                                        from_=MIN_FONT_SIZE, to=MAX_FONT_SIZE, width=6)
         self.size_picker.grid(row=4, column=1, sticky="w")
+        self.use_theme_colors = tk.BooleanVar(master=self.root, value=view.appearance["use_theme_colors"])
+        ttk.Checkbutton(fields, text="Use interface colors", variable=self.use_theme_colors,
+                        command=self.update_preview).grid(row=5, column=0, columnspan=3, sticky="w", pady=5)
 
-        buttons = tk.Frame(surface, bg=BACKGROUND)
+        buttons = tk.Frame(surface, bg=palette(self.root).BACKGROUND)
         buttons.pack(side="bottom", fill="x", padx=14, pady=10)
         self.reset_button = ttk.Button(buttons, text="Restore defaults", command=self.reset)
         self.reset_button.pack(side="left")
@@ -137,17 +157,17 @@ class AppearanceDialog:
         self.save_button.pack(side="right")
         ttk.Button(buttons, text="Cancel", command=self.close).pack(side="right", padx=6)
         self.error = tk.StringVar(master=self.root)
-        tk.Label(surface, textvariable=self.error, bg=BACKGROUND, fg=ACCENT, font=("Segoe UI", 9),
+        tk.Label(surface, textvariable=self.error, bg=palette(self.root).BACKGROUND, fg=palette(self.root).ACCENT, font=("Segoe UI", 9),
                  anchor="w", wraplength=400).pack(side="bottom", fill="x", padx=14)
-        tk.Label(surface, text="PREVIEW", bg=BACKGROUND, fg=MUTED, font=("Segoe UI", 8),
+        tk.Label(surface, text="PREVIEW", bg=palette(self.root).BACKGROUND, fg=palette(self.root).MUTED, font=("Segoe UI", 8),
                  anchor="w").pack(fill="x", padx=14, pady=(10, 4))
         self.preview = tk.Text(surface, height=1, width=1, wrap="word", relief="flat", padx=8, pady=6)
         self.preview.pack(fill="both", expand=True, padx=14, pady=(0, 4))
         append_turn(self.preview, "How should this conversation look?", "user")
         append_turn(self.preview, "Choose colors and a font that are easy to read.", "assistant")
         self.preview.configure(state="disabled")
-        self._traces = [(variable, variable.trace_add("write", self.update_preview))
-                        for variable in self.variables.values()]
+        self._traces = [(variable, variable.trace_add("write", lambda *_, name=key: self._changed(name)))
+                        for key, variable in self.variables.items()]
         self.update_preview()
         self.root.deiconify()
         self.chrome.apply_native()
@@ -165,7 +185,16 @@ class AppearanceDialog:
             raise ValueError(f"Choose a size from {MIN_FONT_SIZE} to {MAX_FONT_SIZE}.")
         if raw["font_family"] not in self.families:
             raise ValueError("Choose a font from the list.")
+        raw["use_theme_colors"] = self.use_theme_colors.get()
+        if raw["use_theme_colors"]:
+            # Store stable default tokens; the active interface resolves their colors.
+            raw.update({key: DEFAULTS[key] for key, _ in COLORS})
         return appearance_settings(raw)
+
+    def _changed(self, name):
+        if name in dict(COLORS):
+            self.use_theme_colors.set(False)
+        self.update_preview()
 
     def update_preview(self, *_):
         try:
@@ -176,6 +205,7 @@ class AppearanceDialog:
         self.error.set("")
         style_text(self.preview, settings)
         self.preview.yview_moveto(0)
+        settings = resolved_appearance(settings, self.root)
         for key, swatch in self.swatches.items():
             swatch.configure(bg=settings[key], activebackground=settings[key],
                               fg="#000000" if sum(int(settings[key][i:i + 2], 16) for i in (1, 3, 5)) > 382 else "#ffffff")
@@ -188,8 +218,11 @@ class AppearanceDialog:
             self.variables[key].set(color)
 
     def reset(self):
-        for key, value in DEFAULTS.items():
-            self.variables[key].set(value)
+        for key, value in resolved_appearance(DEFAULTS, self.root).items():
+            if key in self.variables:
+                self.variables[key].set(value)
+        self.use_theme_colors.set(True)
+        self.update_preview()
 
     def save(self):
         try:

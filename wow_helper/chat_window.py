@@ -8,7 +8,7 @@ from .chat import ChatError, ChatService, MAX_MESSAGE, claude_connection_text
 from .appearance import AppearanceDialog, append_turn, appearance_settings, style_text
 from .window_state import history_state, restored_history, saved_selection
 from .response_wait import ResponseWait, elapsed
-from .theme import ACCENT, BACKGROUND, EDITOR, MUTED, PANEL, TEXT, apply_theme, display_font, settings_icon, menu as themed_menu
+from .theme import palette, apply_theme, display_font, settings_icon, menu as themed_menu
 
 BACKGROUND_JOBS = {"history", "guides"}
 
@@ -74,7 +74,7 @@ class ChatWindow:
                     if status not in ("queued", "waiting for Claude to poll", "delivery unconfirmed"):
                         status = "delivery unconfirmed"
                     self.sent.setdefault(self.desired_key, []).append((item["body"][:6000], status, ids))
-        root.configure(bg=PANEL)
+        root.configure(bg=palette(self.root).PANEL)
         if not embedded:
             root.title("WoW Forever Helper · Companion chat")
             root.geometry("760x650")
@@ -82,7 +82,7 @@ class ChatWindow:
             root.protocol("WM_DELETE_WINDOW", self.close)
         apply_theme(root)
 
-        selector = self.selector = tk.Frame(toolbar if toolbar is not None else root, bg=PANEL,
+        selector = self.selector = tk.Frame(toolbar if toolbar is not None else root, bg=palette(self.root).PANEL,
                             padx=0 if toolbar is not None else 8, pady=0 if toolbar is not None else 5)
         selector.pack(side="left" if toolbar is not None else "top", fill="x", expand=toolbar is not None)
         self.actions_menu = actions_menu if actions_menu is not None else themed_menu(selector)
@@ -111,21 +111,21 @@ class ChatWindow:
         self.session_picker.pack(side="left", fill="x", expand=True)
         self.session_picker.bind("<<ComboboxSelected>>", self.select)
 
-        conversation = tk.Frame(root, bg=PANEL, padx=8)
+        conversation = tk.Frame(root, bg=palette(self.root).PANEL, padx=8)
         conversation.pack(fill="both", expand=True)
         self.title = tk.StringVar(master=root, value="Choose a session")
         self.subtitle = tk.StringVar(master=root, value="Each chat connects independently.")
-        self.title_label = tk.Label(conversation, textvariable=self.title, anchor="w", fg=TEXT, bg=PANEL,
+        self.title_label = tk.Label(conversation, textvariable=self.title, anchor="w", fg=palette(self.root).TEXT, bg=palette(self.root).PANEL,
                                    font=display_font(root, 15))
         if not embedded:
             self.title_label.pack(fill="x")
-        self.subtitle_label = tk.Label(conversation, textvariable=self.subtitle, anchor="w", fg=ACCENT,
-                                      bg=PANEL, font=("Segoe UI", 8))
+        self.subtitle_label = tk.Label(conversation, textvariable=self.subtitle, anchor="w", fg=palette(self.root).ACCENT,
+                                      bg=palette(self.root).PANEL, font=("Segoe UI", 8))
         self.subtitle_label.pack(fill="x", pady=(0, 3))
-        transcript_frame = tk.Frame(conversation, bg=PANEL)
+        transcript_frame = tk.Frame(conversation, bg=palette(self.root).PANEL)
         transcript_frame.pack(fill="both", expand=True)
-        self.transcript = tk.Text(transcript_frame, wrap="word", state="disabled", bg=PANEL,
-                                  fg=TEXT, font=("Segoe UI", 11), relief="flat", padx=6,
+        self.transcript = tk.Text(transcript_frame, wrap="word", state="disabled", bg=palette(self.root).PANEL,
+                                  fg=palette(self.root).TEXT, font=("Segoe UI", 11), relief="flat", padx=6,
                                   pady=3, height=1, width=1, cursor="arrow", selectbackground="#554228")
         scrollbar = ttk.Scrollbar(transcript_frame, command=self.transcript.yview)
         self.transcript.configure(yscrollcommand=scrollbar.set)
@@ -133,12 +133,12 @@ class ChatWindow:
         self.transcript.pack(side="left", fill="both", expand=True)
         self.transcript.bind("<Configure>", self._queue_scroll_to_bottom)
         self.transcript.bind("<Map>", self._queue_scroll_to_bottom)
-        composer = tk.Frame(conversation, bg=PANEL)
+        composer = tk.Frame(conversation, bg=palette(self.root).PANEL)
         composer.pack(fill="x", pady=(5, 0))
-        self.send_button = ttk.Button(composer, text="Send ↵", command=self.send, state="disabled")
+        self.send_button = ttk.Button(composer, text="Send ↵", style="Primary.TButton", command=self.send, state="disabled")
         self.send_button.pack(side="right", anchor="s", padx=(6, 0))
-        self.editor = tk.Text(composer, height=2, width=1, wrap="word", bg=EDITOR, fg=TEXT,
-                              insertbackground=TEXT, font=("Segoe UI", 11), padx=8, pady=6,
+        self.editor = tk.Text(composer, height=2, width=1, wrap="word", bg=palette(self.root).EDITOR, fg=palette(self.root).TEXT,
+                              insertbackground=palette(self.root).TEXT, font=("Segoe UI", 11), padx=8, pady=6,
                               relief="solid", borderwidth=1, undo=True)
         self.editor.pack(side="left", fill="both", expand=True)
         for key in ("Return", "KP_Enter"):
@@ -151,7 +151,7 @@ class ChatWindow:
         self.status = tk.StringVar(master=root, value="Looking for open sessions…")
         if not embedded:
             root.report_callback_exception = lambda *_: self.status.set("The window could not finish that action. Refresh and try again.")
-        self.status_label = tk.Label(root, textvariable=self.status, fg=MUTED, bg=PANEL, anchor="w",
+        self.status_label = tk.Label(root, textvariable=self.status, fg=palette(self.root).MUTED, bg=palette(self.root).PANEL, anchor="w",
                                     justify="left", wraplength=380, padx=8, pady=4, font=("Segoe UI", 8))
         self.status_label.pack(fill="x")
         root.bind("<Configure>", self._resize, add="+")
@@ -481,12 +481,12 @@ class ChatWindow:
         dialog._companion_frame = WindowFrame(dialog, title="Connect this Claude session", minimum=(500, 400))
         surface = dialog._companion_frame.content
         self.tk.Label(surface, text="Paste these instructions into the selected, already-open Claude session.",
-                      bg=BACKGROUND, fg=TEXT, padx=16, pady=16, wraplength=650).pack(anchor="w")
+                      bg=palette(self.root).BACKGROUND, fg=palette(self.root).TEXT, padx=16, pady=16, wraplength=650).pack(anchor="w")
         content = claude_connection_text(self.selected)
-        frame = self.tk.Frame(surface, bg=BACKGROUND)
+        frame = self.tk.Frame(surface, bg=palette(self.root).BACKGROUND)
         frame.pack(fill="both", expand=True, padx=16)
         text = self.tk.Text(frame, wrap="word", height=1, width=1,
-                            bg=PANEL, fg=TEXT, font=("Segoe UI", 10), padx=16, pady=10)
+                            bg=palette(self.root).PANEL, fg=palette(self.root).TEXT, font=("Segoe UI", 10), padx=16, pady=10)
         scrollbar = ttk.Scrollbar(frame, command=text.yview)
         text.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")

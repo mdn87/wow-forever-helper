@@ -127,6 +127,152 @@ def new_chat(manager, source):
     return window
 
 
+def test_interface_preview_cancel_and_save_preserve_chats(manager_factory):
+    from wow_helper.theme import PALETTES, settings_icon
+    manager = manager_factory()
+    first = manager.windows[0]
+    choose(first, 0)
+    first.view.editor.insert("1.0", "Synthetic unsent draft")
+    transcript = first.view.transcript.get("1.0", "end-1c")
+    second = new_chat(manager, first)
+    custom = {"background": "#ffffff", "text": "#112233", "user_text": "#663300"}
+    second.view.set_appearance(custom)
+    manager.show_interface(first)
+    dialog = manager._interface_dialog
+    manager.show_interface(second)
+    assert manager._interface_dialog is dialog
+    for _ in range(2):
+        dialog.theme_buttons["modern"].invoke()
+        first.root.update()
+        assert first.view.transcript.cget("bg") == PALETTES["modern"].PANEL
+        assert second.view.transcript.cget("bg") == "#ffffff"
+        assert first.chrome.title_font.actual("family") == "Segoe UI"
+        assert str(first.options_menu.cget("bg")) == PALETTES["modern"].PANEL
+        assert str(first.menu_button.cget("image")[0]) == str(settings_icon(first.root))
+        dialog.theme_buttons["classic"].invoke()
+    dialog.theme_buttons["modern"].invoke()
+    dialog.solid_when_active.set(False)
+    dialog.set_opacity(82)
+    assert first.root.attributes("-alpha") == pytest.approx(.82, abs=.01)
+    assert dialog.root.attributes("-alpha") == 1
+    manager.save_layout()  # Ordinary autosaves must not commit a preview.
+    saved = json.loads(manager.layout_path.read_text())["interface"]
+    assert saved["theme"] == "classic" and saved["opacity"] == 100
+    dialog.close()
+    assert first.root.attributes("-alpha") == 1
+    assert first.view.transcript.cget("bg") == PALETTES["classic"].PANEL
+    assert first.view.editor.get("1.0", "end-1c") == "Synthetic unsent draft"
+    assert first.view.transcript.get("1.0", "end-1c") == transcript
+    assert first.view.service.sent == second.view.service.sent == []
+    manager.show_interface(first)
+    dialog = manager._interface_dialog
+    dialog.theme_buttons["modern"].invoke()
+    dialog.solid_when_active.set(False)
+    dialog.set_opacity(87)
+    dialog.save_button.invoke()
+    assert manager._interface_dialog is None
+    manager.close()
+    restored = manager_factory()
+    assert restored.interface == {"theme": "modern", "opacity": 87, "solid_when_active": False}
+    first, second = restored.windows
+    assert first.root.attributes("-alpha") == pytest.approx(.87, abs=.01)
+    assert first.view.transcript.cget("bg") == PALETTES["modern"].PANEL
+    assert second.view.transcript.cget("bg") == "#ffffff"
+    assert first.view.editor.get("1.0", "end-1c") == "Synthetic unsent draft"
+    assert first.view.service.sent == []
+
+
+def test_interface_failed_save_keeps_preview_and_cancel_restores(manager_factory, monkeypatch):
+    from wow_helper.interface import INTERFACE_DEFAULTS
+    manager = manager_factory()
+    manager.show_interface(manager.windows[0])
+    dialog = manager._interface_dialog
+    dialog.theme_buttons["modern"].invoke()
+    with monkeypatch.context() as patch:
+        def fail(*_): raise OSError("Synthetic disk failure")
+        patch.setattr("wow_helper.workspace.write_json", fail)
+        dialog.save_button.invoke()
+        assert manager._interface_dialog is dialog
+        assert "Could not save" in dialog.error.get()
+        assert manager.interface == INTERFACE_DEFAULTS
+    dialog.close()
+    assert manager.display_settings == INTERFACE_DEFAULTS
+
+
+def test_native_opacity_follows_focus_and_survives_hiding(manager_factory, monkeypatch):
+    manager = manager_factory()
+    errors = []
+    monkeypatch.setattr(manager.root._root(), "report_callback_exception", lambda *args: errors.append(args[1]))
+    first = manager.windows[0]
+    second = new_chat(manager, first)
+    manager.interface = {"theme": "modern", "opacity": 78, "solid_when_active": True}
+    manager.preview_interface(None)
+    first.view.editor.focus_force()
+    manager.root.update()
+    assert first.root.attributes("-alpha") == 1
+    assert second.root.attributes("-alpha") == pytest.approx(.78, abs=.01)
+    first.view.session_picker.event_generate("<Button-1>")
+    manager.root.update()
+    assert manager.root.tk.call("winfo", "ismapped", str(first.view.session_picker) + ".popdown")
+    first.view.session_picker.event_generate("<Escape>")
+    manager.root.update()
+    assert not first.notice.get()
+    second.view.editor.focus_force()
+    manager.root.update()
+    assert second.root.attributes("-alpha") == 1
+    assert first.root.attributes("-alpha") == pytest.approx(.78, abs=.01)
+    first.root.withdraw()
+    manager.reveal(first)
+    manager.root.update()
+    assert first.root.state() == "normal"
+    assert not first.opacity.closed
+    first.opacity.schedule()
+    manager.close_window(first)
+    manager.root.update()
+    assert first.opacity.closed and first.opacity._after is None
+    assert not errors
+
+
+def test_modern_new_windows_dialogs_and_reports_fit_and_follow_theme(manager_factory):
+    from wow_helper.theme import PALETTES
+    manager = manager_factory()
+    manager.interface = {"theme": "modern", "opacity": 85, "solid_when_active": False}
+    manager.preview_interface(None)
+    for kind in ("chooser", "quests", "character", "journal", "screen"):
+        window = manager.new_window(kind=kind)
+        window.chrome.place("440x580+40+40")
+        if window.view:
+            settle(window.view)
+        window.root.update()
+        assert window.body.cget("bg") == PALETTES["modern"].PANEL
+        assert window.root.attributes("-alpha") == pytest.approx(.85, abs=.01)
+        for control in (window.new_button, window.menu_button, window.chrome.close_button):
+            assert control.winfo_ismapped()
+            assert control.winfo_rootx() + control.winfo_width() <= window.root.winfo_rootx() + 440
+        if kind == "journal":
+            window.view.note.insert("1.0", "Synthetic journal draft")
+            assert window.view.note.cget("bg") == PALETTES["modern"].EDITOR
+    manager.show_interface(manager.windows[0])
+    dialog = manager._interface_dialog
+    dialog.chrome.place("460x600+40+40")
+    dialog.root.update()
+    assert dialog.save_button.winfo_ismapped()
+    assert dialog.slider.winfo_ismapped()
+    assert dialog.save_button.winfo_rooty() + dialog.save_button.winfo_height() < dialog.root.winfo_rooty() + 600
+    dialog.slider.focus_force()
+    dialog.root.update()
+    dialog.slider.event_generate("<Left>")
+    dialog.root.update()
+    assert dialog.values()["opacity"] == 84
+    dialog.close()
+    manager.preview_interface({"theme": "classic"})
+    manager.root.update()
+    for window in manager.windows:
+        if window.kind == "journal":
+            assert window.view.note.get("1.0", "end-1c") == "Synthetic journal draft"
+    manager.preview_interface(None)
+
+
 @pytest.mark.parametrize("height", [MIN_HEIGHT, 600])
 def test_first_launch_starts_one_chat_and_new_window_copies_size_with_chooser(manager_factory, height):
     manager = manager_factory()
