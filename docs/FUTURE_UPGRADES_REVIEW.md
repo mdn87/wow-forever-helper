@@ -4,7 +4,7 @@ Reviewed on 2026-10-11. Subject: [FUTURE_UPGRADES.md](FUTURE_UPGRADES.md) at com
 
 Roundtable ran two review perspectives, product value and technical feasibility, followed by a synthesis. All three used `claude-fable-5-1`, completed their moves, and exited successfully; Roundtable reported `converged`. The reviewers received a captured copy of the plan, current project rules, product documentation, and selected implementation files. This document records the findings retained after Codex checked their evidence and narrowed several claims. Raw review artifacts remain in ignored local storage.
 
-Status: review complete; recommendations not applied. The upgrade plan, all ten addon ideas, and the interface ideas remain unchanged. No feature implementation or new in-game validation occurred.
+Status at review completion: recommendations had not been applied, and the upgrade plan and all its ideas were unchanged. No feature implementation or new in-game validation occurred. Follow-up: the [implementation plan](UPGRADE_IMPLEMENTATION_PLAN.md) now adopts the checked findings and defines the build sequence; this review remains the record of the earlier plan snapshot.
 
 ## Assessment
 

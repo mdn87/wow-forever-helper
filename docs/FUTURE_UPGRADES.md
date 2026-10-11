@@ -2,7 +2,7 @@
 
 Status: proposed, not implemented. Last updated: 2026-10-11.
 
-This plan records ideas for the user-command accessibility helper and its desktop companion. The current research focus is features from popular WoW addons on Wago and CurseForge that extend or complement the existing tools. The earlier desktop interface ideas remain below. All items are proposals, without delivery dates.
+This document preserves the research and ideas for the user-command accessibility helper and its desktop companion. The [implementation plan](UPGRADE_IMPLEMENTATION_PLAN.md) is the authoritative build sequence, starting with Linked journal and Resume session. It incorporates the checked [Fable review](FUTURE_UPGRADES_REVIEW.md). The addon and desktop interface ideas below remain proposals, without delivery dates.
 
 Current behavior and verification evidence remain in [Chat](CHAT.md), [Quest companion](QUESTS.md), and [Assistive input](ASSISTIVE_INPUT.md). This plan does not replace the existing product boundaries in [AGENTS.md](../AGENTS.md).
 
@@ -66,7 +66,7 @@ SavedInstances tracks lockouts, daily and weekly completion, currencies, and pro
 - **Data needed:** a manual checklist with explicit repeat rules can come first. Automatic tracking needs lockout, completion, cooldown, and reset-time data that the companion does not currently export. Display the last checked time and distinguish manual completion from observed completion.
 - **Compatibility:** the inspected upstream listing is Retail-only. The checklist pattern can inform our UI; automatic Forever tracking needs separate API and reset-behavior validation.
 
-Prioritize the quest-chain view and gear comparisons as extensions of existing research workflows. Manual goals and repeatable checklists are smaller starting points for the Journal. Inventory analysis follows a richer bag export. These proposals borrow feature patterns; they do not include third-party addon code, databases, or executable imports.
+Quest chains and gear comparisons extend existing research workflows. Manual goals and repeatable checklists are smaller additions to Journal; inventory analysis needs a richer bag export. The implementation plan determines their delivery order. These proposals borrow feature patterns; they do not include third-party addon code, databases, or executable imports.
 
 ## Agent session purpose and addon communication
 
@@ -150,9 +150,11 @@ The [SimulationCraft addon](https://www.curseforge.com/wow/addons/simulationcraf
 - **Fit:** a dedicated planning conversation using Screen adviser, Journal, and imported route context. It teaches a chosen route without claiming to track the player's live position.
 - **Completion check:** unsupported editions are explicit. A Forever dungeon discussion based on screenshots and researched sources is not an MDT integration. Do not bundle addon map artwork or execute imported route content.
 
-For the next agent-focused implementation, start with BugSack troubleshooting and Journalator analysis: their documented text and CSV exports provide concrete inputs without first extending the in-game exporter. Details needs a verified export path; SimulationCraft and MDT need stronger edition-specific validation. Across all five, reuse the chosen agent session, preview selected context, retain source timestamps, and preserve the existing explicit-send and game-input boundaries.
+BugSack troubleshooting and Journalator analysis have documented text and CSV exports that provide concrete inputs without first extending our in-game exporter; they appear as F08 and F09 in the implementation plan. Details needs a verified export path; SimulationCraft and MDT need stronger edition-specific validation. Across all five, reuse the chosen agent session, preview selected context, retain source timestamps, and preserve the existing explicit-send and game-input boundaries.
 
-## Interface and workflow build order
+## Interface and workflow proposals
+
+These retain the original research numbering. Delivery order is defined in the implementation plan.
 
 ### 1. Compact pinned advice
 
@@ -194,7 +196,7 @@ The intended flow is: **get advice → keep it visible → save what mattered �
 
 ## Further interface and workflow ideas
 
-These follow the first three upgrades. Their order should be reconsidered after trying those workflows.
+These additional patterns are also included in the implementation plan's feature sequence.
 
 | Idea | Inspiration | Proposed behavior |
 | --- | --- | --- |

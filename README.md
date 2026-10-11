@@ -52,7 +52,7 @@ All five window types, saved layouts, new Codex/Claude conversations, existing-s
 
 The quest companion's parser, advice order, and CLI are tested against synthetic data. On 2026-10-10, addon 0.4.0 produced a real Classic Forever beta snapshot on Windows: all 13 snapshot checks passed, and the quest and character reports returned successfully. Available-quest coverage and accuracy against the in-game display still need checking; see [verification details](docs/QUESTS.md#what-has-been-verified). Reports can now be prepared for an agent request; native game-window capture and continuous recording-backed journaling still need further work and verification as described in [Chat](docs/CHAT.md). The earlier [plan](docs/PLAN.md) and [M1 breakdown](docs/M1_TASKS.md) are retained as historical context; their blanket input-removal requirement was superseded by the operator's assistive-input request.
 
-Future companion ideas and the recommended build order are tracked in [Future upgrades](docs/FUTURE_UPGRADES.md). Items there are proposals, not implemented features.
+The [upgrade implementation plan](docs/UPGRADE_IMPLEMENTATION_PLAN.md) defines the feature-by-feature build sequence, starting with Linked journal and Resume session. The original addon research and interface ideas remain in [Future upgrades](docs/FUTURE_UPGRADES.md), with the checked [Fable review](docs/FUTURE_UPGRADES_REVIEW.md) alongside them. These upgrades are planned, not implemented features.
 
 Run tests with `python -m pytest -q -p no:cacheprovider`. CI runs on Windows and Linux; neither job sends live keys.
 
