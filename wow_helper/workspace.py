@@ -56,6 +56,8 @@ class CompanionWindow:
         self.options_menu.add_cascade(label="Windows", menu=self.windows_menu)
         self.options_menu.add_command(label="New window", command=lambda: manager.new_window(self))
         self.options_menu.add_command(label="Bring all windows to this screen", command=lambda: manager.arrange(self))
+        self.options_menu.add_command(label="Hide all windows", command=manager.hide_all, state="disabled")
+        self.hide_menu_index = self.options_menu.index("end")
         self.options_menu.add_command(label="Close this window", command=lambda: manager.close_window(self))
         self.options_menu.add_separator()
         self.options_menu.add_command(label="Quit companion (keep all windows)", command=manager.close)
@@ -168,6 +170,8 @@ class WindowManager:
         self.closed = False
         self.loading = True
         self._save_after = None
+        self.access = None
+        self._access_after = None
         self.next_number = 1
         self.areas = areas or display_workareas(root)
         root.withdraw()
@@ -257,12 +261,46 @@ class WindowManager:
     def refresh_menus(self):
         for window in self.windows:
             window.new_button.configure(state="disabled" if len(self.windows) >= MAX_WINDOWS else "normal")
+            window.options_menu.entryconfigure(
+                window.hide_menu_index, state="normal" if self.can_reopen else "disabled",
+                label=(f"Hide all windows ({self.access.shortcut} reopens)" if self.can_reopen
+                       else "Hide all windows (shortcut unavailable)"))
             window.windows_menu.delete(0, "end")
             for other in self.windows:
                 window.windows_menu.add_command(label=other.caption,
                                                  command=lambda w=other: self.reveal(w))
             window.windows_menu.add_separator()
             window.windows_menu.add_command(label="Quit companion (keep all windows)", command=self.close)
+
+    @property
+    def can_reopen(self):
+        return bool(not self.closed and self.access and self.access.available)
+
+    def enable_reopening(self, access):
+        self.access = access
+        self.refresh_menus()
+        self._check_reopen()
+        self.save_layout()
+
+    def _check_reopen(self):
+        if self.closed:
+            return
+        if self._access_after is not None:
+            self.root.after_cancel(self._access_after)
+            self._access_after = None
+        if self.access.requested():
+            self.show_all()
+        self._access_after = self.root.after(100, self._check_reopen)
+
+    def show_all(self):
+        for window in self.windows:
+            self.reveal(window)
+
+    def hide_all(self):
+        if not self.can_reopen or not self.save_layout():
+            return
+        for window in self.windows:
+            window.root.withdraw()
 
     def reveal(self, window):
         if self.closed or window not in self.windows:
@@ -293,8 +331,12 @@ class WindowManager:
         if self.closed or window not in self.windows:
             return
         if len(self.windows) == 1:
-            # The last close exits while remembering that final window.
-            self.close()
+            # Keep the final draft and a working way back into the app. Without
+            # a registered shortcut, retain normal last-window exit behavior.
+            if self.can_reopen:
+                self.hide_all()
+            else:
+                self.close()
             return
         self.windows.remove(window)
         window.dispose()
@@ -325,8 +367,14 @@ class WindowManager:
             return False
         else:
             for window in self.windows:
-                window.notice.set("Windows saved · recent chat remembered" if window.remember.get()
-                                  else "Windows saved · chat text is not remembered")
+                if self.can_reopen:
+                    window.notice.set(("Saved" if window.remember.get() else "Chat not saved")
+                                      + f" · {self.access.shortcut} shows windows")
+                elif self.access and self.access.api:
+                    window.notice.set(f"{self.access.shortcut} unavailable. Use the launch command to reopen.")
+                else:
+                    window.notice.set("Windows saved · recent chat remembered" if window.remember.get()
+                                      else "Windows saved · chat text is not remembered")
             return True
 
     def _callback_error(self, *_):
@@ -339,6 +387,11 @@ class WindowManager:
         if not self.save_layout():
             return
         self.closed = True
+        if self._access_after is not None:
+            self.root.after_cancel(self._access_after)
+            self._access_after = None
+        if self.access:
+            self.access.close()
         for window in self.windows:
             window.dispose()
         self.lock.close()

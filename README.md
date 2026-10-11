@@ -22,6 +22,8 @@ The companion starts with one chat window. Its compact top row holds **+ New**, 
 
 The chat windows are a separate desktop application. The **WoW Companion** addon still only exports data; it does not display a chatbox inside WoW. Launch the desktop companion separately and use WoW in windowed or windowed fullscreen mode.
 
+On Windows, **Ctrl+Alt+H** brings the companion windows back while you play. **Menu → Hide all windows** preserves the whole set; closing the last window also leaves the helper running for the shortcut. **Menu → Quit companion (keep all windows)** fully exits. Run the launch command again to show an already-running companion or start it after a full quit. If the shortcut is unavailable, the last window exits normally; `chat --hotkey F10` selects **Ctrl+Alt+F10** instead.
+
 Use Python 3.11 or newer from the repository root. Commands other than chat need only the standard library. This example assumes you first assigned the actual spell to `Shift+F4` in WoW:
 
 ```console
