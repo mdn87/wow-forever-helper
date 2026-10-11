@@ -212,9 +212,11 @@ def test_cli_chat_does_not_initialize_assistive_input(monkeypatch):
     monkeypatch.setattr(chat_window, "launch", lambda **options: calls.append(options))
     monkeypatch.setattr(cli, "Assistant", lambda *_: pytest.fail("chat touched game input"))
     assert cli.main(["chat"]) == 0
-    assert calls == [{"hotkey": "H"}]
+    assert calls == [{"hotkey": "H", "restart": False}]
     assert cli.main(["chat", "--hotkey", "F10"]) == 0
-    assert calls[-1] == {"hotkey": "F10"}
+    assert calls[-1] == {"hotkey": "F10", "restart": False}
+    assert cli.main(["chat", "--restart"]) == 0
+    assert calls[-1] == {"hotkey": "H", "restart": True}
 
 
 def test_codex_send_uses_native_argv_and_never_shell(monkeypatch):

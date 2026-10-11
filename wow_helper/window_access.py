@@ -7,14 +7,20 @@ import hashlib
 import os
 from pathlib import Path
 import queue
+import subprocess
+import sys
 import threading
+import time
+
+from .chat import ChatError
+from .window_state import LayoutLock
 
 HOTKEYS = {"H": (0x48, "Ctrl+Alt+H"), "F10": (0x79, "Ctrl+Alt+F10")}
 
 
-def event_name(layout_path):
+def event_name(layout_path, action="Reopen"):
     identity = str(Path(layout_path).resolve()).casefold().encode("utf-8")
-    return "Local\\WoWForeverHelper.Reopen." + hashlib.sha256(identity).hexdigest()[:32]
+    return f"Local\\WoWForeverHelper.{action}." + hashlib.sha256(identity).hexdigest()[:32]
 
 
 class WindowsAPI:
@@ -90,10 +96,46 @@ def signal_existing(layout_path, *, api=None):
     return api.signal_event(event_name(layout_path))
 
 
+def restart_existing(layout_path, *, api=None, timeout=10):
+    """Ask the existing UI to save and quit; never terminate a process."""
+    if api is None:
+        if os.name != "nt":
+            return False
+        api = WindowsAPI()
+    if not api.signal_event(event_name(layout_path, "Restart")):
+        if signal_existing(layout_path, api=api):
+            raise ChatError("This older companion needs Menu > Quit companion once. Then run the launch command again.")
+        return False
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            lock = LayoutLock(layout_path)
+        except ChatError:
+            if time.monotonic() >= deadline:
+                raise ChatError("The companion could not finish restarting. Check its window for a save error; it was left running.") from None
+            time.sleep(0.05)
+        else:
+            lock.close()
+            return True
+
+
+def start_restart(hotkey):
+    """Start only our own fixed restart command, keeping the current UI on failure."""
+    executable = Path(sys.executable)
+    if os.name == "nt" and executable.with_name("pythonw.exe").is_file():
+        executable = executable.with_name("pythonw.exe")
+    return subprocess.Popen(
+        [str(executable), "-m", "wow_helper", "chat", "--restart", "--hotkey", hotkey],
+        cwd=Path(__file__).resolve().parents[1], shell=False,
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+
+
 class WindowAccess:
     """Transfer explicit reopen requests to Tk without calling Tk from a worker."""
 
     def __init__(self, layout_path, *, hotkey="H", api=None):
+        self.hotkey = hotkey
         self.key, self.shortcut = HOTKEYS[hotkey]
         self.available = False
         self.closed = False
@@ -102,6 +144,7 @@ class WindowAccess:
         self._requests = queue.Queue(maxsize=1)
         self.api = api if api is not None else (WindowsAPI() if os.name == "nt" else None)
         self.handle = self.api.create_event(event_name(layout_path)) if self.api else None
+        self.restart_handle = self.api.create_event(event_name(layout_path, "Restart")) if self.api else None
         self.thread = None
         if self.api:
             self.thread = threading.Thread(target=self._listen, name="companion-shortcut", daemon=True)
@@ -137,6 +180,9 @@ class WindowAccess:
             hotkey = False
         return bool(self.api and self.api.take_event(self.handle)) or hotkey
 
+    def restart_requested(self):
+        return not self.closed and bool(self.api and self.api.take_event(self.restart_handle))
+
     def close(self):
         if self.closed:
             return
@@ -147,4 +193,6 @@ class WindowAccess:
         self.available = False
         if self.api:
             self.api.close_event(self.handle)
+            self.api.close_event(self.restart_handle)
         self.handle = None
+        self.restart_handle = None

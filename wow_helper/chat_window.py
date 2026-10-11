@@ -418,11 +418,13 @@ class ChatWindow:
         self.root.destroy()
 
 
-def launch(*, hotkey="H"):
-    from .window_access import WindowAccess, signal_existing
+def launch(*, hotkey="H", restart=False):
+    from .window_access import WindowAccess, restart_existing, signal_existing
     from .workspace import LAYOUT_PATH, WindowManager
 
-    if signal_existing(LAYOUT_PATH):
+    if restart:
+        restart_existing(LAYOUT_PATH)
+    elif signal_existing(LAYOUT_PATH):
         return
     try:
         import tkinter as tk

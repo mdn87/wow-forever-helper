@@ -417,11 +417,18 @@ class Access:
     api = True
     available = True
     shortcut = "Ctrl+Alt+H"
+    hotkey = "H"
+    restart_handle = True
+    restart_pending = False
     pending = False
     closed = False
 
     def requested(self):
         result, self.pending = self.pending, False
+        return result
+
+    def restart_requested(self):
+        result, self.restart_pending = self.restart_pending, False
         return result
 
     def close(self):
@@ -474,6 +481,64 @@ def test_last_close_hides_with_shortcut_and_full_quit_preserves_restart(manager_
     assert restored.windows[0].view.editor.get("1.0", "end-1c") == "Do not lose this draft"
 
 
+def test_restart_request_saves_all_windows_and_drafts(manager_factory):
+    manager = manager_factory()
+    first = manager.windows[0]
+    second = new_chat(manager, first)
+    choose(first, 0)
+    choose(second, 1)
+    first.view.editor.insert("1.0", "First retained draft")
+    second.view.editor.insert("1.0", "Second retained draft")
+    access = Access()
+    manager.enable_reopening(access)
+    before = [w.snapshot() for w in manager.windows]
+    access.restart_pending = True
+    manager._check_reopen()
+    assert manager.closed and access.closed
+    restored = manager_factory()
+    assert [w.snapshot() for w in restored.windows] == before
+    assert all(w.view.service.sent == [] for w in restored.windows)
+
+
+def test_restart_menu_launches_once_and_waits_for_graceful_exit(manager_factory, monkeypatch):
+    from types import SimpleNamespace
+    from wow_helper import workspace
+    calls = []
+    monkeypatch.setattr(workspace, "start_restart", lambda hotkey: calls.append(hotkey) or SimpleNamespace(poll=lambda: None))
+    manager = manager_factory()
+    access = Access()
+    manager.enable_reopening(access)
+    window = manager.windows[0]
+    window.options_menu.invoke(window.restart_menu_index)
+    manager.restart()
+    assert calls == ["H"]
+    assert not manager.closed
+    assert window.options_menu.entrycget(window.restart_menu_index, "state") == "disabled"
+    access.restart_pending = True
+    manager._check_reopen()
+    assert manager.closed
+
+
+@pytest.mark.parametrize("spawn_error", [True, False])
+def test_restart_launcher_failure_keeps_current_windows_usable(manager_factory, monkeypatch, spawn_error):
+    from types import SimpleNamespace
+    from wow_helper import workspace
+    def fail(_):
+        if spawn_error:
+            raise OSError("Synthetic launch failure")
+        return SimpleNamespace(poll=lambda: 2)
+    monkeypatch.setattr(workspace, "start_restart", fail)
+    manager = manager_factory()
+    manager.enable_reopening(Access())
+    manager.restart()
+    manager._check_reopen()
+    assert not manager.closed
+    window = manager.windows[0]
+    assert window.root.state() == "normal"
+    assert window.options_menu.entrycget(window.restart_menu_index, "state") == "normal"
+    assert "restart" in window.notice.get().lower()
+
+
 def test_unavailable_shortcut_cannot_leave_last_window_hidden(manager_factory):
     manager = manager_factory()
     access = Access()
@@ -498,9 +563,14 @@ def test_failed_save_keeps_windows_visible_and_shortcut_registered(manager_facto
         raise OSError("Synthetic storage failure")
     with monkeypatch.context() as patch:
         patch.setattr(workspace, "write_json", fail)
+        patch.setattr(workspace, "start_restart", lambda _: pytest.fail("Restart started despite a save failure"))
         manager.hide_all()
         manager.close_window(window)
         manager.close()
+        manager.restart()
+        window.root.withdraw()
+        access.restart_pending = True
+        manager._check_reopen()
         assert not manager.closed and not access.closed
         assert window.root.state() == "normal"
 
