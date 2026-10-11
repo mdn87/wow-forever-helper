@@ -59,6 +59,72 @@ def test_drafts_and_replies_stay_with_the_selected_session(window):
     assert "Synthetic Claude" not in window.transcript.get("1.0", "end")
 
 
+def test_response_timer_updates_without_redrawing_or_disabling_chat(window, monkeypatch):
+    from wow_helper import response_wait
+    choose(window, 0)
+    monkeypatch.setattr(response_wait.time, "time", lambda: 1000)
+    window.send_message("Synthetic question")
+    settle(window)
+    assert window.subtitle.get() == "Waiting for response · 0:00"
+    assert str(window.send_button["state"]) == "normal"
+    shown, saves = [], []
+    window.on_change = lambda: saves.append(True)
+    monkeypatch.setattr(window, "_show", lambda *_: shown.append(True))
+    monkeypatch.setattr(response_wait.time, "time", lambda: 1075)
+    window.auto_refresh = 0
+    window._tick()
+    assert window.subtitle.get() == "Waiting for response · 1:15"
+    assert not shown and not saves
+    assert window.snapshot()["response_waits"][0]["started"] == 1000
+    assert "response_waits" not in window.snapshot(remember=False)
+
+
+def test_timer_stays_until_response_and_follows_session_selection(window):
+    choose(window, 0)
+    key = window.selected.key
+    window.send_message("Synthetic question")
+    settle(window)
+    window.service.history = lambda _: [Message("question", "user", "Synthetic question")]
+    window._history()
+    settle(window)
+    assert "Waiting for response" in window.subtitle.get()
+    choose(window, 1)
+    assert "Waiting for response" not in window.subtitle.get()
+    choose(window, 0)
+    assert "Waiting for response" in window.subtitle.get()
+    window.service.history = lambda _: [Message("question", "user", "Synthetic question"),
+                                        Message("answer", "assistant", "Synthetic answer")]
+    window._history()
+    settle(window)
+    assert not window.response_waits[key]
+    assert "Waiting for response" not in window.subtitle.get()
+    assert "Response received" in window.status.get()
+
+
+def test_owned_timer_uses_receipt_and_failed_send_keeps_earlier_wait(window):
+    from wow_helper.chat import ChatError
+    choose(window, 0)
+    window.service.response_status = lambda *_: "running"
+    window.send_message("Synthetic question")
+    settle(window)
+    window.service.history = lambda _: [Message("question", "user", "Synthetic question"),
+                                        Message("progress", "assistant", "Checking sources…")]
+    window._history()
+    settle(window)
+    assert "Waiting for response" in window.subtitle.get()
+    def fail(*_): raise ChatError("Synthetic request already running")
+    window.service.send = fail
+    window.send_message("Another question")
+    settle(window)
+    assert len(window.response_waits[window.selection_key]) == 1
+    assert "already running" in window.status.get()
+    window.service.response_status = lambda *_: "failed"
+    window._history()
+    settle(window)
+    assert not window.response_waits[window.selection_key]
+    assert "Response failed" in window.status.get()
+
+
 def test_send_does_not_erase_text_typed_during_delivery(window):
     choose(window, 0)
     window.editor.insert("1.0", "First message")
@@ -354,7 +420,7 @@ def test_identical_old_text_cannot_hide_a_new_queued_message(window):
 def test_stale_reply_cannot_appear_in_a_different_session(window):
     choose(window, 1)
     window.results.put(("history", window.sessions[0].key,
-                        [Message("synthetic-stale", "assistant", "Wrong session text")], None))
+                        ([Message("synthetic-stale", "assistant", "Wrong session text")], {}), None))
     window._tick()
     assert "Wrong session text" not in window.transcript.get("1.0", "end")
 

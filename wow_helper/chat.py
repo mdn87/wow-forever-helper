@@ -247,6 +247,21 @@ class ChatService:
                 messages.append(Message(path.stem, "user", item["text"], item["created_at"]))
         return sorted(messages, key=lambda message: message.at)[-100:]
 
+    def response_status(self, session, request_id):
+        """Read completion without mistaking an owned CLI's progress for its reply."""
+        if not session.managed:
+            if session.provider == "claude":
+                # Inbox entries appear in history before Claude polls them. Only its
+                # explicit acknowledgement confirms that this request was handled.
+                path = self.state / "claude" / identifier(session.id) / "claimed" / (identifier(request_id) + ".json")
+                return read_json(path).get("status", "queued")
+            return None
+        request = self.agents.result(session.id, request_id)
+        status = request.get("status", "unconfirmed")
+        if status in {"queued", "running"} and time.time() - request.get("heartbeat", 0) > 30:
+            return "interrupted"
+        return status
+
     def send(self, session, body, request_id):
         body = body.strip()
         if not body or len(body) > MAX_MESSAGE or "\0" in body:

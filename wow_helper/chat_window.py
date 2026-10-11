@@ -7,6 +7,7 @@ import uuid
 from .chat import ChatError, ChatService, MAX_MESSAGE, claude_connection_text
 from .appearance import AppearanceDialog, append_turn, appearance_settings, style_text
 from .window_state import history_state, restored_history, saved_selection
+from .response_wait import ResponseWait, elapsed
 from .theme import ACCENT, BACKGROUND, EDITOR, MUTED, PANEL, TEXT, apply_theme, display_font, settings_icon, menu as themed_menu
 
 BACKGROUND_JOBS = {"history", "guides"}
@@ -34,6 +35,9 @@ class ChatWindow:
             self.desired_key = saved_selection(self.pending_creation)
         self.session_title = state.get("title", "") if isinstance(state.get("title"), str) else ""
         self.inflight = None
+        self.sending_wait = None
+        self.response_waits = {}
+        self._showing_wait = False
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="chat")
         self.results = queue.Queue()
         self.sessions = []
@@ -52,6 +56,10 @@ class ChatWindow:
         self.confirmed = {}
         self.auto_refresh = 0
         if self.desired_key:
+            waits = state.get("response_waits")
+            if isinstance(waits, list):
+                self.response_waits[self.desired_key] = [wait for raw in waits[-10:]
+                                                       if (wait := ResponseWait.restore(raw))]
             self.history_cache[self.desired_key] = restored_history(state.get("messages"))
             draft = state.get("draft", "")
             self.drafts[self.desired_key] = draft[:32_000] if isinstance(draft, str) else ""
@@ -74,7 +82,7 @@ class ChatWindow:
             root.protocol("WM_DELETE_WINDOW", self.close)
         apply_theme(root)
 
-        selector = tk.Frame(toolbar if toolbar is not None else root, bg=PANEL,
+        selector = self.selector = tk.Frame(toolbar if toolbar is not None else root, bg=PANEL,
                             padx=0 if toolbar is not None else 8, pady=0 if toolbar is not None else 5)
         selector.pack(side="left" if toolbar is not None else "top", fill="x", expand=toolbar is not None)
         self.actions_menu = actions_menu if actions_menu is not None else themed_menu(selector)
@@ -199,6 +207,7 @@ class ChatWindow:
                 pending.append((body, "delivery unconfirmed", ids))
             data.update(draft=self.editor.get("1.0", "end-1c")[:32_000],
                         messages=history_state(self.history_cache.get(key, [])),
+                        response_waits=[wait.snapshot() for wait in self.response_waits.get(key, [])[-10:]],
                         pending=[{"body": body, "status": status, "previous_ids": sorted(ids)[-200:]}
                                  for body, status, ids in pending[-10:]])
         return data
@@ -332,7 +341,52 @@ class ChatWindow:
     def _history(self):
         if self.selected:
             session = self.selected
-            self._submit("history", lambda: self.service.history(session), session.key)
+            waits = list(self.response_waits.get(session.key, []))
+            def read():
+                statuses = {wait.request_id: self.service.response_status(session, wait.request_id)
+                            for wait in waits} if hasattr(self.service, "response_status") else {}
+                return self.service.history(session), statuses
+            self._submit("history", read, session.key)
+
+    def _observe_responses(self, key, messages, statuses):
+        waits = self.response_waits.get(key, [])
+        claimed = {wait.user_id for wait in waits if wait.user_id}
+        remaining = []
+        changed = False
+        for wait in waits:
+            before = wait.user_id, wait.previous_ids
+            finished = wait.observe(messages, statuses.get(wait.request_id), claimed)
+            if wait.user_id:
+                claimed.add(wait.user_id)
+            changed |= before != (wait.user_id, wait.previous_ids) or bool(finished)
+            if finished:
+                if key == self.selection_key:
+                    label = {"completed": "Response complete", "received": "Response received",
+                             "acknowledged": "Response acknowledged",
+                             "failed": "Response failed", "cancelled": "Response cancelled",
+                             "interrupted": "Response interrupted"}[finished]
+                    self.status.set(f"{label} · {elapsed(wait.started)}")
+            else:
+                remaining.append(wait)
+        self.response_waits[key] = remaining
+        if changed:
+            self.on_change()
+
+    def _update_response_timer(self):
+        waits = self.response_waits.get(self.selection_key, [])
+        if waits:
+            text = "Waiting for response · " + elapsed(waits[0].started)
+            if len(waits) > 1:
+                text += f" · {len(waits)} requests"
+            if not self.selected:
+                text += " · session unavailable"
+            if self.subtitle.get() != text:
+                self.subtitle.set(text)
+            self._showing_wait = True
+        elif self._showing_wait:
+            self._showing_wait = False
+            if self.selected:
+                self.subtitle.set(self._description(self.selected))
 
     def _show(self, messages):
         pending = self.sent.get(self.selection_key, [])
@@ -404,6 +458,9 @@ class ChatWindow:
         previous_ids = frozenset(self.observed.get(session.key, set()))
         if self._submit("send", lambda: self.service.send(session, body, request_id), (session.key, body, previous_ids)):
             self.inflight = (session.key, body, previous_ids)
+            self.sending_wait = ResponseWait(request_id, body, previous_ids=previous_ids)
+            self.response_waits.setdefault(session.key, []).append(self.sending_wait)
+            self._update_response_timer()
             self._send_callback = on_delivery
             self._clear_sent_draft = clear_draft
             self.status.set("Sending to the selected session…")
@@ -457,11 +514,19 @@ class ChatWindow:
             if kind == "send":
                 context = self.inflight or context
                 self.inflight = None
+                if error and self.sending_wait:
+                    waits = self.response_waits.get(context[0], [])
+                    if self.sending_wait in waits:
+                        waits.remove(self.sending_wait)
+                self.sending_wait = None
             if kind == "history" and not error and self.inflight and context == self.inflight[0]:
                 # This read completed before the queued send started. Its user
                 # messages cannot be receipts for that new outgoing message.
                 key, body, previous_ids = self.inflight
-                self.inflight = (key, body, previous_ids | frozenset(m.id for m in result))
+                ids = previous_ids | frozenset(m.id for m in result[0])
+                self.inflight = (key, body, ids)
+                if self.sending_wait:
+                    self.sending_wait.previous_ids = ids
             callback = self.job_callbacks.pop(kind, None)
             if callback:
                 callback(result, error)
@@ -493,11 +558,14 @@ class ChatWindow:
                     self.on_change()
                 else:
                     self.session_picker.set("Choose an open session…")
-            elif kind == "history" and self.selected and context == self.selected.key:
-                self._show(result)
-                self.subtitle.set(self._description(self.selected))
-                if self.status.get() == "Loading conversation…":
-                    self.status.set("Enter sends · Shift+Enter adds a line · Approvals stay in the terminal.")
+            elif kind == "history":
+                messages, statuses = result
+                self._observe_responses(context, messages, statuses)
+                if self.selected and context == self.selected.key:
+                    self._show(messages)
+                    self.subtitle.set(self._description(self.selected))
+                    if self.status.get() == "Loading conversation…":
+                        self.status.set("Enter sends · Shift+Enter adds a line · Approvals stay in the terminal.")
             elif kind == "send":
                 key, body, previous_ids = context
                 self.sent.setdefault(key, []).append((body, result, previous_ids))
@@ -520,6 +588,7 @@ class ChatWindow:
         if not self.busy and self.auto_refresh % 30 == 0:
             self._history()
         self.on_tick()
+        self._update_response_timer()
         self._after_id = self.root.after(100, self._tick)
 
     def on_tick(self):
@@ -540,6 +609,7 @@ class ChatWindow:
         # Close the proxy after in-flight work, never the agent it connects to.
         self.worker.submit(self.service.close)
         self.worker.shutdown(wait=False)
+        self.selector.destroy()
         self.root.destroy()
 
 
