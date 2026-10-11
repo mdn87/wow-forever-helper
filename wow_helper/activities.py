@@ -12,8 +12,8 @@ from .savedvars import SavedVariablesError, read_stable
 from .window_state import LayoutLock
 
 TYPES = {
-    "chat": ("Agent chat", "Connect to an open agent session."),
-    "quests": ("Quest guide", "Your quest log, priorities, and optional advice."),
+    "chat": ("Agent chat", "Start Codex or Claude, or connect to an open session."),
+    "quests": ("Quest guide", "Expand quests for directions and web-backed advice."),
     "character": ("Character status", "Gold, bags, equipment, durability, and XP."),
     "screen": ("Screen adviser", "Capture or open an image, preview it, then ask."),
     "journal": ("Journal", "Keep local notes and discuss your next goals."),
@@ -50,6 +50,11 @@ def profile_settings(kind, raw=None):
         "skills": [x for x in _strings(raw.get("skills", skill)) if x in SKILLS],
         "skill_files": _strings(raw.get("skill_files")),
         "context_files": _strings(raw.get("context_files")),
+        "refresh_on_open": raw.get("refresh_on_open") is not False,
+        "startup_context": raw.get("startup_context") is not False,
+        "startup_opening": raw.get("startup_opening") is not False,
+        "guide_auto": raw.get("guide_auto") is not False,
+        "guide_tier": raw.get("guide_tier") if raw.get("guide_tier") in {"auto", "obvious", "easy", "complicated"} else "auto",
         "instructions": raw.get("instructions", "Give concise, practical advice for the selected game edition.")[:8000]
         if isinstance(raw.get("instructions", ""), str) else "",
         "opening": raw.get("opening", OPENING[kind])[:8000] if isinstance(raw.get("opening", ""), str) else OPENING[kind],

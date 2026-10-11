@@ -47,6 +47,22 @@ def import_image(storage, source):
     return path.name
 
 
+def paste_image(storage):
+    """An explicit clipboard read avoids opening a file picker over the game."""
+    from PIL import Image, ImageGrab
+    try:
+        value = ImageGrab.grabclipboard()
+        if isinstance(value, Image.Image):
+            path = Path(storage) / "captures" / (str(uuid.uuid4()) + ".png")
+            _save(value, path)
+            return path.name
+        if isinstance(value, list) and len(value) == 1:
+            return import_image(storage, value[0])
+    except (OSError, ValueError, NotImplementedError):
+        raise ChatError("The clipboard image could not be read. Copy an image or take a screen snip first.") from None
+    raise ChatError("No single image is on the clipboard. Copy an image or take a screen snip first.")
+
+
 def game_window(flavor):
     """Identify one visible game window by executable and edition, not its title."""
     if os.name != "nt":

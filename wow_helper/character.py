@@ -3,7 +3,7 @@
 Advice for the player to read, like quests.py. Nothing here sends input or chooses an action.
 """
 
-from .quests import STALE_AFTER, VARIABLE, _age, _int
+from .quests import STALE_AFTER, VARIABLE, _age, _int, _str
 from .savedvars import SavedVariablesError, as_list
 
 SLOTS = {1: "head", 2: "neck", 3: "shoulders", 4: "shirt", 5: "chest", 6: "waist", 7: "legs", 8: "feet",
@@ -54,6 +54,7 @@ def report(parsed, mtime, *, flavor=None, now):
     if free is not None and total and free <= BAGS_LOW_AT:
         warnings.append(f"Bags nearly full: {free} free slots.")
     return {"status": "ok", "age_seconds": age,
+            "player": {"level": _int(player.get("level")), "class": _str(player.get("class"))},
             "gold": gold(money) if money is not None else None, "copper": money,
             "rested_xp": rested,
             "rested_percent_of_level": round(100 * rested / xp_max) if rested is not None and xp_max else None,

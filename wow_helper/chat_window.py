@@ -4,10 +4,12 @@ from concurrent.futures import ThreadPoolExecutor
 import queue
 import uuid
 
-from .chat import ChatError, ChatService, claude_connection_text
+from .chat import ChatError, ChatService, MAX_MESSAGE, claude_connection_text
 from .appearance import AppearanceDialog, append_turn, appearance_settings, style_text
 from .window_state import history_state, restored_history, saved_selection
 from .theme import ACCENT, BACKGROUND, EDITOR, MUTED, PANEL, TEXT, apply_theme, display_font, settings_icon, menu as themed_menu
+
+BACKGROUND_JOBS = {"history", "guides"}
 
 
 class ChatWindow:
@@ -22,9 +24,14 @@ class ChatWindow:
         self.service = service or ChatService()
         self.on_change = on_change or (lambda: None)
         state = state if isinstance(state, dict) else {}
+        self.default_provider = state.get("provider") if state.get("provider") in {"codex", "claude"} else "codex"
+        self.pending_creation = state.get("launch") if isinstance(state.get("launch"), dict) else None
+        self.selection_revision = 0
         self.appearance = appearance_settings(state.get("appearance"))
         self._appearance_dialog = None
         self.desired_key = tuple(selection) if selection else saved_selection(state.get("session"))
+        if not self.desired_key and self.pending_creation:
+            self.desired_key = saved_selection(self.pending_creation)
         self.session_title = state.get("title", "") if isinstance(state.get("title"), str) else ""
         self.inflight = None
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="chat")
@@ -84,6 +91,12 @@ class ChatWindow:
         self.setup_menu_index = self.actions_menu.index("end")
         self.refresh_button = ttk.Button(selector, text="↻", style="Window.TButton", command=self.refresh)
         self.refresh_button.pack(side="right", padx=(4, 0))
+        self.provider_buttons = {}
+        for provider, label in (("claude", "Claude +"), ("codex", "Codex +")):
+            button = ttk.Button(selector, text=label, style="Agent.TButton",
+                                command=lambda choice=provider: self.start_session(choice))
+            button.pack(side="right", padx=(3, 0))
+            self.provider_buttons[provider] = button
         self.actions_menu.add_command(label="Refresh open sessions", command=self.refresh)
         self.session_picker = ttk.Combobox(selector, state="readonly", width=1, font=("Segoe UI", 9))
         self.session_picker.set("Choose an open session…")
@@ -153,11 +166,14 @@ class ChatWindow:
         return bool(self.jobs)
 
     def _update_controls(self):
-        foreground = bool(self.jobs - {"history"})
-        self.send_button.configure(state="normal" if self.selected and not foreground else "disabled")
+        foreground = bool(self.jobs - BACKGROUND_JOBS)
+        can_start = not self.desired_key and hasattr(self.service, "create")
+        self.send_button.configure(state="normal" if (self.selected or can_start) and not foreground else "disabled")
         self.refresh_button.configure(state="disabled" if foreground else "normal")
+        for button in self.provider_buttons.values():
+            button.configure(state="disabled" if foreground or not hasattr(self.service, "create") else "normal")
         self.actions_menu.entryconfigure(self.setup_menu_index,
-                                         state="normal" if self.selected and self.selected.provider == "claude" else "disabled")
+                                         state="normal" if self.selected and self.selected.provider == "claude" and not self.selected.managed else "disabled")
 
     def _edited(self, _event=None):
         if self.editor.edit_modified():
@@ -168,7 +184,9 @@ class ChatWindow:
 
     def snapshot(self, remember=True):
         key = self.selection_key
-        data = {"appearance": dict(self.appearance)}
+        data = {"appearance": dict(self.appearance), "provider": self.default_provider}
+        if self.pending_creation:
+            data["launch"] = self.pending_creation
         if not key:
             if remember:
                 data["draft"] = self.editor.get("1.0", "end-1c")[:32_000]
@@ -213,7 +231,7 @@ class ChatWindow:
     def _submit(self, kind, action, context=None, *, on_result=None):
         # Allow one explicit action behind a background poll. All provider work
         # remains serialized, with no duplicate sends or overlapping socket reads.
-        if self.closed or kind in self.jobs or self.jobs - {"history"} or (kind == "history" and self.busy):
+        if self.closed or kind in self.jobs or self.jobs - BACKGROUND_JOBS or (kind in BACKGROUND_JOBS and self.busy):
             return False
         self.jobs.add(kind)
         if on_result is not None:
@@ -244,6 +262,7 @@ class ChatWindow:
             self.selected = session
             self.subtitle.set(self._description(session))
             return
+        self.selection_revision += 1
         if self.selection_key:
             self.drafts[self.selection_key] = self.editor.get("1.0", "end-1c")
         elif session.key not in self.drafts:
@@ -262,6 +281,48 @@ class ChatWindow:
         self.status.set("Loading conversation…")
         self.on_change()
         self._history()
+
+    def create_session(self, provider, creation_id):
+        return self.service.create(provider, creation_id=creation_id), None
+
+    def session_started(self, preparation):
+        """Task windows use this to display reports loaded during startup."""
+
+    def start_session(self, provider=None, *, on_ready=None):
+        if not hasattr(self.service, "create") or self.jobs - BACKGROUND_JOBS:
+            return False
+        provider = provider or self.default_provider
+        key, revision = str(uuid.uuid4()), self.selection_revision
+        def done(result, error):
+            self.pending_creation = None
+            if error:
+                self.status.set(error)
+            else:
+                session, preparation = result
+                self.sessions.append(session)
+                self._session_labels()
+                if revision != self.selection_revision:
+                    self.status.set("The new conversation is available in the list. Selection changed, so nothing was sent.")
+                    return
+                self.session_picker.current(self.sessions.index(session))
+                self._select_session(session)
+                self.session_started(preparation)
+                self.status.set("New " + ("Codex" if provider == "codex" else "Claude") + " conversation. The first request starts its CLI.")
+                if on_ready:
+                    on_ready()
+            self.on_change()
+        if self._submit("start", lambda: self.create_session(provider, key), on_result=done):
+            self.default_provider = provider
+            self.pending_creation = {"provider": provider, "id": key}
+            self.status.set("Preparing a new " + ("Codex" if provider == "codex" else "Claude") + " conversation…")
+            self.on_change()
+            return True
+        return False
+
+    def _session_labels(self):
+        self.session_picker.configure(values=[
+            f"{'Codex' if s.provider == 'codex' else 'Claude'} · {s.title[:45].replace(chr(10), ' ')} · {s.project[:20]} · {s.id[:8]}"
+            for s in self.sessions])
 
     @staticmethod
     def _description(session):
@@ -297,7 +358,8 @@ class ChatWindow:
         self.transcript.configure(state="normal")
         self.transcript.delete("1.0", "end")
         if not messages and not pending:
-            self.transcript.insert("end", "Your conversation appears here.\n\nChoose an open session above, then write a message below.", "note")
+            self.transcript.insert("end", "Your conversation appears here.\n\nChoose an existing session, or use Codex + / Claude +. "
+                                   "Sending with no session selected starts a new " + self.default_provider.title() + " conversation.", "note")
         for message in messages:
             append_turn(self.transcript, message.text, message.role)
         for body, status, _previous_ids in pending:
@@ -323,7 +385,17 @@ class ChatWindow:
 
     def send_message(self, body, *, request_id=None, on_delivery=None, clear_draft=False):
         """Send an explicit prepared request without replacing an unsent draft."""
-        if not self.selected or self.jobs - {"history"}:
+        if self.jobs - BACKGROUND_JOBS:
+            return False
+        if not body.strip():
+            return False
+        if len(body) > MAX_MESSAGE or "\0" in body:
+            self.status.set(f"Keep messages under {MAX_MESSAGE:,} characters, without null characters.")
+            return False
+        if not self.selected:
+            if body.strip() and not self.desired_key:
+                return self.start_session(on_ready=lambda: self.send_message(
+                    body, request_id=request_id, on_delivery=on_delivery, clear_draft=clear_draft))
             return False
         session = self.selected
         request_id = request_id or str(uuid.uuid4())
@@ -404,15 +476,10 @@ class ChatWindow:
             elif kind == "sessions":
                 self.sessions, notices = result
                 previous = self.selection_key
-                labels = []
-                for session in self.sessions:
-                    title = session.title[:45].replace("\n", " ")
-                    provider = "Codex" if session.provider == "codex" else "Claude Code"
-                    labels.append(f"{provider} · {title} · {session.project[:20]} · {session.id[:8]}")
-                self.session_picker.configure(values=labels)
+                self._session_labels()
                 match = next((s for s in self.sessions if s.key == previous), None)
                 self.status.set(" · ".join(notices) if notices else
-                                (f"{len(self.sessions)} open sessions. Choose one above." if self.sessions else "No open sessions found. Open Codex or Claude Code, then refresh."))
+                                (f"{len(self.sessions)} sessions. Choose one or start a new conversation." if self.sessions else "Send a message to start a new conversation, or choose Codex + / Claude +."))
                 if match:
                     self.session_picker.current(self.sessions.index(match))
                     self._select_session(match)
@@ -447,12 +514,16 @@ class ChatWindow:
                 delivered, self._send_callback = self._send_callback, None
                 delivered(result, error)
             self._update_controls()
-            if kind != "history":
+            if kind not in BACKGROUND_JOBS:
                 self.on_change()
         self.auto_refresh += 1
         if not self.busy and self.auto_refresh % 30 == 0:
             self._history()
+        self.on_tick()
         self._after_id = self.root.after(100, self._tick)
+
+    def on_tick(self):
+        """Additional local panels may poll lightweight work without blocking Tk."""
 
     def close(self):
         if self.closed:

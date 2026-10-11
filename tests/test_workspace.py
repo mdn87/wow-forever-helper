@@ -61,6 +61,19 @@ class SyntheticActivities(ActivityService):
         return reports
 
 
+class CreatingService(Service):
+    def __init__(self):
+        super().__init__()
+        self.sessions = list(SESSIONS)
+        self.created = []
+
+    def create(self, provider, *, creation_id, **options):
+        session = Session(provider, creation_id, "Synthetic new chat", "ExampleProject", "ready", managed=True)
+        self.sessions.append(session)
+        self.created.append((session, options))
+        return session
+
+
 @pytest.fixture
 def manager_factory(tmp_path, desktop):
     tk, parent = desktop
@@ -69,7 +82,9 @@ def manager_factory(tmp_path, desktop):
     def create(path=tmp_path / "windows.json", service=Service, activity=None):
         root = tk.Toplevel(parent)
         root.withdraw()
-        manager = WindowManager(root, service_factory=service, activity_factory=activity, layout_path=path)
+        manager = WindowManager(root, service_factory=service,
+                                activity_factory=activity or (lambda: SyntheticActivities(tmp_path / "activities")),
+                                layout_path=path)
         managers.append(manager)
         root.update()
         for window in manager.windows:
@@ -779,17 +794,18 @@ def test_report_windows_work_without_agent_and_do_not_repeat_preparation_on_rest
     manager = manager_factory(activity=lambda: activity)
     window = manager.new_window(kind=kind)
     settle(window.view)
-    assert activity.calls == []
+    assert activity.calls == [([kind], "_classic_beta_")]
     window.view.report_button.invoke()
     settle(window.view)
-    text = window.view.report_text.get("1.0", "end")
+    text = (" ".join(window.view.quest_tree.tree.item(k, "text") for k in window.view.quest_tree.quests)
+            if kind == "quests" else window.view.report_text.get("1.0", "end"))
     assert ("Synthetic" if kind == "quests" else "12g 34s 56c") in text
-    assert activity.calls == [([kind], "_classic_beta_")]
+    assert activity.calls == [([kind], "_classic_beta_")] * 2
     assert window.view.service.sent == []
     manager.close()
     restored = manager_factory(activity=lambda: activity)
     assert restored.windows[1].kind == kind
-    assert activity.calls == [([kind], "_classic_beta_")]
+    assert activity.calls == [([kind], "_classic_beta_")] * 2
     assert restored.windows[1].view.service.sent == []
 
 
@@ -806,7 +822,7 @@ def test_setup_preview_and_delivery_preserve_the_chat_draft_and_do_not_replay(ma
     dialog.fields["opening"].delete("1.0", "end")
     dialog.fields["opening"].insert("1.0", "Explain the first suggested quest.")
     dialog.save()
-    assert view.service.sent == [] and activity.calls == []
+    assert view.service.sent == [] and activity.calls == [(["quests"], "_classic_beta_")]
     view.prepare_request()
     settle(view)
     request = view._request_dialog
@@ -826,7 +842,7 @@ def test_setup_preview_and_delivery_preserve_the_chat_draft_and_do_not_replay(ma
     restored = manager_factory(activity=lambda: activity)
     view = restored.windows[1].view
     assert view.service.sent == []
-    assert len(activity.calls) == 1
+    assert len(activity.calls) == 2
     assert view.profile["opening"] == packet["task"]
     assert view.editor.get("1.0", "end-1c") == "Keep this unrelated draft"
 
@@ -870,7 +886,8 @@ def test_saved_preset_reopens_setup_and_creates_a_window_without_session_data(ma
     settle(chooser.view)
     assert chooser.kind == "quests" and chooser.view.profile == view.profile
     assert chooser.view.selection_key is None
-    assert chooser.view.service.sent == [] and view.service.sent == [] and activity.calls == []
+    assert chooser.view.service.sent == [] and view.service.sent == []
+    assert activity.calls == [(["quests"], "_classic_beta_")] * 2
 
 
 def test_failed_preparation_does_not_send_and_setup_cancel_does_not_change_profile(manager_factory, tmp_path):
@@ -899,18 +916,202 @@ def test_setup_tabs_keep_controls_visible_at_minimum_size(manager_factory):
     window.view.show_setup()
     dialog = window.view._setup_dialog
     dialog.root.geometry("460x480")
-    for index in range(3):
+    for index in range(4):
         dialog.book.select(index)
         dialog.root.update()
         assert dialog.save_button.winfo_ismapped()
         assert dialog.save_button.winfo_rooty() + dialog.save_button.winfo_height() < dialog.root.winfo_rooty() + 480
-        if index:
-            key = "context_files" if index == 1 else "skill_files"
+        if index >= 2:
+            key = "context_files" if index == 2 else "skill_files"
             box = dialog.file_lists[key]
             assert box.winfo_ismapped() and box.winfo_height() >= 20
             for button in dialog.file_buttons[key]:
                 assert button.winfo_ismapped()
                 assert button.winfo_rooty() + button.winfo_height() < dialog.save_button.winfo_rooty()
+
+
+def test_first_message_creates_one_session_and_preserves_text_typed_during_startup(manager_factory, tmp_path):
+    activity = SyntheticActivities(tmp_path)
+    gate = threading.Event()
+    class Slow(CreatingService):
+        def create(self, *args, **kwargs):
+            if not gate.wait(3): raise RuntimeError("Synthetic timeout")
+            return super().create(*args, **kwargs)
+    manager = manager_factory(service=Slow, activity=lambda: activity)
+    view = manager.windows[0].view
+    view.editor.insert("1.0", "First request")
+    try:
+        view.send()
+        view.send()
+        view.editor.insert("end", " plus an unsent thought")
+        assert view.pending_creation and not view.service.sent
+    finally:
+        gate.set()
+    settle(view)
+    assert len(view.service.created) == len(view.service.sent) == 1
+    assert view.service.sent[0][1] == "First request"
+    assert view.editor.get("1.0", "end-1c") == "First request plus an unsent thought"
+    assert view.selected.managed and view.selected.provider == "codex"
+    assert view.pending_creation is None
+
+
+def test_provider_buttons_prepare_new_chats_and_startup_settings_are_respected(manager_factory, tmp_path):
+    activity = SyntheticActivities(tmp_path)
+    manager = manager_factory(service=CreatingService, activity=lambda: activity)
+    window = manager.new_window(kind="quests")
+    view = window.view
+    settle(view)
+    view.show_setup()
+    setup = view._setup_dialog
+    setup.startup["startup_opening"].set(False)
+    setup.save()
+    view.provider_buttons["claude"].invoke()
+    settle(view)
+    assert view.selected.provider == "claude" and view.selected.managed
+    assert view.service.sent == []
+    assert activity.calls == [(["quests"], "_classic_beta_")] * 2
+    packets = [json.loads(p.read_text()) for p in (tmp_path / "prepared").glob("*.json")]
+    assert packets[0]["task"] == "Use this context to answer the user's message."
+    assert packets[0]["skills"] and packets[0]["reports"]["quests"]
+    assert view.actions_menu.entrycget(view.setup_menu_index, "state") == "disabled"
+    manager.close()
+    restored = manager_factory(service=CreatingService, activity=lambda: activity)
+    assert restored.windows[1].view.profile["startup_opening"] is False
+    assert len(activity.calls) == 2 and restored.windows[1].view.service.created == []
+
+
+def test_failed_new_session_keeps_draft_and_never_sends(manager_factory, tmp_path):
+    class Broken(CreatingService):
+        def create(self, *args, **kwargs): raise ChatError("Synthetic CLI unavailable")
+    manager = manager_factory(service=Broken, activity=lambda: SyntheticActivities(tmp_path))
+    view = manager.windows[0].view
+    view.editor.insert("1.0", "Keep my first message")
+    view.send()
+    settle(view)
+    assert "CLI unavailable" in view.status.get()
+    assert view.editor.get("1.0", "end-1c") == "Keep my first message"
+    assert view.service.sent == [] and view.selected is None
+
+
+def test_selection_change_during_creation_prevents_unintended_send(manager_factory, tmp_path):
+    gate = threading.Event()
+    class Slow(CreatingService):
+        def create(self, *args, **kwargs):
+            if not gate.wait(3): raise RuntimeError("Synthetic timeout")
+            return super().create(*args, **kwargs)
+    manager = manager_factory(service=Slow, activity=lambda: SyntheticActivities(tmp_path))
+    view = manager.windows[0].view
+    view.editor.insert("1.0", "For the new chat only")
+    try:
+        view.send()
+        view.session_picker.current(1)
+        view.select()
+    finally:
+        gate.set()
+    settle(view)
+    assert view.selected.key == SESSIONS[1].key
+    assert view.service.sent == [] and len(view.service.created) == 1
+
+
+def test_restart_during_creation_keeps_draft_but_never_resends(manager_factory, tmp_path):
+    gate = threading.Event()
+    class Slow(CreatingService):
+        def create(self, *args, **kwargs):
+            if not gate.wait(3): raise RuntimeError("Synthetic timeout")
+            return super().create(*args, **kwargs)
+    manager = manager_factory(service=Slow, activity=lambda: SyntheticActivities(tmp_path))
+    view = manager.windows[0].view
+    view.editor.insert("1.0", "Preserve across startup interruption")
+    view.send()
+    try:
+        manager.close()
+    finally:
+        gate.set()
+    view.worker.shutdown(wait=True)
+    restored = manager_factory(service=CreatingService, activity=lambda: SyntheticActivities(tmp_path))
+    after = restored.windows[0].view
+    assert after.editor.get("1.0", "end-1c") == "Preserve across startup interruption"
+    assert len(view.service.created) == 1 and view.service.sent == []
+    assert after.service.created == [] and after.service.sent == []
+
+
+def test_screen_ask_creates_a_session_and_sends_without_file_picker_or_preview(manager_factory, tmp_path):
+    from PIL import Image
+    from wow_helper.screen_capture import import_image
+    source = tmp_path / "synthetic.png"
+    Image.new("RGB", (80, 60), "gold").save(source)
+    activity = SyntheticActivities(tmp_path)
+    manager = manager_factory(service=CreatingService, activity=lambda: activity)
+    view = manager.new_window(kind="screen").view
+    settle(view)
+    view.ask_button.invoke()
+    assert not view.service.created and "image first" in view.activity_notice.get()
+    view._image_result(import_image(tmp_path, source), None)
+    view.ask_button.invoke()
+    settle(view)
+    assert len(view.service.created) == len(view.service.sent) == 1
+    assert view._request_dialog is None and view.book.index("current") == 1
+
+
+def test_quest_tree_expansion_requests_one_guide_and_preserves_manual_collapse(manager_factory, tmp_path):
+    class Research:
+        def __init__(self): self.calls = []
+        def request(self, *args, **kwargs): self.calls.append((args, kwargs)); return "a" * 64
+        def poll(self): pass
+        def get(self, key): return {"status": "running", "tier": "easy"}
+    manager = manager_factory(activity=lambda: SyntheticActivities(tmp_path))
+    view = manager.new_window(kind="quests").view
+    settle(view)
+    view._guidance = research = Research()
+    tree = view.quest_tree
+    key = next(iter(tree.quests))
+    tree.tree.focus(key)
+    tree.tree.item(key, open=True)
+    tree.tree.event_generate("<<TreeviewOpen>>")
+    view.on_tick()
+    settle(view)
+    tree.tree.event_generate("<<TreeviewOpen>>")
+    view.on_tick()
+    settle(view)
+    assert len(research.calls) == 1
+    assert research.calls[0][0][0] == "quest" and research.calls[0][0][2] == "Classic Forever beta"
+    assert tree.open_ids() == [key]
+    tree.tree.item(key, open=False)
+    tree.tree.event_generate("<<TreeviewClose>>")
+    view.refresh_panel()
+    settle(view)
+    assert tree.open_ids() == [] and len(research.calls) == 1
+    view.guide_auto.set(False)
+    view._guide_settings()
+    other = list(tree.quests)[1]
+    tree.tree.focus(other)
+    tree.tree.event_generate("<<TreeviewOpen>>")
+    view.on_tick()
+    settle(view)
+    assert len(research.calls) == 1
+
+
+def test_find_gear_uses_fresh_snapshot_selected_slot_and_build(manager_factory, tmp_path):
+    class Research:
+        def request(self, *args, **kwargs): self.args = args; return "b" * 64
+        def poll(self): pass
+        def get(self, key): return {"status": "running"}
+    activity = SyntheticActivities(tmp_path)
+    manager = manager_factory(activity=lambda: activity)
+    view = manager.new_window(kind="character").view
+    settle(view)
+    view._guidance = research = Research()
+    view.gear_slot.set("chest")
+    view.gear_goal.set("Tanking")
+    view.find_gear()
+    settle(view)
+    kind, context, edition, tier, provider = research.args
+    assert kind == "gear" and tier == "complicated" and provider == "codex"
+    assert context["slot"] == "chest" and context["build_or_goal"] == "Tanking"
+    assert context["character"]["player"]["class"] == "WARRIOR"
+    assert context["character"]["gear"] and "age_seconds" not in context["character"]
+    assert activity.calls == [(["character"], "_classic_beta_")] * 2
+    assert view.service.sent == []
 
 
 def test_journal_keeps_notes_and_unsent_note_across_restart_without_chat_retention(manager_factory):
