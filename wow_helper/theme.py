@@ -136,6 +136,13 @@ def apply_theme(root):
     style.layout("Settings.TMenubutton", [("Companion.button", {"sticky": "nswe", "children": [
         ("Menubutton.padding", {"sticky": "nswe", "children": [("Menubutton.label", {"sticky": "nswe"})]})]})])
     style.configure("Settings.TMenubutton", padding=(2, 0), width=0)
+    style.configure("TNotebook", background=PANEL, bordercolor=EDGE, tabmargins=(3, 2, 3, 0))
+    style.configure("TNotebook.Tab", background=BACKGROUND, foreground=MUTED,
+                    padding=(10, 4), font=("Segoe UI", 9))
+    style.map("TNotebook.Tab", background=[("selected", PANEL), ("active", TITLE)],
+              foreground=[("selected", ACCENT), ("active", TEXT)])
+    style.configure("TCheckbutton", background=PANEL, foreground=TEXT, font=("Segoe UI", 10))
+    style.map("TCheckbutton", background=[("active", PANEL)], foreground=[("active", ACCENT)])
     for name in ("TEntry", "TSpinbox"):
         style.configure(name, foreground=TEXT, fieldbackground=EDITOR, background=TITLE,
                         bordercolor=EDGE, arrowcolor=ACCENT, insertcolor=TEXT, padding=3)

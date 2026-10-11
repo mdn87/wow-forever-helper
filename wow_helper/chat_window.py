@@ -32,6 +32,9 @@ class ChatWindow:
         self.sessions = []
         self.selected = None
         self.jobs = set()
+        self.job_callbacks = {}
+        self._send_callback = None
+        self._clear_sent_draft = True
         self.closed = False
         self._scroll_after_id = None
         self.last_messages = None
@@ -207,12 +210,14 @@ class ChatWindow:
         if event.widget is self.root:
             self.status_label.configure(wraplength=max(200, event.width - 32))
 
-    def _submit(self, kind, action, context=None):
+    def _submit(self, kind, action, context=None, *, on_result=None):
         # Allow one explicit action behind a background poll. All provider work
         # remains serialized, with no duplicate sends or overlapping socket reads.
         if self.closed or kind in self.jobs or self.jobs - {"history"} or (kind == "history" and self.busy):
             return False
         self.jobs.add(kind)
+        if on_result is not None:
+            self.job_callbacks[kind] = on_result
         self._update_controls()
 
         def work():
@@ -313,19 +318,26 @@ class ChatWindow:
             self.transcript.yview_moveto(1.0)
 
     def send(self, _event=None):
+        self.send_message(self.editor.get("1.0", "end-1c").strip(), clear_draft=True)
+        return "break"
+
+    def send_message(self, body, *, request_id=None, on_delivery=None, clear_draft=False):
+        """Send an explicit prepared request without replacing an unsent draft."""
         if not self.selected or self.jobs - {"history"}:
-            return "break"
+            return False
         session = self.selected
-        body = self.editor.get("1.0", "end-1c").strip()
-        request_id = str(uuid.uuid4())
+        request_id = request_id or str(uuid.uuid4())
         if not body:
-            return "break"
+            return False
         previous_ids = frozenset(self.observed.get(session.key, set()))
         if self._submit("send", lambda: self.service.send(session, body, request_id), (session.key, body, previous_ids)):
             self.inflight = (session.key, body, previous_ids)
+            self._send_callback = on_delivery
+            self._clear_sent_draft = clear_draft
             self.status.set("Sending to the selected session…")
             self.on_change()
-        return "break"
+            return True
+        return False
 
     def claude_setup(self):
         if not self.selected or self.selected.provider != "claude":
@@ -378,7 +390,10 @@ class ChatWindow:
                 # messages cannot be receipts for that new outgoing message.
                 key, body, previous_ids = self.inflight
                 self.inflight = (key, body, previous_ids | frozenset(m.id for m in result))
-            if error:
+            callback = self.job_callbacks.pop(kind, None)
+            if callback:
+                callback(result, error)
+            elif error:
                 if kind == "history":
                     if self.selected and context == self.selected.key:
                         self.subtitle.set("Saved history · conversation could not refresh")
@@ -420,14 +435,17 @@ class ChatWindow:
                 key, body, previous_ids = context
                 self.sent.setdefault(key, []).append((body, result, previous_ids))
                 if self.selected and self.selected.key == key:
-                    if self.editor.get("1.0", "end-1c").strip() == body:
+                    if self._clear_sent_draft and self.editor.get("1.0", "end-1c").strip() == body:
                         self.editor.delete("1.0", "end")
                         self.drafts[key] = ""
                     self.last_messages = None
                     self._show(self.history_cache.get(key, []))
-                else:
+                elif self._clear_sent_draft and self.drafts.get(key, "").strip() == body:
                     self.drafts[key] = ""
                 self.status.set("Message " + result + ". This does not yet confirm an agent reply.")
+            if kind == "send" and self._send_callback:
+                delivered, self._send_callback = self._send_callback, None
+                delivered(result, error)
             self._update_controls()
             if kind != "history":
                 self.on_change()
@@ -440,6 +458,8 @@ class ChatWindow:
         if self.closed:
             return
         self.closed = True
+        self.job_callbacks.clear()
+        self._send_callback = None
         if self._appearance_dialog is not None:
             self._appearance_dialog.close()
         self.root.after_cancel(self._after_id)

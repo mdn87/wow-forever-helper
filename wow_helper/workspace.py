@@ -4,7 +4,8 @@ from pathlib import Path
 import uuid
 
 from .chat import CHAT_STATE, ChatError, ChatService, read_json, write_json
-from .chat_window import ChatWindow
+from .task_window import TaskWindow
+from .activities import ActivityService, TYPES, profile_settings
 from .window_state import LayoutLock, MAX_WINDOWS, MIN_HEIGHT, MIN_WIDTH, display_workareas, window_bounds
 from .theme import ACCENT, BACKGROUND, MUTED, PANEL, TEXT, apply_theme, display_font, settings_icon, menu as themed_menu
 from .window_frame import WindowFrame
@@ -74,8 +75,8 @@ class CompanionWindow:
                                     font=("Segoe UI", 8))
         self.body = tk.Frame(surface, bg=PANEL)
         self.body.pack(fill="both", expand=True)
-        if self.kind == "chat":
-            self.open_chat(record.get("chat"))
+        if self.kind in TYPES:
+            self.open_kind(self.kind, record.get("chat"))
         else:
             self.kind = "chooser"
             self.show_chooser()
@@ -85,37 +86,56 @@ class CompanionWindow:
     def show_chooser(self):
         tk = self.manager.tk
         from tkinter import ttk
-        chooser = tk.Frame(self.body, bg=PANEL, padx=24, pady=28)
+        chooser = tk.Frame(self.body, bg=PANEL, padx=20, pady=16)
         chooser.pack(fill="both", expand=True)
         tk.Label(chooser, text="New window", bg=PANEL, fg=TEXT, anchor="w",
                  font=display_font(self.root, 21)).pack(fill="x")
         tk.Label(chooser, text="Choose what to open here.", bg=PANEL, fg=MUTED,
-                 font=("Segoe UI", 11), anchor="w").pack(fill="x", pady=(6, 28))
-        self.chat_button = ttk.Button(chooser, text="Open agent chat", command=self.open_chat)
-        self.chat_button.pack(fill="x")
-        tk.Label(chooser, text="Connect this window to an open Codex or Claude Code session.",
-                 bg=PANEL, fg=MUTED, font=("Segoe UI", 10), wraplength=340,
-                 justify="left", anchor="w").pack(fill="x", pady=(10, 28))
-        tk.Label(chooser, text="PLANNED WINDOW TYPES", bg=PANEL, fg=ACCENT,
-                 font=("Segoe UI", 9, "bold"), anchor="w").pack(fill="x", pady=(12, 10))
-        tk.Label(chooser, text="Quest overview\nCharacter status\nScreenshot advice\nCharacter journal",
-                 bg=PANEL, fg=MUTED, font=("Segoe UI", 11), justify="left",
-                 anchor="w").pack(fill="x")
-        tk.Label(chooser, text="These window types are not available yet.", bg=PANEL, fg=MUTED,
-                 font=("Segoe UI", 9), anchor="w").pack(fill="x", pady=(12, 0))
+                 font=("Segoe UI", 10), anchor="w").pack(fill="x", pady=(4, 10))
+        self.type_buttons = {}
+        for kind, (title, description) in TYPES.items():
+            button = ttk.Button(chooser, text="Open agent chat" if kind == "chat" else title,
+                                command=lambda choice=kind: self.open_kind(choice))
+            button.pack(fill="x", pady=(4, 0))
+            self.type_buttons[kind] = button
+            tk.Label(chooser, text=description, bg=PANEL, fg=MUTED, font=("Segoe UI", 9),
+                     wraplength=340, justify="left", anchor="w").pack(fill="x", pady=(3, 6))
+        self.chat_button = self.type_buttons["chat"]
+        ttk.Button(chooser, text="Open saved preset…", command=self.open_preset).pack(fill="x", pady=(8, 0))
         self.manager.changed(self)
 
     def open_chat(self, state=None):
+        self.open_kind("chat", state)
+
+    def open_kind(self, kind, state=None):
         if self.view is not None or self.closed:
             return
         for child in self.body.winfo_children():
             child.destroy()
-        self.kind = "chat"
-        self.view = ChatWindow(self.body, self.manager.service_factory(), embedded=True,
+        self.kind = kind
+        self.view = TaskWindow(self.body, self.manager.service_factory(), embedded=True, kind=kind,
+                               activity=self.manager.activity_factory(), window_id=self.id,
                                state=state, on_change=lambda: self.manager.changed(self),
                                toolbar=self.toolbar, actions_menu=self.options_menu)
         self.options_menu.entryconfigure(self.appearance_menu_index, state="normal")
         self.manager.changed(self)
+
+    def open_preset(self):
+        from tkinter import filedialog
+        activity = self.manager.activity_factory()
+        selected = filedialog.askopenfilename(parent=self.root, initialdir=activity.storage / "presets",
+                                               title="Open saved window preset", filetypes=[("Window presets", "*.json")])
+        if not selected:
+            return
+        try:
+            if Path(selected).stat().st_size > 256_000:
+                raise ValueError
+            data = read_json(Path(selected))
+            if data.get("version") != 1 or data.get("kind") not in TYPES:
+                raise ValueError
+            self.open_kind(data["kind"], {"profile": profile_settings(data["kind"], data.get("profile"))})
+        except (OSError, ValueError):
+            self.set_notice("That window preset could not be opened.")
 
     def set_topmost(self):
         self.root.update_idletasks()
@@ -173,12 +193,13 @@ class CompanionWindow:
 
 
 class WindowManager:
-    def __init__(self, root, *, service_factory=ChatService, layout_path=LAYOUT_PATH, areas=None):
+    def __init__(self, root, *, service_factory=ChatService, activity_factory=None, layout_path=LAYOUT_PATH, areas=None):
         import tkinter as tk
 
         self.tk, self.root = tk, root
         self.service_factory = service_factory
         self.layout_path = Path(layout_path) if layout_path is not None else None
+        self.activity_factory = activity_factory or (lambda: ActivityService(self.layout_path.parent if self.layout_path else CHAT_STATE))
         self.lock = LayoutLock(self.layout_path)
         self.windows = []
         self.closed = False
@@ -198,7 +219,7 @@ class WindowManager:
             records = records[:MAX_WINDOWS] if isinstance(records, list) else []
             used_ids, used_numbers = set(), set()
             for raw in records:
-                if not isinstance(raw, dict) or raw.get("kind") not in ("chat", "chooser"):
+                if not isinstance(raw, dict) or raw.get("kind") not in (*TYPES, "chooser"):
                     continue
                 record = dict(raw)
                 try:
@@ -264,7 +285,8 @@ class WindowManager:
             suffix = window.view.session_title[:50].replace("\n", " ") or "Choose a session"
             if window.view.selection_key and not window.view.selected:
                 suffix += " · Disconnected"
-            window.caption = f"Chat {window.number} · {suffix}"
+            title = "Chat" if window.kind == "chat" else TYPES[window.kind][0]
+            window.caption = f"{title} {window.number} · {suffix}" if window.kind == "chat" or window.view.selection_key else f"{title} {window.number}"
         else:
             window.caption = f"Window {window.number} · Choose a window type"
         if previous != window.caption:
