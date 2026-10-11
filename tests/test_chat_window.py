@@ -382,6 +382,34 @@ def test_close_cancels_the_refresh_callback(window):
     assert scroll_callback not in window.root.tk.call("after", "info")
 
 
+def test_colored_turns_keep_content_and_dividers_follow_resize_and_theme(window):
+    window.root.deiconify()
+    choose(window, 0)
+    messages = [Message("synthetic-user", "user", "First question"),
+                Message("synthetic-agent", "assistant", "Reply with\ntwo lines"),
+                Message("synthetic-followup", "user", "Follow-up")]
+    window._show(messages)
+    window.root.update()
+    text = window.transcript
+    assert text.get("1.0", "end-1c") == "First question\n\nReply with\ntwo lines\n\nFollow-up"
+    assert "user" in text.tag_names("1.0")
+    assert "assistant" in text.tag_names(text.search("Reply with", "1.0"))
+    assert len(text.image_names()) == 2
+    for geometry in ("440x580", "760x650"):
+        window.root.geometry(geometry)
+        window.root.update()
+        inset = sum(int(text.cget(name)) for name in ("padx", "borderwidth", "highlightthickness"))
+        assert text._turn_divider.width() == text.winfo_width() - 2 * inset
+    previous_color = text._turn_divider.get(0, 0)
+    window.set_appearance({**window.appearance, "background": "#ffffff", "text": "#112233", "user_text": "#663300"})
+    assert text.tag_cget("user", "foreground") == "#663300"
+    assert text.tag_cget("assistant", "foreground") == "#112233"
+    assert text._turn_divider.get(0, 0) != previous_color
+    # Refreshing a changed reply reuses the rule image without accumulating turns.
+    window._show(messages + [Message("synthetic-last", "assistant", "Latest reply")])
+    assert len(text.image_names()) == 3
+
+
 @pytest.mark.parametrize("geometry", ["700x460", "500x400"])
 def test_claude_connection_dialog_keeps_copy_button_visible(window, geometry):
     choose(window, 1)

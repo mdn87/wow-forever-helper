@@ -1,6 +1,7 @@
 """Original fantasy textures and a privately loaded, openly licensed display font."""
 
 import os
+import math
 from pathlib import Path
 import random
 
@@ -50,6 +51,23 @@ def _trim_image(root, vertical=False, reverse=False):
 
 def textures(root):
     return root._root()._companion_textures
+
+
+def settings_icon(root):
+    """A small pixel-sized cog avoids oversized or clipped fallback-font glyphs."""
+    import tkinter as tk
+    owner = root._root()
+    if not hasattr(owner, "_companion_settings_icon"):
+        icon = tk.PhotoImage(master=root, width=14, height=14)
+        for y in range(14):
+            for x in range(14):
+                dx, dy = x - 6.5, y - 6.5
+                radius = math.hypot(dx, dy)
+                outer = 6.5 if math.cos(8 * math.atan2(dy, dx)) > 0 else 5
+                if 2.5 <= radius <= outer:
+                    icon.put(ACCENT, to=(x, y))
+        owner._companion_settings_icon = icon
+    return owner._companion_settings_icon
 
 
 def _button_image(root, material, edge, *, brightness=1.0, pressed=False):
@@ -117,7 +135,7 @@ def apply_theme(root):
     style.map("TMenubutton", foreground=[("disabled", MUTED), ("active", "#ffe7a0")])
     style.layout("Settings.TMenubutton", [("Companion.button", {"sticky": "nswe", "children": [
         ("Menubutton.padding", {"sticky": "nswe", "children": [("Menubutton.label", {"sticky": "nswe"})]})]})])
-    style.configure("Settings.TMenubutton", font=("Segoe UI", 11), padding=(4, 0), width=2)
+    style.configure("Settings.TMenubutton", padding=(2, 0), width=0)
     for name in ("TEntry", "TSpinbox"):
         style.configure(name, foreground=TEXT, fieldbackground=EDITOR, background=TITLE,
                         bordercolor=EDGE, arrowcolor=ACCENT, insertcolor=TEXT, padding=3)
