@@ -115,6 +115,12 @@ def apply_theme(root):
     style.configure("TMenubutton", font=display_font(root, 10), foreground=ACCENT,
                     background=BACKGROUND, arrowcolor=ACCENT, padding=(5, 1), width=0)
     style.map("TMenubutton", foreground=[("disabled", MUTED), ("active", "#ffe7a0")])
+    style.layout("Settings.TMenubutton", [("Companion.button", {"sticky": "nswe", "children": [
+        ("Menubutton.padding", {"sticky": "nswe", "children": [("Menubutton.label", {"sticky": "nswe"})]})]})])
+    style.configure("Settings.TMenubutton", font=("Segoe UI", 11), padding=(4, 0), width=2)
+    for name in ("TEntry", "TSpinbox"):
+        style.configure(name, foreground=TEXT, fieldbackground=EDITOR, background=TITLE,
+                        bordercolor=EDGE, arrowcolor=ACCENT, insertcolor=TEXT, padding=3)
     style.configure("TCombobox", font=("Segoe UI", 10), foreground=TEXT,
                     fieldbackground=EDITOR, background=TITLE, bordercolor=EDGE,
                     lightcolor=EDGE, darkcolor=BACKGROUND, arrowcolor=ACCENT, padding=2)
