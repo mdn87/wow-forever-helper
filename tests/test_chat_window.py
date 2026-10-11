@@ -113,6 +113,89 @@ def test_unchanged_poll_does_not_schedule_another_layout_save(window):
     assert changes == []
 
 
+def long_history():
+    return [Message(f"synthetic-{i}", "assistant", f"Reply {i}: " + "Wrapped conversation text. " * 25)
+            for i in range(30)]
+
+
+def assert_latest_visible(window):
+    window.root.update()
+    text = window.transcript
+    assert text.bbox("end-2c") is not None
+    # Tk updates yview's line-height estimates asynchronously. Check the
+    # actual final line against the viewport edge instead of those estimates.
+    last_line = text.bbox("end-1c")
+    padding = sum(int(text.cget(option)) for option in ("pady", "borderwidth", "highlightthickness"))
+    assert last_line is not None
+    assert last_line[1] + last_line[3] == text.winfo_height() - padding
+
+
+@pytest.mark.parametrize("update", ["reply", "growing_reply", "queued_message"])
+def test_new_text_scrolls_to_bottom_after_reading_older_messages(window, update):
+    window.root.deiconify()
+    choose(window, 0)
+    messages = long_history()
+    window._show(messages)
+    window.root.update()
+    window.transcript.yview_moveto(0.2)
+    window.root.update()
+    assert window.transcript.yview()[1] < 0.9
+    if update == "reply":
+        messages = messages + [Message("synthetic-latest", "assistant", "Newest reply at the bottom")]
+    elif update == "growing_reply":
+        last = messages[-1]
+        messages = messages[:-1] + [Message(last.id, last.role, last.text + " More reply text. " * 100)]
+    else:
+        window.sent[window.selection_key] = [("Newest outgoing message", "queued", frozenset())]
+    window._show(messages)
+    assert_latest_visible(window)
+
+
+def test_unchanged_history_keeps_manual_scroll_position(window):
+    window.root.deiconify()
+    choose(window, 0)
+    messages = long_history()
+    window._show(messages)
+    window.root.update()
+    window.transcript.yview_moveto(0.2)
+    window.root.update()
+    before = window.transcript.index("@0,0")
+    position = window.transcript.bbox(before)
+    window._show(messages)
+    window.root.update()
+    assert window.transcript.index("@0,0") == before
+    assert window.transcript.bbox(before) == position
+
+
+def test_switching_sessions_opens_each_conversation_at_bottom(window):
+    window.root.deiconify()
+    window.service.history = lambda _: long_history()
+    choose(window, 0)
+    assert_latest_visible(window)
+    window.transcript.yview_moveto(0.0)
+    choose(window, 1)
+    assert_latest_visible(window)
+    window.transcript.yview_moveto(0.0)
+    choose(window, 0)
+    assert_latest_visible(window)
+
+
+def test_resize_and_reopen_keep_the_latest_text_visible(window):
+    window.root.deiconify()
+    choose(window, 0)
+    window._show(long_history())
+    window.root.update()
+    window.transcript.yview_moveto(1.0)
+    for geometry in ("440x580", "1000x760", "520x620"):
+        window.root.geometry(geometry)
+        assert_latest_visible(window)
+    window.root.withdraw()
+    window.transcript.yview_moveto(0.0)
+    window.root.update()
+    window.root.deiconify()
+    assert_latest_visible(window)
+
+
 def test_refresh_clicked_during_history_still_detects_a_disconnected_session(window):
     choose(window, 0)
     gate = threading.Event()
@@ -169,9 +252,13 @@ def test_disconnected_session_disables_send_and_preserves_draft(window):
 
 def test_close_cancels_the_refresh_callback(window):
     callback = window._after_id
+    window._show(long_history())
+    scroll_callback = window._scroll_after_id
     assert callback in window.root.tk.call("after", "info")
+    assert scroll_callback in window.root.tk.call("after", "info")
     window.close()
     assert callback not in window.root.tk.call("after", "info")
+    assert scroll_callback not in window.root.tk.call("after", "info")
 
 
 @pytest.mark.parametrize("geometry", ["700x460", "500x400"])

@@ -30,6 +30,7 @@ class ChatWindow:
         self.selected = None
         self.jobs = set()
         self.closed = False
+        self._scroll_after_id = None
         self.last_messages = None
         self.drafts = {}
         self.sent = {}
@@ -102,6 +103,8 @@ class ChatWindow:
         self.transcript.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.transcript.pack(side="left", fill="both", expand=True)
+        self.transcript.bind("<Configure>", self._queue_scroll_to_bottom)
+        self.transcript.bind("<Map>", self._queue_scroll_to_bottom)
         self.transcript.tag_configure("role", foreground=ACCENT, font=("Segoe UI", 10, "bold"), spacing1=14)
         self.transcript.tag_configure("body", spacing1=4, spacing3=12)
         self.transcript.tag_configure("note", foreground=MUTED, spacing1=8, spacing3=8)
@@ -251,8 +254,6 @@ class ChatWindow:
         signature = (messages, tuple(pending))
         if signature == self.last_messages:
             return
-        was_bottom = self.transcript.yview()[1] >= 0.98
-        position = self.transcript.yview()[0]
         self.last_messages = signature
         self.transcript.configure(state="normal")
         self.transcript.delete("1.0", "end")
@@ -265,11 +266,19 @@ class ChatWindow:
             self.transcript.insert("end", "YOU · " + status.upper() + "\n", "role")
             self.transcript.insert("end", body + "\n", "body")
         self.transcript.configure(state="disabled")
-        if was_bottom:
-            self.transcript.see("end")
-        else:
-            self.transcript.yview_moveto(position)
+        self._queue_scroll_to_bottom()
         self.on_change()
+
+    def _queue_scroll_to_bottom(self, _event=None):
+        # Wait for wrapping and geometry to settle, including initial mapping
+        # and resizing. Unchanged history returns before requesting a scroll.
+        if not self.closed and self._scroll_after_id is None:
+            self._scroll_after_id = self.root.after_idle(self._scroll_to_bottom)
+
+    def _scroll_to_bottom(self):
+        self._scroll_after_id = None
+        if not self.closed:
+            self.transcript.yview_moveto(1.0)
 
     def send(self, _event=None):
         if not self.selected or self.jobs - {"history"}:
@@ -400,6 +409,9 @@ class ChatWindow:
             return
         self.closed = True
         self.root.after_cancel(self._after_id)
+        if self._scroll_after_id is not None:
+            self.root.after_cancel(self._scroll_after_id)
+            self._scroll_after_id = None
         # Close the proxy after in-flight work, never the agent it connects to.
         self.worker.submit(self.service.close)
         self.worker.shutdown(wait=False)
