@@ -7,9 +7,10 @@ from .chat import CHAT_STATE, ChatError, ChatService, read_json, write_json
 from .task_window import TaskWindow
 from .activities import ActivityService, TYPES, profile_settings
 from .window_state import LayoutLock, MAX_WINDOWS, MIN_HEIGHT, MIN_WIDTH, display_workareas, window_bounds
-from .theme import ACCENT, BACKGROUND, MUTED, PANEL, TEXT, apply_theme, display_font, settings_icon, menu as themed_menu
+from .theme import palette, apply_theme, display_font, settings_icon, menu as themed_menu
 from .window_frame import WindowFrame
 from .window_access import start_restart
+from .interface import InterfaceDialog, WindowOpacity, interface_settings
 
 LAYOUT_PATH = CHAT_STATE / "windows.json"
 
@@ -29,7 +30,7 @@ class CompanionWindow:
         tk = manager.tk
         self.root = tk.Toplevel(manager.root)
         self.root.withdraw()
-        self.root.configure(bg=BACKGROUND)
+        self.root.configure(bg=palette(self.root).BACKGROUND)
         self.root.minsize(MIN_WIDTH, MIN_HEIGHT)
         self.topmost = tk.BooleanVar(master=self.root, value=record.get("topmost") is not False)
         self.remember = tk.BooleanVar(master=self.root, value=record.get("remember") is not False)
@@ -41,7 +42,7 @@ class CompanionWindow:
                                   minimum=(MIN_WIDTH, MIN_HEIGHT))
         surface = self.chrome.content
 
-        bar = self.toolbar = tk.Frame(surface, bg=BACKGROUND, padx=8, pady=5)
+        bar = self.toolbar = tk.Frame(surface, bg=palette(self.root).BACKGROUND, padx=8, pady=5)
         bar.pack(fill="x")
         self.new_button = ttk.Button(bar, text="+ New", command=lambda: manager.new_window(self))
         self.new_button.pack(side="left", padx=(0, 4))
@@ -55,6 +56,7 @@ class CompanionWindow:
                                           command=self.set_topmost)
         self.options_menu.add_checkbutton(label="Remember draft and recent chat", variable=self.remember,
                                           command=manager.save_layout)
+        self.options_menu.add_command(label="Interface & transparency…", command=lambda: manager.show_interface(self))
         self.options_menu.add_command(label="Chat appearance…", command=lambda: self.view.show_appearance(),
                                       state="disabled")
         self.appearance_menu_index = self.options_menu.index("end")
@@ -70,10 +72,10 @@ class CompanionWindow:
         self.restart_menu_index = self.options_menu.index("end")
         self.options_menu.add_command(label="Quit companion (stops shortcut)", command=manager.close)
         self.notice = tk.StringVar(master=self.root)
-        self.notice_label = tk.Label(surface, textvariable=self.notice, bg=BACKGROUND, fg=MUTED,
+        self.notice_label = tk.Label(surface, textvariable=self.notice, bg=palette(self.root).BACKGROUND, fg=palette(self.root).MUTED,
                                     anchor="w", justify="left", padx=8, pady=3, wraplength=400,
                                     font=("Segoe UI", 8))
-        self.body = tk.Frame(surface, bg=PANEL)
+        self.body = tk.Frame(surface, bg=palette(self.root).PANEL)
         self.body.pack(fill="both", expand=True)
         if self.kind in TYPES:
             self.open_kind(self.kind, record.get("chat"))
@@ -82,15 +84,16 @@ class CompanionWindow:
             self.show_chooser()
         self.root.deiconify()
         self.chrome.apply_native()
+        self.opacity = WindowOpacity(self.root, lambda: manager.display_settings)
 
     def show_chooser(self):
         tk = self.manager.tk
         from tkinter import ttk
-        chooser = tk.Frame(self.body, bg=PANEL, padx=20, pady=16)
+        chooser = tk.Frame(self.body, bg=palette(self.root).PANEL, padx=20, pady=16)
         chooser.pack(fill="both", expand=True)
-        tk.Label(chooser, text="New window", bg=PANEL, fg=TEXT, anchor="w",
+        tk.Label(chooser, text="New window", bg=palette(self.root).PANEL, fg=palette(self.root).TEXT, anchor="w",
                  font=display_font(self.root, 21)).pack(fill="x")
-        tk.Label(chooser, text="Choose what to open here.", bg=PANEL, fg=MUTED,
+        tk.Label(chooser, text="Choose what to open here.", bg=palette(self.root).PANEL, fg=palette(self.root).MUTED,
                  font=("Segoe UI", 10), anchor="w").pack(fill="x", pady=(4, 10))
         self.type_buttons = {}
         for kind, (title, description) in TYPES.items():
@@ -98,7 +101,7 @@ class CompanionWindow:
                                 command=lambda choice=kind: self.open_kind(choice))
             button.pack(fill="x", pady=(4, 0))
             self.type_buttons[kind] = button
-            tk.Label(chooser, text=description, bg=PANEL, fg=MUTED, font=("Segoe UI", 9),
+            tk.Label(chooser, text=description, bg=palette(self.root).PANEL, fg=palette(self.root).MUTED, font=("Segoe UI", 9),
                      wraplength=340, justify="left", anchor="w").pack(fill="x", pady=(3, 6))
         self.chat_button = self.type_buttons["chat"]
         ttk.Button(chooser, text="Open saved preset…", command=self.open_preset).pack(fill="x", pady=(8, 0))
@@ -188,6 +191,9 @@ class CompanionWindow:
         if self.closed:
             return
         self.closed = True
+        if self.manager._interface_dialog and self.manager._interface_dialog.parent is self.root:
+            self.manager._interface_dialog.close()
+        self.opacity.close()
         if self.view:
             self.view.close()
         self.root.destroy()
@@ -209,13 +215,17 @@ class WindowManager:
         self.access = None
         self._access_after = None
         self._restart_process = None
+        self._interface_dialog = None
+        self._interface_preview = None
+        self.interface = interface_settings(None)
         self.next_number = 1
         self.areas = areas or display_workareas(root)
         root.withdraw()
         root.report_callback_exception = self._callback_error
-        apply_theme(root)
         try:
             layout = self._load()
+            self.interface = interface_settings(layout.get("interface"))
+            apply_theme(root, self.interface["theme"])
             records = layout.get("windows", [])
             records = records[:MAX_WINDOWS] if isinstance(records, list) else []
             used_ids, used_numbers = set(), set()
@@ -247,6 +257,24 @@ class WindowManager:
                 window.dispose()
             self.lock.close()
             raise
+
+    @property
+    def display_settings(self):
+        return self._interface_preview or self.interface
+
+    def show_interface(self, window):
+        if self._interface_dialog is None:
+            self._interface_dialog = InterfaceDialog(self, window.root)
+        else:
+            self._interface_dialog.root.deiconify()
+            self._interface_dialog.root.lift()
+
+    def preview_interface(self, settings):
+        self._interface_preview = interface_settings(settings) if settings is not None else None
+        apply_theme(self.root, self.display_settings["theme"])
+        for window in self.windows:
+            if not window.closed:
+                window.opacity.apply()
 
     def _load(self):
         if not self.layout_path:
@@ -424,7 +452,8 @@ class WindowManager:
         if self.layout_path is None:
             return True
         try:
-            data = {"version": 1, "windows": [window.snapshot() for window in self.windows]}
+            data = {"version": 1, "interface": dict(self.interface),
+                    "windows": [window.snapshot() for window in self.windows]}
             write_json(self.layout_path, data)
         except OSError:
             for window in self.windows:

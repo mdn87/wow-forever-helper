@@ -11,14 +11,14 @@ from .appearance import style_text
 from .chat import ChatError, ChatService, read_json, write_json
 from .chat_window import ChatWindow, BACKGROUND_JOBS
 from .guidance import guidance, quest_tier
-from .theme import ACCENT, BACKGROUND, EDGE, MUTED, PANEL, TEXT
+from .theme import palette
 from .quest_chat import MAX_QUEST_CHATS, OPENING, QuestChat, quest_context, quest_identity
 from .window_frame import WindowFrame
 
 
 def text_box(tk, parent, **options):
     from tkinter import ttk
-    frame = tk.Frame(parent, bg=PANEL)
+    frame = tk.Frame(parent, bg=palette(parent).PANEL)
     frame.pack(fill="both", expand=True)
     text = tk.Text(frame, wrap="word", width=1, height=1, relief="flat", padx=8, pady=5, **options)
     scroll = ttk.Scrollbar(frame, command=text.yview)
@@ -81,8 +81,8 @@ class TaskWindow(ChatWindow):
         if kind != "chat":
             self.book = ttk.Notebook(root)
             self.book.pack(fill="both", expand=True)
-            self.panel = tk.Frame(self.book, bg=PANEL)
-            chat_root = tk.Frame(self.book, bg=PANEL)
+            self.panel = tk.Frame(self.book, bg=palette(root).PANEL)
+            chat_root = tk.Frame(self.book, bg=palette(root).PANEL)
             self.book.add(self.panel, text=TYPES[kind][0])
             self.book.add(chat_root, text="Chat")
         super().__init__(chat_root, service, **kwargs)
@@ -120,7 +120,7 @@ class TaskWindow(ChatWindow):
     def _build_panel(self, raw):
         from tkinter import ttk
         tk = self.tk
-        actions = tk.Frame(self.panel, bg=PANEL, padx=8, pady=5)
+        actions = tk.Frame(self.panel, bg=palette(self.root).PANEL, padx=8, pady=5)
         actions.pack(fill="x")
         if self.kind == "screen":
             self.capture_button = self._button(actions, "Capture WoW", self.capture)
@@ -134,25 +134,25 @@ class TaskWindow(ChatWindow):
             self.quest_chat_button = self._button(actions, "Quest chat", self.open_quest_chat)
         self.ask_button = self._button(actions, "Ask agent", lambda: self.prepare_request(review=False))
         self.setup_button = self._button(actions, "Setup", self.show_setup)
-        footer = tk.Label(self.panel, textvariable=self.activity_notice, bg=PANEL, fg=ACCENT,
+        footer = tk.Label(self.panel, textvariable=self.activity_notice, bg=palette(self.root).PANEL, fg=palette(self.root).ACCENT,
                           anchor="w", justify="left", wraplength=370, padx=8, pady=5, font=("Segoe UI", 9))
         footer.pack(side="bottom", fill="x")
         self.panel.bind("<Configure>", lambda e: footer.configure(wraplength=max(220, e.width - 24)), add="+")
         if self.kind == "journal":
-            choices = tk.Frame(self.panel, bg=PANEL, padx=8, pady=3)
+            choices = tk.Frame(self.panel, bg=palette(self.root).PANEL, padx=8, pady=3)
             choices.pack(fill="x")
             name = ttk.Entry(choices, textvariable=self.journal_name, width=12)
             name.pack(side="left", fill="x", expand=True)
             name.bind("<KeyRelease>", lambda _: self.on_change())
             self._button(choices, "Open journal", self.open_journal)
             self._button(choices, "New", self.new_journal)
-            composer = tk.Frame(self.panel, bg=PANEL, padx=8, pady=5)
+            composer = tk.Frame(self.panel, bg=palette(self.root).PANEL, padx=8, pady=5)
             composer.pack(side="bottom", fill="x")
             self.note_button = ttk.Button(composer, text="Add note", command=self.add_note)
             self.note_button.pack(side="right", padx=(5, 0))
             self.buttons.append(self.note_button)
             self.note = tk.Text(composer, height=3, width=1, wrap="word", relief="flat", borderwidth=0,
-                                highlightthickness=1, highlightbackground=EDGE, highlightcolor=ACCENT)
+                                highlightthickness=1, highlightbackground=palette(self.root).EDGE, highlightcolor=palette(self.root).ACCENT)
             self.note.pack(side="left", fill="x", expand=True)
             style_text(self.note, self.appearance, composer=True)
             self.note.insert("1.0", raw.get("note_draft", "") if isinstance(raw.get("note_draft"), str) else "")
@@ -160,7 +160,7 @@ class TaskWindow(ChatWindow):
             self.actions_menu.add_command(label="Copy latest agent reply into note", command=self.reply_to_note)
         if self.kind == "quests":
             from .quest_tree import QuestTree
-            options = tk.Frame(self.panel, bg=PANEL, padx=8, pady=3)
+            options = tk.Frame(self.panel, bg=palette(self.root).PANEL, padx=8, pady=3)
             options.pack(fill="x")
             self.guide_auto = tk.BooleanVar(master=self.root, value=self.profile["guide_auto"])
             ttk.Checkbutton(options, text="Guide on expand", variable=self.guide_auto,
@@ -176,7 +176,7 @@ class TaskWindow(ChatWindow):
             self.quest_tree.set_appearance(self.appearance)
             self.activity_notice.set("Refresh reads the saved quest log. Expanding a quest can start web research.")
         elif self.kind == "screen":
-            self.image_label = tk.Label(self.panel, bg=PANEL, fg=MUTED,
+            self.image_label = tk.Label(self.panel, bg=palette(self.root).PANEL, fg=palette(self.root).MUTED,
                                        text="Capture WoW or open an image.\nReview it before asking the agent.")
             self.image_label.pack(fill="both", expand=True, padx=8, pady=8)
             self.image_label.bind("<Configure>", self.queue_image)
@@ -186,12 +186,12 @@ class TaskWindow(ChatWindow):
         else:
             if self.kind == "character":
                 from .character import SLOTS, COSMETIC
-                options = tk.Frame(self.panel, bg=PANEL, padx=8, pady=3)
+                options = tk.Frame(self.panel, bg=palette(self.root).PANEL, padx=8, pady=3)
                 options.pack(fill="x")
                 slots = ["All gear"] + list(dict.fromkeys(v for k, v in SLOTS.items() if k not in COSMETIC))
                 self.gear_slot = tk.StringVar(master=self.root, value=raw.get("gear_slot") if raw.get("gear_slot") in slots else "All gear")
                 ttk.Combobox(options, values=slots, textvariable=self.gear_slot, state="readonly", width=11).pack(side="left")
-                tk.Label(options, text="Build / goal", bg=PANEL, fg=MUTED).pack(side="left", padx=5)
+                tk.Label(options, text="Build / goal", bg=palette(self.root).PANEL, fg=palette(self.root).MUTED).pack(side="left", padx=5)
                 self.gear_goal = tk.StringVar(master=self.root, value=raw.get("gear_goal", "Leveling") if isinstance(raw.get("gear_goal", ""), str) else "Leveling")
                 ttk.Entry(options, textvariable=self.gear_goal, width=8).pack(side="left", fill="x", expand=True)
                 self.gear_goal.trace_add("write", lambda *_: self.on_change())
@@ -286,7 +286,7 @@ class TaskWindow(ChatWindow):
 
     def _add_quest_chat(self, tab_id, context, state=None):
         from tkinter import ttk
-        surface = self.tk.Frame(self.book, bg=PANEL)
+        surface = self.tk.Frame(self.book, bg=palette(self.root).PANEL)
         self.book.add(surface, text=str(context["quest"]["title"])[:18])
         state = state or {"provider": self.selected.provider if self.selected else self.default_provider,
                           "appearance": self.appearance}
@@ -791,17 +791,17 @@ class SetupDialog:
         self.chrome.caption.set("Window setup · " + TYPES[view.kind][0])
         self.chrome.place("620x650")
         surface = self.chrome.content
-        buttons = tk.Frame(surface, bg=PANEL, padx=10, pady=10)
+        buttons = tk.Frame(surface, bg=palette(self.root).PANEL, padx=10, pady=10)
         buttons.pack(side="bottom", fill="x")
         self.save_button = ttk.Button(buttons, text="Save setup", command=self.save)
         self.save_button.pack(side="right")
         ttk.Button(buttons, text="Cancel", command=self.close).pack(side="right", padx=6)
         tk.Label(surface, text="Per-window settings. Ask agent sends; use the cog menu to preview.",
-                 wraplength=420, bg=PANEL, fg=MUTED, justify="left", padx=10, pady=8).pack(fill="x")
+                 wraplength=420, bg=palette(self.root).PANEL, fg=palette(self.root).MUTED, justify="left", padx=10, pady=8).pack(fill="x")
         book = ttk.Notebook(surface)
         self.book = book
         book.pack(fill="both", expand=True, padx=10)
-        startup, prompts, prep, skills = [tk.Frame(book, bg=PANEL, padx=10, pady=10) for _ in range(4)]
+        startup, prompts, prep, skills = [tk.Frame(book, bg=palette(self.root).PANEL, padx=10, pady=10) for _ in range(4)]
         for pane, name in ((startup, "Startup"), (prompts, "Prompts"), (prep, "Preparation"), (skills, "Skills")):
             book.add(pane, text=name)
         self.startup = {}
@@ -815,16 +815,16 @@ class SetupDialog:
                  "2. Load skills and standing instructions.\n3. Include the opening request, if enabled.\n"
                  "4. Start the CLI with your first request.\n\n"
                  "Restore never resends requests.\n/reload in WoW saves current snapshot data.",
-                 bg=PANEL, fg=MUTED, justify="left", wraplength=390).pack(fill="x", pady=12)
+                 bg=palette(self.root).PANEL, fg=palette(self.root).MUTED, justify="left", wraplength=390).pack(fill="x", pady=12)
         self.fields = {}
         for key, label in (("instructions", "Standing instructions"), ("opening", "Opening request")):
-            tk.Label(prompts, text=label, bg=PANEL, fg=TEXT, anchor="w").pack(fill="x", pady=(4, 2))
+            tk.Label(prompts, text=label, bg=palette(self.root).PANEL, fg=palette(self.root).TEXT, anchor="w").pack(fill="x", pady=(4, 2))
             field = text_box(tk, prompts, undo=True)
             style_text(field, view.appearance, composer=True)
             field.insert("1.0", view.profile[key])
             self.fields[key] = field
         self.flavor = tk.StringVar(master=self.root, value=next(k for k, v in FLAVORS.items() if v == view.profile["flavor"]))
-        tk.Label(prep, text="Game edition", bg=PANEL, fg=TEXT).pack(anchor="w")
+        tk.Label(prep, text="Game edition", bg=palette(self.root).PANEL, fg=palette(self.root).TEXT).pack(anchor="w")
         ttk.Combobox(prep, values=list(FLAVORS), textvariable=self.flavor, state="readonly").pack(fill="x", pady=(3, 10))
         self.steps, self.skills = {}, {}
         for key, label in STEPS.items():
@@ -833,7 +833,7 @@ class SetupDialog:
             self.steps[key] = variable
         tk.Label(prep, text="These preparation steps read snapshots; they do not reload the game.\n"
                  "They run for new chats when enabled, or when you prepare a request.",
-                 bg=PANEL, fg=MUTED, justify="left", wraplength=400).pack(fill="x", pady=8)
+                 bg=palette(self.root).PANEL, fg=palette(self.root).MUTED, justify="left", wraplength=400).pack(fill="x", pady=8)
         self.files = {key: list(view.profile[key]) for key in ("context_files", "skill_files")}
         self.file_lists = {}
         self.file_buttons = {}
@@ -844,7 +844,7 @@ class SetupDialog:
             self.skills[key] = variable
         tk.Label(skills, text="Skills accompany this request; they are not installed.\n"
                  "Custom skills: self-contained UTF-8 text, up to 64 KB.",
-                 bg=PANEL, fg=MUTED, justify="left", wraplength=400).pack(fill="x", pady=5)
+                 bg=palette(self.root).PANEL, fg=palette(self.root).MUTED, justify="left", wraplength=400).pack(fill="x", pady=5)
         self._file_picker(skills, "skill_files", "Additional skill files")
         self.root.deiconify()
         self.chrome.apply_native()
@@ -852,17 +852,17 @@ class SetupDialog:
     def _file_picker(self, parent, key, title):
         from tkinter import ttk
         tk = self.view.tk
-        tk.Label(parent, text=title, bg=PANEL, fg=TEXT, anchor="w").pack(fill="x", pady=(10, 3))
-        holder = tk.Frame(parent, bg=PANEL)
+        tk.Label(parent, text=title, bg=palette(self.root).PANEL, fg=palette(self.root).TEXT, anchor="w").pack(fill="x", pady=(10, 3))
+        holder = tk.Frame(parent, bg=palette(self.root).PANEL)
         holder.pack(fill="both", expand=True)
-        actions = tk.Frame(holder, bg=PANEL)
+        actions = tk.Frame(holder, bg=palette(self.root).PANEL)
         actions.pack(side="bottom", fill="x", pady=5)
         add = ttk.Button(actions, text="Add…", command=lambda: self.add_files(key))
         add.pack(side="left")
         remove = ttk.Button(actions, text="Remove selected", command=lambda: self.remove_file(key))
         remove.pack(side="left", padx=5)
         self.file_buttons[key] = (add, remove)
-        box = tk.Listbox(holder, height=4, width=1, bg=BACKGROUND, fg=TEXT, selectbackground="#554228")
+        box = tk.Listbox(holder, height=4, width=1, bg=palette(self.root).BACKGROUND, fg=palette(self.root).TEXT, selectbackground="#554228")
         box.pack(fill="both", expand=True)
         self.file_lists[key] = box
         for path in self.files[key]:
@@ -918,9 +918,9 @@ class RequestDialog:
         self.chrome.place("640x660")
         surface = self.chrome.content
         self.notice = tk.StringVar(master=self.root, value="Prepared for " + view.session_title + ". Nothing has been sent.")
-        tk.Label(surface, textvariable=self.notice, bg=PANEL, fg=ACCENT, justify="left", wraplength=400,
+        tk.Label(surface, textvariable=self.notice, bg=palette(self.root).PANEL, fg=palette(self.root).ACCENT, justify="left", wraplength=400,
                  padx=10, pady=8).pack(fill="x")
-        actions = tk.Frame(surface, bg=PANEL, padx=10, pady=10)
+        actions = tk.Frame(surface, bg=palette(self.root).PANEL, padx=10, pady=10)
         actions.pack(side="bottom", fill="x")
         self.send_button = ttk.Button(actions, text="Send request", command=self.send)
         self.send_button.pack(side="right")

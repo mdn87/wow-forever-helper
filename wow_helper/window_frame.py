@@ -2,7 +2,7 @@
 
 import os
 
-from .theme import ACCENT, BACKGROUND, EDGE, TITLE, apply_theme, display_font, textures
+from .theme import palette, is_modern, apply_theme, display_font, textures
 
 
 def hide_native_caption(root):
@@ -68,6 +68,33 @@ def hide_native_caption(root):
     return True
 
 
+def native_frame_colors(root):
+    """Tint the retained Windows sizing frame using documented DWM attributes."""
+    if os.name != "nt":
+        return
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    handle = int(root.frame(), 0)
+    owner = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(handle, ctypes.byref(owner))
+    if owner.value != os.getpid():
+        return
+    try:
+        dwm = ctypes.WinDLL("dwmapi")
+        dwm.DwmSetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+        dwm.DwmSetWindowAttribute.restype = ctypes.c_long
+        colors = palette(root)
+        for attribute, color in ((34, colors.EDGE), (35, colors.TITLE)):
+            value = wintypes.DWORD(sum(int(color[i:i + 2], 16) << shift for i, shift in ((1, 0), (3, 8), (5, 16))))
+            # Unsupported Windows versions keep their native frame colors.
+            dwm.DwmSetWindowAttribute(handle, attribute, ctypes.byref(value), ctypes.sizeof(value))
+    except (OSError, AttributeError):
+        pass
+
+
 class WindowFrame:
     def __init__(self, root, *, title="WoW Companion", close=None, minimum=(440, 580)):
         import tkinter as tk
@@ -75,19 +102,20 @@ class WindowFrame:
 
         apply_theme(root)
         self.root = root
+        root._companion_theme_refresh = self.refresh_theme
         self.minimum = minimum
         self.drag_start = None
         self.native_caption_hidden = False
         self._shown_state = None
-        root.configure(bg=BACKGROUND)
+        root.configure(bg=palette(self.root).BACKGROUND)
         root.minsize(*minimum)
-        self.shell = tk.Canvas(root, bg=BACKGROUND, highlightthickness=0, borderwidth=0)
+        self.shell = tk.Canvas(root, bg=palette(self.root).BACKGROUND, highlightthickness=0, borderwidth=0)
         self.shell.pack(fill="both", expand=True)
         self.shell.bind("<Configure>", self._draw_frame)
-        inner = tk.Frame(self.shell, bg=BACKGROUND)
+        inner = self.inner = tk.Frame(self.shell, bg=palette(self.root).BACKGROUND)
         inner.pack(fill="both", expand=True, padx=7, pady=7)
-        self.titlebar = tk.Canvas(inner, bg=TITLE, height=30, borderwidth=0,
-                                  highlightthickness=1, highlightbackground=EDGE, cursor="fleur")
+        self.titlebar = tk.Canvas(inner, bg=palette(self.root).TITLE, height=30, borderwidth=0,
+                                  highlightthickness=1, highlightbackground=palette(self.root).EDGE, cursor="fleur")
         self.titlebar.pack(fill="x")
         self.close_button = ttk.Button(self.titlebar, text="×", style="Window.TButton",
                                         command=close or root.destroy)
@@ -106,21 +134,38 @@ class WindowFrame:
         self.titlebar.bind("<B1-Motion>", self.drag)
         self.titlebar.bind("<ButtonRelease-1>", self.end)
         self.titlebar.bind("<Double-Button-1>", self.maximize)
-        bottom = tk.Frame(inner, bg=BACKGROUND, height=12)
+        bottom = tk.Frame(inner, bg=palette(self.root).BACKGROUND, height=12)
         bottom.pack(side="bottom", fill="x")
-        self.grip = tk.Label(bottom, text="◢", bg=BACKGROUND, fg=EDGE,
+        self.grip = tk.Label(bottom, text="◢", bg=palette(self.root).BACKGROUND, fg=palette(self.root).EDGE,
                              font=("Segoe UI", 11), cursor="bottom_right_corner", padx=2)
         self.grip.pack(side="right")
         self.grip.bind("<ButtonPress-1>", lambda event: self.begin(event, "resize"))
         self.grip.bind("<B1-Motion>", self.drag)
         self.grip.bind("<ButtonRelease-1>", self.end)
-        self.content = tk.Frame(inner, bg=BACKGROUND)
+        self.content = tk.Frame(inner, bg=palette(self.root).BACKGROUND)
         self.content.pack(fill="both", expand=True)
         root.bind("<Configure>", self._state_changed, add="+")
+        self.refresh_theme()
+
+    def refresh_theme(self):
+        modern = is_modern(self.root)
+        self.inner.pack_configure(padx=2 if modern else 7, pady=2 if modern else 7)
+        self.titlebar.configure(height=34 if modern else 30,
+                                highlightthickness=0 if modern else 1)
+        self.title_font.configure(family=display_font(self.root, 12)[0])
+        self._draw_frame()
+        self._draw_title()
+        if self.native_caption_hidden:
+            native_frame_colors(self.root)
 
     def _draw_frame(self, _event=None):
         width, height = self.shell.winfo_width(), self.shell.winfo_height()
         self.shell.delete("trim")
+        if is_modern(self.root):
+            self.shell.create_rectangle(0, 0, width - 1, height - 1, outline=palette(self.root).EDGE, tags="trim")
+            self.shell.create_line(1, 1, width * .62, 1, fill=palette(self.root).ACCENT, tags="trim")
+            self.shell.create_line(width * .62, 1, width - 1, 1, fill=palette(self.root).SECONDARY, tags="trim")
+            return
         material = textures(self.root)
         for x in range(0, width, 32):
             self.shell.create_image(x, 0, image=material["top"], anchor="nw", tags="trim")
@@ -133,10 +178,12 @@ class WindowFrame:
         width, height = self.titlebar.winfo_width(), self.titlebar.winfo_height()
         if width <= 1:
             return
-        leather = textures(self.root)["leather"]
         self.titlebar.delete("decoration")
-        for x in range(0, width, leather.width()):
-            self.titlebar.create_image(x, 0, image=leather, anchor="nw", tags="decoration")
+        modern = is_modern(self.root)
+        if not modern:
+            leather = textures(self.root)["leather"]
+            for x in range(0, width, leather.width()):
+                self.titlebar.create_image(x, 0, image=leather, anchor="nw", tags="decoration")
         controls = sum(button.winfo_reqwidth() for button in
                        (self.close_button, self.maximize_button, self.minimize_button)) + 14
         available = max(1, width - controls - 24)
@@ -145,13 +192,20 @@ class WindowFrame:
             while caption and self.title_font.measure(caption + "…") > available:
                 caption = caption[:-1]
             caption += "…"
+        if modern:
+            self.titlebar.create_rectangle(12, 12, 15, 22, fill=palette(self.root).ACCENT, outline="", tags="decoration")
+            self.titlebar.create_text(24, height / 2, text=caption, font=self.title_font,
+                                      anchor="w", fill=palette(self.root).TEXT, tags="decoration")
+            return
         x, y = 12 + available / 2, height / 2
         self.titlebar.create_text(x + 1, y + 1, text=caption, font=self.title_font,
                                   fill="#080604", tags="decoration")
-        self.titlebar.create_text(x, y, text=caption, font=self.title_font, fill=ACCENT, tags="decoration")
+        self.titlebar.create_text(x, y, text=caption, font=self.title_font, fill=palette(self.root).ACCENT, tags="decoration")
 
     def apply_native(self):
         self.native_caption_hidden = hide_native_caption(self.root)
+        if self.native_caption_hidden:
+            native_frame_colors(self.root)
 
     def place(self, geometry):
         """Restore a client size without Tk's obsolete native caption minimum."""

@@ -6,7 +6,7 @@ import textwrap
 import webbrowser
 
 from .guidance import quest_tier
-from .theme import ACCENT, PANEL, TEXT
+from .theme import palette
 
 
 class QuestTree:
@@ -19,7 +19,7 @@ class QuestTree:
         self.tier = "auto"
         self.suppress = False
         self.report = {}
-        self.frame = tk.Frame(parent, bg=PANEL)
+        self.frame = tk.Frame(parent, bg=palette(parent).PANEL)
         self.frame.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(self.frame, show="tree", selectmode="browse", height=1)
         scroll = ttk.Scrollbar(self.frame, command=self.tree.yview)
@@ -27,7 +27,7 @@ class QuestTree:
         scroll.pack(side="right", fill="y")
         self.tree.pack(fill="both", expand=True)
         self.tree.column("#0", width=300, stretch=True)
-        self.tree.tag_configure("link", foreground=ACCENT)
+        self.tree.tag_configure("link", foreground=palette(self.tree).ACCENT)
         self.tree.bind("<<TreeviewOpen>>", self._expanded)
         self.tree.bind("<<TreeviewClose>>", self._collapsed)
         self.tree.bind("<Double-1>", self._open_link)
@@ -162,7 +162,12 @@ class QuestTree:
             self.render(key)
 
     def set_appearance(self, appearance):
+        from .appearance import resolved_appearance
         from tkinter import font, ttk
+        self.appearance = appearance
+        self.tree._companion_theme_refresh = lambda: self.set_appearance(self.appearance)
+        appearance = resolved_appearance(appearance, self.tree)
+        self.tree.tag_configure("link", foreground=palette(self.tree).ACCENT)
         self.font = (appearance["font_family"], appearance["font_size"])
         metrics = font.Font(root=self.tree, font=self.font)
         self._measure = max(1, metrics.measure("n"))

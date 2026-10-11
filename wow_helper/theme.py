@@ -1,5 +1,6 @@
-"""Original fantasy textures and a privately loaded, openly licensed display font."""
+"""Switchable Classic and Modern Synth styles for the companion's own windows."""
 
+from dataclasses import dataclass
 import os
 import math
 from pathlib import Path
@@ -17,7 +18,41 @@ ASSETS = Path(__file__).with_name("assets")
 _private_font_loaded = False
 
 
+@dataclass(frozen=True)
+class Palette:
+    BACKGROUND: str = BACKGROUND
+    PANEL: str = PANEL
+    TEXT: str = TEXT
+    MUTED: str = MUTED
+    ACCENT: str = ACCENT
+    EDGE: str = EDGE
+    EDITOR: str = EDITOR
+    TITLE: str = TITLE
+    SELECT: str = "#554228"
+    HOVER: str = "#6c211a"
+    SECONDARY: str = "#d8b774"
+
+
+PALETTES = {
+    "classic": Palette(),
+    "modern": Palette(BACKGROUND="#111722", PANEL="#111722", TEXT="#edf3ff",
+                      MUTED="#a4b2ca", ACCENT="#80e5ed", EDGE="#35465f",
+                      EDITOR="#1a2434", TITLE="#171f2e", SELECT="#304766",
+                      HOVER="#293c55", SECONDARY="#b4a2ff"),
+}
+
+
+def palette(root):
+    return PALETTES.get(getattr(root._root(), "_companion_theme", "classic"), PALETTES["classic"])
+
+
+def is_modern(root):
+    return palette(root) is PALETTES["modern"]
+
+
 def display_font(root, size=12):
+    if is_modern(root):
+        return ("Segoe UI", size)
     return (getattr(root._root(), "_companion_font", "Georgia"), size)
 
 
@@ -57,7 +92,9 @@ def settings_icon(root):
     """A small pixel-sized cog avoids oversized or clipped fallback-font glyphs."""
     import tkinter as tk
     owner = root._root()
-    if not hasattr(owner, "_companion_settings_icon"):
+    color = palette(root).ACCENT
+    icons = getattr(owner, "_companion_settings_icons", {})
+    if color not in icons:
         icon = tk.PhotoImage(master=root, width=14, height=14)
         for y in range(14):
             for x in range(14):
@@ -65,9 +102,10 @@ def settings_icon(root):
                 radius = math.hypot(dx, dy)
                 outer = 6.5 if math.cos(8 * math.atan2(dy, dx)) > 0 else 5
                 if 2.5 <= radius <= outer:
-                    icon.put(ACCENT, to=(x, y))
-        owner._companion_settings_icon = icon
-    return owner._companion_settings_icon
+                    icon.put(color, to=(x, y))
+        icons[color] = icon
+        owner._companion_settings_icons = icons
+    return icons[color]
 
 
 def _button_image(root, material, edge, *, brightness=1.0, pressed=False):
@@ -90,13 +128,12 @@ def _button_image(root, material, edge, *, brightness=1.0, pressed=False):
     return image
 
 
-def apply_theme(root):
+def _classic_theme(root):
     from tkinter import ttk
     owner = root._root()
     if getattr(owner, "_companion_theme_images", None):
         return
     style = ttk.Style(root)
-    style.theme_use("clam")
     _load_font(root)
     import tkinter as tk
     owner._companion_textures = {
@@ -144,6 +181,11 @@ def apply_theme(root):
               foreground=[("selected", ACCENT), ("active", TEXT)])
     style.configure("TCheckbutton", background=PANEL, foreground=TEXT, font=("Segoe UI", 10))
     style.map("TCheckbutton", background=[("active", PANEL)], foreground=[("active", ACCENT)])
+    style.configure("TRadiobutton", background=PANEL, foreground=TEXT, font=("Segoe UI", 10),
+                    indicatorbackground=EDITOR, indicatorforeground=ACCENT)
+    style.map("TRadiobutton", background=[("active", PANEL)], foreground=[("active", ACCENT)])
+    style.configure("Horizontal.TScale", background=EDGE, troughcolor=EDITOR, bordercolor=EDGE,
+                    lightcolor=EDGE, darkcolor=BACKGROUND)
     style.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT,
                     rowheight=24, font=("Segoe UI", 10), borderwidth=0)
     style.map("Treeview", background=[("selected", "#554228")], foreground=[("selected", ACCENT)])
@@ -166,8 +208,129 @@ def apply_theme(root):
     style.map("Vertical.TScrollbar", background=[("active", "#8c7043"), ("pressed", "#b49352")])
 
 
+def _modern_theme(root):
+    from tkinter import ttk
+    style, colors = ttk.Style(root), palette(root)
+    style.configure(".", font=("Segoe UI", 10), background=colors.PANEL, foreground=colors.TEXT,
+                    bordercolor=colors.EDGE, lightcolor=colors.EDGE, darkcolor=colors.EDGE,
+                    troughcolor=colors.EDITOR, selectbackground=colors.SELECT, selectforeground=colors.TEXT)
+    style.configure("TButton", font=("Segoe UI", 9), padding=(8, 3), width=0,
+                    anchor="center", background=colors.EDITOR, foreground=colors.TEXT,
+                    borderwidth=1, relief="flat", focusthickness=1, focuscolor=colors.ACCENT)
+    style.map("TButton", background=[("disabled", colors.TITLE), ("pressed", colors.SELECT),
+                                     ("active", colors.HOVER)],
+              foreground=[("disabled", "#748299"), ("active", colors.ACCENT)],
+              bordercolor=[("focus", colors.ACCENT), ("active", colors.ACCENT)])
+    style.configure("Primary.TButton", background=colors.ACCENT, foreground="#111722")
+    style.map("Primary.TButton", background=[("disabled", colors.EDITOR), ("pressed", "#54bccb"),
+                                             ("active", "#a4f3f5")],
+              foreground=[("disabled", "#748299"), ("!disabled", "#111722")])
+    style.configure("Window.TButton", font=("Segoe UI", 9), padding=(2, 0), width=2)
+    style.configure("Agent.TButton", font=("Segoe UI", 8), padding=(4, 1), width=0)
+    style.configure("TMenubutton", padding=(6, 3), background=colors.EDITOR,
+                    arrowcolor=colors.ACCENT, relief="flat")
+    style.map("TMenubutton", background=[("active", colors.HOVER)])
+    style.layout("Settings.TMenubutton", [("Menubutton.border", {"sticky": "nswe", "children": [
+        ("Menubutton.padding", {"sticky": "nswe", "children": [("Menubutton.label", {"sticky": "nswe"})]})]})])
+    style.configure("Settings.TMenubutton", padding=(5, 2), width=0)
+    style.configure("TNotebook", background=colors.PANEL, borderwidth=0, tabmargins=(0, 4, 0, 2))
+    style.configure("TNotebook.Tab", background=colors.TITLE, foreground=colors.MUTED,
+                    font=("Segoe UI", 9), padding=(10, 5))
+    style.map("TNotebook.Tab", background=[("selected", colors.SELECT), ("active", colors.HOVER)],
+              foreground=[("selected", colors.ACCENT), ("active", colors.TEXT)])
+    for name in ("TCheckbutton", "TRadiobutton"):
+        style.configure(name, background=colors.PANEL, foreground=colors.TEXT,
+                        indicatorbackground=colors.EDITOR, indicatorforeground=colors.ACCENT,
+                        padding=(0, 3), focuscolor=colors.ACCENT)
+        style.map(name, background=[("active", colors.PANEL)], foreground=[("active", colors.ACCENT)],
+                  indicatorbackground=[("selected", colors.SELECT)])
+    for name in ("TEntry", "TSpinbox", "TCombobox"):
+        style.configure(name, foreground=colors.TEXT, fieldbackground=colors.EDITOR,
+                        background=colors.EDITOR, arrowcolor=colors.ACCENT,
+                        insertcolor=colors.TEXT, padding=3)
+        style.map(name, fieldbackground=[("readonly", colors.EDITOR)],
+                  foreground=[("readonly", colors.TEXT)], selectbackground=[("readonly", colors.SELECT)],
+                  selectforeground=[("readonly", colors.TEXT)], bordercolor=[("focus", colors.ACCENT)],
+                  background=[("active", colors.HOVER)])
+    style.configure("Treeview", background=colors.PANEL, fieldbackground=colors.PANEL,
+                    foreground=colors.TEXT, font=("Segoe UI", 10), rowheight=26, borderwidth=0)
+    style.map("Treeview", background=[("selected", colors.SELECT)], foreground=[("selected", colors.TEXT)])
+    style.configure("Vertical.TScrollbar", background=colors.EDGE, troughcolor=colors.PANEL,
+                    arrowcolor=colors.MUTED, borderwidth=0, arrowsize=12)
+    style.map("Vertical.TScrollbar", background=[("active", colors.MUTED), ("pressed", colors.ACCENT)])
+    import tkinter as tk
+    thumb = tk.PhotoImage(master=root, width=16, height=20)
+    thumb.put(colors.ACCENT, to=(2, 2, 14, 18))
+    thumb.put(colors.TEXT, to=(4, 4, 12, 16))
+    root._root()._companion_scale_thumb = thumb
+    style.element_create("Modern.Scale.slider", "image", thumb, sticky="")
+    style.layout("Horizontal.TScale", [("Horizontal.Scale.trough", {"sticky": "we", "children": [
+        ("Modern.Scale.slider", {"side": "left", "sticky": ""})]})])
+    style.configure("Horizontal.TScale", troughcolor=colors.EDITOR, borderwidth=1,
+                    bordercolor=colors.EDGE, lightcolor=colors.EDGE, darkcolor=colors.EDGE)
+
+
+def apply_theme(root, name=None):
+    """Switch in place so draft widgets, workers and sessions keep their identity."""
+    from tkinter import ttk
+    owner = root._root()
+    old = palette(root)
+    name = name if name in PALETTES else getattr(owner, "_companion_theme", "classic")
+    owner._companion_theme = name
+    style = ttk.Style(root)
+    theme_name = "companion_" + name
+    if style.theme_use() == theme_name:
+        return
+    if theme_name not in style.theme_names():
+        style.theme_create(theme_name, parent="clam")
+        style.theme_use(theme_name)
+        (_modern_theme if name == "modern" else _classic_theme)(root)
+    else:
+        style.theme_use(theme_name)
+    colors = palette(root)
+    for option, value in (("background", colors.PANEL), ("foreground", colors.TEXT),
+                          ("selectBackground", colors.SELECT), ("selectForeground", colors.TEXT)):
+        root.option_add("*TCombobox*Listbox." + option, value)
+    if old != colors:
+        _recolor(owner, old, colors)
+
+
+def _recolor(widget, old, new):
+    """Update native Tk controls; ttk controls inherit the active named theme."""
+    from tkinter import font
+    mapping = {getattr(old, key): getattr(new, key) for key in old.__dataclass_fields__}
+    options = widget.keys()
+    for key in ("background", "foreground", "activebackground", "activeforeground", "disabledforeground",
+                "highlightbackground", "highlightcolor", "insertbackground", "selectbackground",
+                "selectforeground", "selectcolor"):
+        if key in options:
+            color = str(widget.cget(key))
+            if color in mapping:
+                widget.configure(**{key: mapping[color]})
+    if "font" in options and widget.winfo_class() == "Label":
+        current = font.Font(root=widget, font=widget.cget("font"))
+        if current.actual("family") in ("Marcellus", "Georgia", "Segoe UI"):
+            # Only display-sized labels change family; body copy stays sans serif.
+            if current.actual("size") >= 12:
+                widget.configure(font=display_font(widget, current.actual("size")))
+    if "image" in options:
+        images = widget.tk.splitlist(widget.cget("image"))
+        icons = getattr(widget._root(), "_companion_settings_icons", {}).values()
+        if len(images) == 1 and str(images[0]) in {str(icon) for icon in icons}:
+            widget.configure(image=settings_icon(widget))
+    if hasattr(widget, "_companion_appearance"):
+        from .appearance import style_text
+        settings, composer = widget._companion_appearance
+        style_text(widget, settings, composer=composer)
+    if hasattr(widget, "_companion_theme_refresh"):
+        widget._companion_theme_refresh()
+    for child in widget.winfo_children():
+        _recolor(child, old, new)
+
+
 def menu(parent):
     import tkinter as tk
-    return tk.Menu(parent, tearoff=False, bg=PANEL, fg=TEXT, activebackground="#6c211a",
-                   activeforeground=ACCENT, disabledforeground=MUTED, selectcolor=ACCENT,
-                   font=("Segoe UI", 10), relief="raised", borderwidth=2)
+    colors = palette(parent)
+    return tk.Menu(parent, tearoff=False, bg=colors.PANEL, fg=colors.TEXT, activebackground=colors.HOVER,
+                   activeforeground=colors.ACCENT, disabledforeground=colors.MUTED, selectcolor=colors.ACCENT,
+                   font=("Segoe UI", 10), relief="flat", borderwidth=1)
