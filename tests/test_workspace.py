@@ -189,6 +189,32 @@ def test_offline_cached_conversation_stays_visible_without_falling_back(manager_
     assert view.service.sent == []
 
 
+def test_restored_offline_history_starts_at_bottom(manager_factory):
+    manager = manager_factory()
+    window = manager.windows[0]
+    choose(window, 0)
+    messages = [Message(f"synthetic-{i}", "assistant", f"Saved reply {i}: " + "Long saved text. " * 40)
+                for i in range(30)]
+    window.view._show(messages)
+    window.root.update()
+    window.view.transcript.yview_moveto(0.0)
+    manager.close()
+
+    class Offline(Service):
+        sessions = []
+
+    restored = manager_factory(service=Offline)
+    view = restored.windows[0].view
+    view.root.update()
+    assert view.selected is None
+    assert "Saved reply 29" in view.transcript.get("1.0", "end")
+    assert view.transcript.bbox("end-2c") is not None
+    last_line = view.transcript.bbox("end-1c")
+    padding = sum(int(view.transcript.cget(option)) for option in ("pady", "borderwidth", "highlightthickness"))
+    assert last_line is not None
+    assert last_line[1] + last_line[3] == view.transcript.winfo_height() - padding
+
+
 def test_draft_before_session_selection_survives_restart(manager_factory):
     manager = manager_factory()
     manager.windows[0].view.editor.insert("1.0", "Choose the session after writing")
