@@ -417,7 +417,7 @@ def test_appearance_is_independent_and_survives_restart_without_chat_retention(m
     first.remember.set(False)
     first.options_menu.invoke(first.appearance_menu_index)
     dialog = first.view._appearance_dialog
-    for key, value in {"background": "#ffffff", "text": "#112233", "labels": "#663300", "font_size": 18}.items():
+    for key, value in {"background": "#ffffff", "text": "#112233", "user_text": "#663300", "font_size": 18}.items():
         dialog.variables[key].set(value)
     family = next(name for name in dialog.families if name != DEFAULTS["font_family"])
     dialog.variables["font_family"].set(family)
@@ -431,7 +431,8 @@ def test_appearance_is_independent_and_survives_restart_without_chat_retention(m
     view = restored.windows[0].view
     assert view.appearance == expected
     assert view.transcript.cget("background") == view.editor.cget("background") == "#ffffff"
-    assert view.transcript.cget("foreground") == view.editor.cget("foreground") == "#112233"
+    assert view.transcript.cget("foreground") == "#112233"
+    assert view.editor.cget("foreground") == "#663300"
     assert view.editor.get("1.0", "end-1c") == ""
     assert restored.windows[1].view.appearance == DEFAULTS
     assert view.service.sent == []
@@ -444,6 +445,45 @@ def test_malformed_saved_appearance_does_not_prevent_windows_opening(manager_fac
         "background": "not a Tk color", "text": [], "font_family": {"bad": "font"}, "font_size": True}}}]}))
     manager = manager_factory(path=path)
     assert manager.windows[0].view.appearance == DEFAULTS
+
+
+def test_existing_speaker_color_migrates_to_user_messages(manager_factory, tmp_path):
+    path = tmp_path / "legacy-appearance.json"
+    path.write_text(json.dumps({"version": 1, "windows": [{"kind": "chat", "chat": {"appearance": {
+        "background": "#ffffff", "text": "#112233", "labels": "#663300", "font_size": 16}}}]}))
+    manager = manager_factory(path=path)
+    view = manager.windows[0].view
+    assert view.appearance["user_text"] == "#663300"
+    assert view.appearance["text"] == "#112233"
+    assert view.appearance["font_size"] == 16
+    choose(manager.windows[0], 0)
+    assert view.transcript.tag_cget("user", "foreground") == "#663300"
+    assert view.editor.cget("foreground") == "#663300"
+    manager.save_layout()
+    saved = json.loads(path.read_text())["windows"][0]["chat"]["appearance"]
+    assert saved["user_text"] == "#663300" and "labels" not in saved
+
+
+def test_saved_footer_is_hidden_but_save_failures_remain_visible(manager_factory, monkeypatch):
+    manager = manager_factory()
+    window = manager.windows[0]
+    manager.save_layout()
+    window.root.update()
+    assert not window.notice_label.winfo_ismapped()
+    height = window.view.transcript.winfo_height()
+    with monkeypatch.context() as patch:
+        def fail(*_):
+            raise OSError("Synthetic save failure")
+        patch.setattr("wow_helper.workspace.write_json", fail)
+        assert not manager.save_layout()
+        window.root.update()
+        assert window.notice_label.winfo_ismapped()
+        assert "Could not save" in window.notice.get()
+        assert window.view.transcript.winfo_height() < height
+    assert manager.save_layout()
+    window.root.update()
+    assert not window.notice_label.winfo_ismapped()
+    assert window.view.transcript.winfo_height() == height
 
 
 def test_appearance_dialog_and_largest_text_fit_at_minimum_size(manager_factory):

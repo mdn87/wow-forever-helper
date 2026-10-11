@@ -6,7 +6,7 @@ import uuid
 from .chat import CHAT_STATE, ChatError, ChatService, read_json, write_json
 from .chat_window import ChatWindow
 from .window_state import LayoutLock, MAX_WINDOWS, MIN_HEIGHT, MIN_WIDTH, display_workareas, window_bounds
-from .theme import ACCENT, BACKGROUND, MUTED, PANEL, TEXT, apply_theme, display_font, menu as themed_menu
+from .theme import ACCENT, BACKGROUND, MUTED, PANEL, TEXT, apply_theme, display_font, settings_icon, menu as themed_menu
 from .window_frame import WindowFrame
 from .window_access import start_restart
 
@@ -44,7 +44,8 @@ class CompanionWindow:
         bar.pack(fill="x")
         self.new_button = ttk.Button(bar, text="+ New", command=lambda: manager.new_window(self))
         self.new_button.pack(side="left", padx=(0, 4))
-        options = self.menu_button = ttk.Menubutton(bar, text="⚙", style="Settings.TMenubutton")
+        options = self.menu_button = ttk.Menubutton(bar, text="Settings", image=settings_icon(self.root),
+                                                   style="Settings.TMenubutton")
         options.pack(side="right", padx=(4, 0))
         self.options_menu = themed_menu(options)
         self.windows_menu = themed_menu(self.options_menu)
@@ -67,11 +68,10 @@ class CompanionWindow:
         self.options_menu.add_command(label="Restart companion (load updates)", command=manager.restart, state="disabled")
         self.restart_menu_index = self.options_menu.index("end")
         self.options_menu.add_command(label="Quit companion (stops shortcut)", command=manager.close)
-        self.notice = tk.StringVar(master=self.root, value="Layout and selected session save automatically.")
+        self.notice = tk.StringVar(master=self.root)
         self.notice_label = tk.Label(surface, textvariable=self.notice, bg=BACKGROUND, fg=MUTED,
                                     anchor="w", justify="left", padx=8, pady=3, wraplength=400,
                                     font=("Segoe UI", 8))
-        self.notice_label.pack(side="bottom", fill="x")
         self.body = tk.Frame(surface, bg=PANEL)
         self.body.pack(fill="both", expand=True)
         if self.kind == "chat":
@@ -121,6 +121,13 @@ class CompanionWindow:
         self.root.update_idletasks()
         self.root.attributes("-topmost", self.topmost.get())
         self.manager.schedule_save()
+
+    def set_notice(self, message):
+        self.notice.set(message)
+        if message:
+            self.notice_label.pack(side="bottom", fill="x", before=self.body)
+        else:
+            self.notice_label.pack_forget()
 
     def _place(self):
         b = self.bounds
@@ -297,7 +304,7 @@ class WindowManager:
             self._restart_process = start_restart(self.access.hotkey)
         except OSError:
             for window in self.windows:
-                window.notice.set("Could not start the restart command. The companion is still open.")
+                window.set_notice("Could not start the restart command. The companion is still open.")
             return
         self.refresh_menus()
 
@@ -322,7 +329,7 @@ class WindowManager:
             self._restart_process = None
             self.refresh_menus()
             for window in self.windows:
-                window.notice.set("Restart did not finish. Check that windows can be saved, then try again.")
+                window.set_notice("Restart did not finish. Check that windows can be saved, then try again.")
         if self.access.requested():
             self.show_all()
         self._access_after = self.root.after(100, self._check_reopen)
@@ -398,23 +405,19 @@ class WindowManager:
             write_json(self.layout_path, data)
         except OSError:
             for window in self.windows:
-                window.notice.set("Could not save windows. Keep the companion open and try again.")
+                window.set_notice("Could not save windows. Keep the companion open and try again.")
             return False
         else:
             for window in self.windows:
-                if self.can_reopen:
-                    window.notice.set(("Saved" if window.remember.get() else "Chat not saved")
-                                      + f" · {self.access.shortcut} shows windows")
-                elif self.access and self.access.api:
-                    window.notice.set(f"{self.access.shortcut} unavailable. Use the launch command to reopen.")
+                if not self.can_reopen and self.access and self.access.api:
+                    window.set_notice(f"{self.access.shortcut} unavailable. Use the launch command to reopen.")
                 else:
-                    window.notice.set("Windows saved · recent chat remembered" if window.remember.get()
-                                      else "Windows saved · chat text is not remembered")
+                    window.set_notice("")
             return True
 
     def _callback_error(self, *_):
         for window in self.windows:
-            window.notice.set("That action could not finish. Try again or refresh the chat.")
+            window.set_notice("That action could not finish. Try again or refresh the chat.")
 
     def close(self):
         if self.closed:

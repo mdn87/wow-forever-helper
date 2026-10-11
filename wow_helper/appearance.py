@@ -4,9 +4,9 @@ import re
 
 from .theme import ACCENT, BACKGROUND, MUTED, PANEL, TEXT
 
-DEFAULTS = {"background": PANEL, "text": TEXT, "labels": ACCENT,
+DEFAULTS = {"background": PANEL, "text": TEXT, "user_text": ACCENT,
             "font_family": "Segoe UI", "font_size": 11}
-COLORS = (("background", "Background"), ("text", "Text color"), ("labels", "Speaker labels"))
+COLORS = (("background", "Background"), ("text", "Agent text"), ("user_text", "Your text"))
 MIN_FONT_SIZE, MAX_FONT_SIZE = 8, 36
 
 
@@ -15,7 +15,8 @@ def appearance_settings(raw):
     raw = raw if isinstance(raw, dict) else {}
     settings = dict(DEFAULTS)
     for key, _ in COLORS:
-        value = raw.get(key)
+        # Earlier layouts used this color for the speaker labels.
+        value = raw.get(key, raw.get("labels") if key == "user_text" else None)
         if isinstance(value, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", value):
             settings[key] = value.lower()
     family = raw.get("font_family")
@@ -27,13 +28,59 @@ def appearance_settings(raw):
     return settings
 
 
-def style_text(widget, settings):
+def style_text(widget, settings, *, composer=False):
     family, size = settings["font_family"], settings["font_size"]
-    widget.configure(bg=settings["background"], fg=settings["text"],
-                     insertbackground=settings["text"], font=(family, size),
-                     selectbackground=settings["text"], selectforeground=settings["background"])
-    widget.tag_configure("role", foreground=settings["labels"], font=(family, max(8, size - 1), "bold"))
-    widget.tag_configure("note", foreground=settings["text"])
+    foreground = settings["user_text"] if composer else settings["text"]
+    widget.configure(bg=settings["background"], fg=foreground,
+                     insertbackground=foreground, font=(family, size),
+                     selectbackground=foreground, selectforeground=settings["background"])
+    widget.tag_configure("user", foreground=settings["user_text"])
+    widget.tag_configure("assistant", foreground=settings["text"])
+    widget.tag_configure("body", spacing1=0, spacing2=0, spacing3=0)
+    widget.tag_configure("note", foreground=settings["text"], spacing1=0, spacing3=0)
+    widget.tag_configure("delivery", font=(family, max(8, size - 2), "italic"))
+    widget.tag_configure("divider", font=(family, 1), spacing1=1, spacing2=0, spacing3=1)
+    _resize_divider(widget)
+
+
+def _resize_divider(widget):
+    """One shared, one-pixel rule follows the usable width and the selected colors."""
+    if not hasattr(widget, "_turn_divider"):
+        return
+    inset = sum(int(widget.cget(name)) for name in ("padx", "borderwidth", "highlightthickness"))
+    width = max(1, widget.winfo_width() - 2 * inset)
+    background, foreground = (widget.winfo_rgb(widget.cget(name)) for name in ("background", "foreground"))
+    color = "#%02x%02x%02x" % tuple(round((b * .78 + f * .22) / 257) for b, f in zip(background, foreground))
+    if getattr(widget, "_divider_signature", None) != (width, color):
+        widget._turn_divider.configure(width=width, height=1)
+        widget._turn_divider.put(color, to=(0, 0, width, 1))
+        widget._divider_signature = (width, color)
+
+
+def _release_divider(widget):
+    # Release Tk resources on the UI thread, not later in a provider worker's GC.
+    if hasattr(widget, "_turn_divider"):
+        del widget._turn_divider
+
+
+def append_turn(widget, body, role, *, pending=""):
+    """Render message colors without adding speaker rows or paragraph padding."""
+    if widget.index("end-1c") != "1.0":
+        if not hasattr(widget, "_turn_divider"):
+            import tkinter as tk
+            widget._turn_divider = tk.PhotoImage(master=widget, width=1, height=1)
+            widget.bind("<Configure>", lambda _: _resize_divider(widget), add="+")
+            widget.bind("<Destroy>", lambda _: _release_divider(widget), add="+")
+            _resize_divider(widget)
+        widget.insert("end", "\n", "body")
+        start = widget.index("end-1c")
+        widget.image_create("end", image=widget._turn_divider)
+        widget.insert("end", "\n", "divider")
+        widget.tag_add("divider", start, "end-1c")
+    role = "user" if role == "user" else "assistant"
+    widget.insert("end", body.strip("\n"), ("body", role))
+    if pending:
+        widget.insert("end", "  · " + pending.upper(), ("delivery", role))
 
 
 class AppearanceDialog:
@@ -96,13 +143,11 @@ class AppearanceDialog:
                  anchor="w").pack(fill="x", padx=14, pady=(10, 4))
         self.preview = tk.Text(surface, height=1, width=1, wrap="word", relief="flat", padx=8, pady=6)
         self.preview.pack(fill="both", expand=True, padx=14, pady=(0, 4))
-        self.preview.insert("end", "YOU\n", "role")
-        self.preview.insert("end", "How should this conversation look?\n\n")
-        self.preview.insert("end", "AGENT\n", "role")
-        self.preview.insert("end", "Choose colors and a font that are easy to read.")
+        append_turn(self.preview, "How should this conversation look?", "user")
+        append_turn(self.preview, "Choose colors and a font that are easy to read.", "assistant")
         self.preview.configure(state="disabled")
-        for variable in self.variables.values():
-            variable.trace_add("write", self.update_preview)
+        self._traces = [(variable, variable.trace_add("write", self.update_preview))
+                        for variable in self.variables.values()]
         self.update_preview()
         self.root.deiconify()
         self.chrome.apply_native()
@@ -156,5 +201,8 @@ class AppearanceDialog:
         self.close()
 
     def close(self):
+        for variable, callback in self._traces:
+            variable.trace_remove("write", callback)
+        self._traces.clear()
         self.view._appearance_dialog = None
         self.root.destroy()

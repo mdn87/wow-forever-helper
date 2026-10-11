@@ -5,9 +5,9 @@ import queue
 import uuid
 
 from .chat import ChatError, ChatService, claude_connection_text
-from .appearance import AppearanceDialog, appearance_settings, style_text
+from .appearance import AppearanceDialog, append_turn, appearance_settings, style_text
 from .window_state import history_state, restored_history, saved_selection
-from .theme import ACCENT, BACKGROUND, EDITOR, MUTED, PANEL, TEXT, apply_theme, display_font, menu as themed_menu
+from .theme import ACCENT, BACKGROUND, EDITOR, MUTED, PANEL, TEXT, apply_theme, display_font, settings_icon, menu as themed_menu
 
 
 class ChatWindow:
@@ -69,7 +69,8 @@ class ChatWindow:
         selector.pack(side="left" if toolbar is not None else "top", fill="x", expand=toolbar is not None)
         self.actions_menu = actions_menu if actions_menu is not None else themed_menu(selector)
         if actions_menu is None:
-            self.menu_button = ttk.Menubutton(selector, text="⚙", style="Settings.TMenubutton", menu=self.actions_menu)
+            self.menu_button = ttk.Menubutton(selector, text="Settings", image=settings_icon(root),
+                                             style="Settings.TMenubutton", menu=self.actions_menu)
             self.menu_button.pack(side="right", padx=(4, 0))
             self.actions_menu.add_command(label="Chat appearance…", command=self.show_appearance)
             self.actions_menu.add_separator()
@@ -101,16 +102,13 @@ class ChatWindow:
         transcript_frame.pack(fill="both", expand=True)
         self.transcript = tk.Text(transcript_frame, wrap="word", state="disabled", bg=PANEL,
                                   fg=TEXT, font=("Segoe UI", 11), relief="flat", padx=6,
-                                  pady=6, height=1, width=1, cursor="arrow", selectbackground="#554228")
+                                  pady=3, height=1, width=1, cursor="arrow", selectbackground="#554228")
         scrollbar = ttk.Scrollbar(transcript_frame, command=self.transcript.yview)
         self.transcript.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         self.transcript.pack(side="left", fill="both", expand=True)
         self.transcript.bind("<Configure>", self._queue_scroll_to_bottom)
         self.transcript.bind("<Map>", self._queue_scroll_to_bottom)
-        self.transcript.tag_configure("role", foreground=ACCENT, font=("Segoe UI", 10, "bold"), spacing1=14)
-        self.transcript.tag_configure("body", spacing1=4, spacing3=12)
-        self.transcript.tag_configure("note", foreground=MUTED, spacing1=8, spacing3=8)
         composer = tk.Frame(conversation, bg=PANEL)
         composer.pack(fill="x", pady=(5, 0))
         self.send_button = ttk.Button(composer, text="Send ↵", command=self.send, state="disabled")
@@ -125,7 +123,7 @@ class ChatWindow:
             self.editor.bind(f"<Shift-{key}>", self.insert_newline)
         self.editor.bind("<<Modified>>", self._edited)
         style_text(self.transcript, self.appearance)
-        style_text(self.editor, self.appearance)
+        style_text(self.editor, self.appearance, composer=True)
         self.status = tk.StringVar(master=root, value="Looking for open sessions…")
         if not embedded:
             root.report_callback_exception = lambda *_: self.status.set("The window could not finish that action. Refresh and try again.")
@@ -194,7 +192,7 @@ class ChatWindow:
     def set_appearance(self, settings):
         self.appearance = appearance_settings(settings)
         style_text(self.transcript, self.appearance)
-        style_text(self.editor, self.appearance)
+        style_text(self.editor, self.appearance, composer=True)
         self._queue_scroll_to_bottom()
         self.on_change()
 
@@ -296,11 +294,9 @@ class ChatWindow:
         if not messages and not pending:
             self.transcript.insert("end", "Your conversation appears here.\n\nChoose an open session above, then write a message below.", "note")
         for message in messages:
-            self.transcript.insert("end", "YOU\n" if message.role == "user" else "AGENT\n", "role")
-            self.transcript.insert("end", message.text + "\n", "body")
+            append_turn(self.transcript, message.text, message.role)
         for body, status, _previous_ids in pending:
-            self.transcript.insert("end", "YOU · " + status.upper() + "\n", "role")
-            self.transcript.insert("end", body + "\n", "body")
+            append_turn(self.transcript, body, "user", pending=status)
         self.transcript.configure(state="disabled")
         self._queue_scroll_to_bottom()
         self.on_change()
