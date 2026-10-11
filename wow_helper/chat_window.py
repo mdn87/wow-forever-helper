@@ -5,6 +5,7 @@ import queue
 import uuid
 
 from .chat import ChatError, ChatService, claude_connection_text
+from .appearance import AppearanceDialog, appearance_settings, style_text
 from .window_state import history_state, restored_history, saved_selection
 from .theme import ACCENT, BACKGROUND, EDITOR, MUTED, PANEL, TEXT, apply_theme, display_font, menu as themed_menu
 
@@ -21,6 +22,8 @@ class ChatWindow:
         self.service = service or ChatService()
         self.on_change = on_change or (lambda: None)
         state = state if isinstance(state, dict) else {}
+        self.appearance = appearance_settings(state.get("appearance"))
+        self._appearance_dialog = None
         self.desired_key = tuple(selection) if selection else saved_selection(state.get("session"))
         self.session_title = state.get("title", "") if isinstance(state.get("title"), str) else ""
         self.inflight = None
@@ -66,15 +69,15 @@ class ChatWindow:
         selector.pack(side="left" if toolbar is not None else "top", fill="x", expand=toolbar is not None)
         self.actions_menu = actions_menu if actions_menu is not None else themed_menu(selector)
         if actions_menu is None:
-            self.menu_button = ttk.Menubutton(selector, text="Menu", menu=self.actions_menu)
+            self.menu_button = ttk.Menubutton(selector, text="⚙", style="Settings.TMenubutton", menu=self.actions_menu)
             self.menu_button.pack(side="right", padx=(4, 0))
+            self.actions_menu.add_command(label="Chat appearance…", command=self.show_appearance)
+            self.actions_menu.add_separator()
         else:
             self.actions_menu.add_separator()
         self.actions_menu.add_command(label="Connect selected Claude session…", command=self.claude_setup,
                                       state="disabled")
         self.setup_menu_index = self.actions_menu.index("end")
-        self.send_button = ttk.Button(selector, text="Send", command=self.send, state="disabled")
-        self.send_button.pack(side="right", padx=(4, 0))
         self.refresh_button = ttk.Button(selector, text="↻", style="Window.TButton", command=self.refresh)
         self.refresh_button.pack(side="right", padx=(4, 0))
         self.actions_menu.add_command(label="Refresh open sessions", command=self.refresh)
@@ -108,12 +111,21 @@ class ChatWindow:
         self.transcript.tag_configure("role", foreground=ACCENT, font=("Segoe UI", 10, "bold"), spacing1=14)
         self.transcript.tag_configure("body", spacing1=4, spacing3=12)
         self.transcript.tag_configure("note", foreground=MUTED, spacing1=8, spacing3=8)
-        self.editor = tk.Text(conversation, height=3, width=1, wrap="word", bg=EDITOR, fg=TEXT,
-                              insertbackground=TEXT, font=("Segoe UI", 11), padx=10, pady=8,
-                              relief="flat", undo=True)
-        self.editor.pack(fill="x", pady=(5, 0))
-        self.editor.bind("<Control-Return>", self.send)
+        composer = tk.Frame(conversation, bg=PANEL)
+        composer.pack(fill="x", pady=(5, 0))
+        self.send_button = ttk.Button(composer, text="Send ↵", command=self.send, state="disabled")
+        self.send_button.pack(side="right", anchor="s", padx=(6, 0))
+        self.editor = tk.Text(composer, height=2, width=1, wrap="word", bg=EDITOR, fg=TEXT,
+                              insertbackground=TEXT, font=("Segoe UI", 11), padx=8, pady=6,
+                              relief="solid", borderwidth=1, undo=True)
+        self.editor.pack(side="left", fill="both", expand=True)
+        for key in ("Return", "KP_Enter"):
+            self.editor.bind(f"<{key}>", self.send)
+            self.editor.bind(f"<Control-{key}>", self.send)
+            self.editor.bind(f"<Shift-{key}>", self.insert_newline)
         self.editor.bind("<<Modified>>", self._edited)
+        style_text(self.transcript, self.appearance)
+        style_text(self.editor, self.appearance)
         self.status = tk.StringVar(master=root, value="Looking for open sessions…")
         if not embedded:
             root.report_callback_exception = lambda *_: self.status.set("The window could not finish that action. Refresh and try again.")
@@ -155,9 +167,12 @@ class ChatWindow:
 
     def snapshot(self, remember=True):
         key = self.selection_key
+        data = {"appearance": dict(self.appearance)}
         if not key:
-            return {"draft": self.editor.get("1.0", "end-1c")[:32_000]} if remember else {}
-        data = {"session": {"provider": key[0], "id": key[1]}, "title": self.session_title[:100]}
+            if remember:
+                data["draft"] = self.editor.get("1.0", "end-1c")[:32_000]
+            return data
+        data.update(session={"provider": key[0], "id": key[1]}, title=self.session_title[:100])
         if remember:
             pending = list(self.sent.get(key, []))
             if self.inflight and self.inflight[0] == key:
@@ -168,6 +183,27 @@ class ChatWindow:
                         pending=[{"body": body, "status": status, "previous_ids": sorted(ids)[-200:]}
                                  for body, status, ids in pending[-10:]])
         return data
+
+    def show_appearance(self):
+        if self._appearance_dialog is None:
+            self._appearance_dialog = AppearanceDialog(self)
+        else:
+            self._appearance_dialog.root.deiconify()
+            self._appearance_dialog.root.lift()
+
+    def set_appearance(self, settings):
+        self.appearance = appearance_settings(settings)
+        style_text(self.transcript, self.appearance)
+        style_text(self.editor, self.appearance)
+        self._queue_scroll_to_bottom()
+        self.on_change()
+
+    def insert_newline(self, _event=None):
+        if self.editor.tag_ranges("sel"):
+            self.editor.delete("sel.first", "sel.last")
+        self.editor.insert("insert", "\n")
+        self.editor.see("insert")
+        return "break"
 
     def _resize(self, event):
         if event.widget is self.root:
@@ -383,7 +419,7 @@ class ChatWindow:
                 self._show(result)
                 self.subtitle.set(self._description(self.selected))
                 if self.status.get() == "Loading conversation…":
-                    self.status.set("Ctrl+Enter to send · Approvals and tools stay in the terminal.")
+                    self.status.set("Enter sends · Shift+Enter adds a line · Approvals stay in the terminal.")
             elif kind == "send":
                 key, body, previous_ids = context
                 self.sent.setdefault(key, []).append((body, result, previous_ids))
@@ -408,6 +444,8 @@ class ChatWindow:
         if self.closed:
             return
         self.closed = True
+        if self._appearance_dialog is not None:
+            self._appearance_dialog.close()
         self.root.after_cancel(self._after_id)
         if self._scroll_after_id is not None:
             self.root.after_cancel(self._scroll_after_id)

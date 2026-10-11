@@ -376,14 +376,13 @@ def test_minimum_size_keeps_chat_controls_visible_and_max_windows_is_enforced(ma
 
 
 @pytest.mark.parametrize("size", ["440x580", "620x700"])
-def test_compact_toolbar_keeps_all_chat_actions_on_one_row(manager_factory, size):
+def test_compact_toolbar_and_composer_keep_actions_visible(manager_factory, size):
     manager = manager_factory()
     window = manager.windows[0]
     window.chrome.place(size + "+100+100")
     window.root.update()
     view = window.view
-    controls = [window.new_button, view.session_picker, view.refresh_button,
-                view.send_button, window.menu_button]
+    controls = [window.new_button, view.session_picker, view.refresh_button, window.menu_button]
     centers = [widget.winfo_rooty() + widget.winfo_height() / 2 for widget in controls]
     assert max(centers) - min(centers) <= 2
     assert max(widget.winfo_height() for widget in controls) <= 30
@@ -392,6 +391,10 @@ def test_compact_toolbar_keeps_all_chat_actions_on_one_row(manager_factory, size
         assert left.winfo_rootx() + left.winfo_width() <= right.winfo_rootx()
     assert controls[-1].winfo_rootx() + controls[-1].winfo_width() < window.root.winfo_rootx() + window.root.winfo_width()
     assert view.transcript.winfo_height() >= window.root.winfo_height() / 2
+    assert view.send_button.winfo_ismapped()
+    assert view.editor.winfo_rootx() + view.editor.winfo_width() <= view.send_button.winfo_rootx()
+    assert view.send_button.winfo_rooty() >= view.editor.winfo_rooty()
+    assert view.send_button.winfo_rooty() + view.send_button.winfo_height() <= view.editor.winfo_rooty() + view.editor.winfo_height()
     choose(window, 1)
     assert window.options_menu.entrycget(view.setup_menu_index, "state") == "normal"
     window.options_menu.invoke(view.setup_menu_index)
@@ -400,6 +403,68 @@ def test_compact_toolbar_keeps_all_chat_actions_on_one_row(manager_factory, size
     dialog.destroy()
     choose(window, 0)
     assert window.options_menu.entrycget(view.setup_menu_index, "state") == "disabled"
+
+
+@pytest.mark.parametrize("selected", [False, True])
+def test_appearance_is_independent_and_survives_restart_without_chat_retention(manager_factory, selected):
+    from wow_helper.appearance import DEFAULTS
+    manager = manager_factory()
+    first = manager.windows[0]
+    second = new_chat(manager, first)
+    if selected:
+        choose(first, 0)
+    first.view.editor.insert("1.0", "Synthetic private draft")
+    first.remember.set(False)
+    first.options_menu.invoke(first.appearance_menu_index)
+    dialog = first.view._appearance_dialog
+    for key, value in {"background": "#ffffff", "text": "#112233", "labels": "#663300", "font_size": 18}.items():
+        dialog.variables[key].set(value)
+    family = next(name for name in dialog.families if name != DEFAULTS["font_family"])
+    dialog.variables["font_family"].set(family)
+    dialog.save_button.invoke()
+    assert first.view._appearance_dialog is None
+    assert second.view.appearance == DEFAULTS
+    expected = dict(first.view.appearance)
+    assert first.view.editor.get("1.0", "end-1c") == "Synthetic private draft"
+    manager.close()
+    restored = manager_factory()
+    view = restored.windows[0].view
+    assert view.appearance == expected
+    assert view.transcript.cget("background") == view.editor.cget("background") == "#ffffff"
+    assert view.transcript.cget("foreground") == view.editor.cget("foreground") == "#112233"
+    assert view.editor.get("1.0", "end-1c") == ""
+    assert restored.windows[1].view.appearance == DEFAULTS
+    assert view.service.sent == []
+
+
+def test_malformed_saved_appearance_does_not_prevent_windows_opening(manager_factory, tmp_path):
+    from wow_helper.appearance import DEFAULTS
+    path = tmp_path / "invalid-appearance.json"
+    path.write_text(json.dumps({"version": 1, "windows": [{"kind": "chat", "chat": {"appearance": {
+        "background": "not a Tk color", "text": [], "font_family": {"bad": "font"}, "font_size": True}}}]}))
+    manager = manager_factory(path=path)
+    assert manager.windows[0].view.appearance == DEFAULTS
+
+
+def test_appearance_dialog_and_largest_text_fit_at_minimum_size(manager_factory):
+    manager = manager_factory()
+    window = manager.windows[0]
+    window.chrome.place("440x580+100+100")
+    window.options_menu.invoke(window.appearance_menu_index)
+    dialog = window.view._appearance_dialog
+    dialog.chrome.place("440x480+100+100")
+    dialog.variables["font_size"].set(36)
+    dialog.root.update()
+    bottom = dialog.root.winfo_rooty() + dialog.root.winfo_height()
+    assert dialog.preview.winfo_height() >= 50
+    assert dialog.save_button.winfo_ismapped()
+    assert dialog.save_button.winfo_rooty() + dialog.save_button.winfo_height() < bottom
+    dialog.save_button.invoke()
+    window.root.update()
+    view = window.view
+    assert view.transcript.winfo_height() >= 80
+    assert view.send_button.winfo_ismapped()
+    assert view.send_button.winfo_rooty() + view.send_button.winfo_height() < window.root.winfo_rooty() + window.root.winfo_height()
 
 
 def test_window_menu_recovers_minimized_window(manager_factory):

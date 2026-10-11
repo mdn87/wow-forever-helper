@@ -44,7 +44,7 @@ class CompanionWindow:
         bar.pack(fill="x")
         self.new_button = ttk.Button(bar, text="+ New", command=lambda: manager.new_window(self))
         self.new_button.pack(side="left", padx=(0, 4))
-        options = self.menu_button = ttk.Menubutton(bar, text="Menu")
+        options = self.menu_button = ttk.Menubutton(bar, text="⚙", style="Settings.TMenubutton")
         options.pack(side="right", padx=(4, 0))
         self.options_menu = themed_menu(options)
         self.windows_menu = themed_menu(self.options_menu)
@@ -53,6 +53,9 @@ class CompanionWindow:
                                           command=self.set_topmost)
         self.options_menu.add_checkbutton(label="Remember draft and recent chat", variable=self.remember,
                                           command=manager.save_layout)
+        self.options_menu.add_command(label="Chat appearance…", command=lambda: self.view.show_appearance(),
+                                      state="disabled")
+        self.appearance_menu_index = self.options_menu.index("end")
         self.options_menu.add_separator()
         self.options_menu.add_cascade(label="Windows", menu=self.windows_menu)
         self.options_menu.add_command(label="New window", command=lambda: manager.new_window(self))
@@ -111,6 +114,7 @@ class CompanionWindow:
         self.view = ChatWindow(self.body, self.manager.service_factory(), embedded=True,
                                state=state, on_change=lambda: self.manager.changed(self),
                                toolbar=self.toolbar, actions_menu=self.options_menu)
+        self.options_menu.entryconfigure(self.appearance_menu_index, state="normal")
         self.manager.changed(self)
 
     def set_topmost(self):

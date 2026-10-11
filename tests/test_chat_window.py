@@ -3,6 +3,7 @@
 import time
 import threading
 import uuid
+import os
 
 import pytest
 
@@ -65,6 +66,126 @@ def test_send_does_not_erase_text_typed_during_delivery(window):
     window.editor.insert("end", " and a new thought")
     settle(window)
     assert window.editor.get("1.0", "end-1c") == "First message and a new thought"
+
+
+def press_editor_key(window, key):
+    window.root.deiconify()
+    window.root.update()
+    window.editor.focus_force()
+    window.root.update()
+    window.editor.event_generate(key)
+    window.root.update()
+
+
+@pytest.mark.parametrize("key", ["<Return>", "<Control-Return>", pytest.param("<KP_Enter>", marks=
+    pytest.mark.skipif(os.name == "nt", reason="Windows Tk generates keycode 0 for synthetic KP_Enter"))])
+def test_enter_sends_to_selected_session_without_inserting_a_newline(window, key):
+    choose(window, 0)
+    sent = []
+    window.service.send = lambda session, body, request: sent.append((session.key, body)) or "queued"
+    window.editor.insert("1.0", "Synthetic message")
+    press_editor_key(window, key)
+    settle(window)
+    assert sent == [(window.selected.key, "Synthetic message")]
+    assert window.editor.get("1.0", "end-1c") == ""
+
+
+@pytest.mark.parametrize("key", ["<Shift-Return>", pytest.param("<Shift-KP_Enter>", marks=
+    pytest.mark.skipif(os.name == "nt", reason="Windows Tk generates keycode 0 for synthetic KP_Enter"))])
+def test_shift_enter_adds_a_line_without_sending(window, key):
+    choose(window, 0)
+    sent = []
+    window.service.send = lambda *_: sent.append(True) or "queued"
+    window.editor.insert("1.0", "First line")
+    window.editor.mark_set("insert", "end-1c")
+    press_editor_key(window, key)
+    window.editor.insert("insert", "Second line")
+    settle(window)
+    assert window.editor.get("1.0", "end-1c") == "First line\nSecond line"
+    assert sent == []
+
+
+def test_enter_without_a_session_preserves_draft_and_never_sends(window):
+    window.service.send = lambda *_: pytest.fail("Sent without a selected session")
+    window.editor.insert("1.0", "Choose a session first")
+    press_editor_key(window, "<Return>")
+    settle(window)
+    assert window.editor.get("1.0", "end-1c") == "Choose a session first"
+
+
+def test_repeated_enter_during_delivery_only_sends_once(window):
+    choose(window, 0)
+    gate = threading.Event()
+    sent = []
+    def send(_, body, __):
+        sent.append(body)
+        assert gate.wait(3)
+        return "queued"
+    window.service.send = send
+    window.editor.insert("1.0", "Send exactly once")
+    try:
+        press_editor_key(window, "<Return>")
+        press_editor_key(window, "<Return>")
+        assert window.editor.get("1.0", "end-1c") == "Send exactly once"
+    finally:
+        gate.set()
+        settle(window)
+    assert sent == ["Send exactly once"]
+
+
+def test_send_button_and_failed_enter_preserve_retryable_draft(window):
+    from wow_helper.chat import ChatError
+    choose(window, 0)
+    def fail(*_):
+        raise ChatError("Synthetic send unavailable")
+    window.service.send = fail
+    window.editor.insert("1.0", "Retry this message")
+    press_editor_key(window, "<Return>")
+    settle(window)
+    assert window.editor.get("1.0", "end-1c") == "Retry this message"
+    assert "Synthetic send unavailable" in window.status.get()
+    sent = []
+    window.service.send = lambda _, body, __: sent.append(body) or "queued"
+    window.send_button.invoke()
+    settle(window)
+    assert sent == ["Retry this message"]
+
+
+def test_appearance_preview_cancel_validation_and_defaults_preserve_chat(window, monkeypatch):
+    from tkinter import colorchooser
+    from wow_helper.appearance import DEFAULTS
+    choose(window, 0)
+    window.editor.insert("1.0", "Keep this draft")
+    transcript = window.transcript.get("1.0", "end-1c")
+    window.show_appearance()
+    dialog = window._appearance_dialog
+    window.show_appearance()
+    assert window._appearance_dialog is dialog
+    monkeypatch.setattr(colorchooser, "askcolor", lambda **_: ((255, 255, 255), "#ffffff"))
+    dialog.choose_color("background")
+    assert dialog.preview.cget("background") == "#ffffff"
+    assert window.appearance == DEFAULTS
+    dialog.variables["font_size"].set("invalid")
+    dialog.save_button.invoke()
+    assert window._appearance_dialog is dialog and dialog.error.get()
+    dialog.close()
+    assert window.appearance == DEFAULTS
+    window.set_appearance({**DEFAULTS, "font_size": 18})
+    window.show_appearance()
+    dialog = window._appearance_dialog
+    dialog.reset_button.invoke()
+    assert window.appearance["font_size"] == 18
+    dialog.save_button.invoke()
+    assert window.appearance == DEFAULTS
+    assert window.editor.get("1.0", "end-1c") == "Keep this draft"
+    assert window.transcript.get("1.0", "end-1c") == transcript
+
+
+def test_closing_chat_closes_appearance_dialog(window):
+    window.show_appearance()
+    dialog = window._appearance_dialog
+    window.close()
+    assert not dialog.root.winfo_exists()
 
 
 def test_history_poll_keeps_controls_available_and_accepts_one_send(window):
