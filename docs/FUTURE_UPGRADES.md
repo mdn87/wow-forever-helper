@@ -68,6 +68,90 @@ SavedInstances tracks lockouts, daily and weekly completion, currencies, and pro
 
 Prioritize the quest-chain view and gear comparisons as extensions of existing research workflows. Manual goals and repeatable checklists are smaller starting points for the Journal. Inventory analysis follows a richer bag export. These proposals borrow feature patterns; they do not include third-party addon code, databases, or executable imports.
 
+## Agent session purpose and addon communication
+
+The purpose is to make continuing agent sessions useful with game context: explain evidence, research uncertain facts, compare options, remember decisions, and help the player evaluate the next result. The first five addon ideas remain above. Their data and interface patterns support that purpose when connected to explicit agent tasks; a new display alone does not supply the reasoning or continuity.
+
+### How an addon can reach an agent
+
+An external bridge connects the game-side data to the agent process. These are distinct interfaces:
+
+- An **addon Lua API** lets other code inside WoW query an addon. For example, Details exposes combat objects through its [documented Lua API](https://github.com/Tercioo/Details-Damage-Meter/blob/master/API.lua). Those methods are not HTTP endpoints that a desktop agent can call directly.
+- **SavedVariables and manual exports** carry data outside the game. Our addon writes its snapshot to SavedVariables; the game flushes it on a user reload or logout. Other addons provide copyable text or CSV. The desktop companion can parse selected data into a context bundle.
+- An **external agent bridge** talks to an agent CLI or service. Our companion already sends preparation bundles to new or existing sessions and receives their replies. This does not make the snapshot live game state.
+
+Two author-maintained examples confirm that agent bridges exist:
+
+- [wow-ai](https://github.com/chelinho139/wow-ai/blob/main/docs/ARCHITECTURE.md) uses encoded screen pixels for outgoing addon messages, an external process that resumes agent CLI sessions, and addon-loaded files for incoming replies. Its network and agent execution happen outside WoW.
+- [WoW Agent](https://github.com/Oighty/wow-agent) reads SavedVariables in a desktop app. Its [get_game_state tool](https://github.com/Oighty/wow-agent/blob/main/app/src/main/tools/game-state.ts) lets the agent select context sections and reports time since the last sync. This is a useful reference for making context available on demand.
+
+These examples were reviewed through public documentation and source only; neither was installed or runtime-tested here. Our planned path keeps replies in the desktop companion and treats imported addon data as data. It does not adopt an external project's executable reply-file transport.
+
+### Connect the existing ideas to agent work
+
+| Existing idea | Useful task for the selected agent session |
+| --- | --- |
+| Quest chains | Explain the missing prerequisite, check edition-specific evidence, and revise the plan after the player supplies a newer snapshot. |
+| Gear comparisons | Explain tradeoffs for the stated build and goals, retain assumptions, and revisit the recommendation when better evidence arrives. |
+| Inventory categories | Use actual item contents to prepare a goal-specific supplies list and explain shortages or excess items. |
+| Personal wishlist | Turn a chosen goal into attainable steps and carry the player's preferences into follow-up questions. |
+| Repeatable activities | Help choose activities that fit the available time, priorities, and observed completion or reset state. |
+
+Our current implementation already supports resumable conversations, file-based preparation, optional images and skills, and structured web-backed quest/gear research. Companion-created sessions are deliberately restricted to read-only work; attached sessions retain their own tool permissions. See [agent session implementation](../wow_helper/agent_sessions.py) and [context preparation](../wow_helper/activities.py). Arbitrary computation, new addon importers, and a companion-specific agent tool API are not already available across both providers.
+
+For future integrations, normalize selected inputs into small versioned records with game edition, source, capture/export time, coverage, and missing fields. A local read-only tool interface could expose those records to a configured session. [Model Context Protocol](https://modelcontextprotocol.io/docs/learn/architecture) is one option for exposing context and tools; the existing file bundles can remain the initial transport. Any tool registration needs explicit provider integration and capability checks. Reading the newest saved record cannot force WoW to save fresher data.
+
+## Five additional ideas centered on agent sessions
+
+These are additions 6-10. They preserve the first five recommendations and add workflows where conversation, research, code understanding, or data analysis supplies the main benefit. Sources checked on 2026-10-11; no integration or in-game behavior was tested.
+
+### 6. Addon troubleshooting conversation: BugSack
+
+[BugSack](https://www.curseforge.com/wow/addons/bugsack) displays copyable Lua errors with full debug stacks and requires BugGrabber. Its current listing includes Forever.
+
+- **Input:** pasted error text, the action that preceded it, and selected addon versions. A later bounded importer could prepare those details together.
+- **Agent contribution:** interpret the stack, research the author's issues and releases, ask for missing evidence, and remember which diagnostic steps have already been tried. Referencing an addon in a stack does not by itself establish the cause.
+- **Fit:** a troubleshooting session in Agent chat, optionally using Screen adviser for before/after evidence. Start with pasted text and read-only diagnosis; propose changes for the player to review and apply.
+- **Completion check:** the conversation can compare a newly supplied error or successful retry with the original evidence. It must distinguish a proposed explanation from a verified fix.
+
+### 7. Session economy analyst: Journalator
+
+[Journalator](https://www.curseforge.com/wow/addons/journalator) documents an Export Results action producing CSV for recorded transactions and activity, including vendor purchases, sales, repairs, travel, quest rewards, and auction activity. Its listing includes Forever; some categories are Retail-only.
+
+- **Input:** a user-selected CSV export and reporting period, with optional saving or purchase goals.
+- **Agent contribution:** explain where gold went, compare recorded sessions, identify the activities contributing most to net earnings, and discuss spending choices against the stated goal. Preserve the assumptions for follow-up analysis.
+- **Fit:** Character status supplies the current balance; Journal keeps the analysis and goals. Start with a reviewed CSV import and deterministic totals exposed to the session. The current scalar gold snapshot cannot reconstruct transaction history.
+- **Completion check:** distinguish transfers from earned income, show gaps and duplicates, and separate recorded cash movement from profit. Rate claims need measured session durations. Missing records do not establish zero activity.
+
+### 8. Post-fight coaching conversation: Details!
+
+[Details!](https://www.curseforge.com/wow/addons/details) lists Forever support. Its [Lua API](https://github.com/Tercioo/Details-Damage-Meter/blob/master/API.lua) exposes combat segments, actors, deaths, and spell/target information inside the game.
+
+- **Input:** one selected encounter summary exported through a small read-only adapter or supported manual import, with an optional screenshot. Verify which fields the selected client actually exposes before designing the report.
+- **Agent contribution:** explain the observed events, research unfamiliar mechanics, agree on one improvement, and compare a later attempt within the same coaching conversation.
+- **Fit:** a Journal review linked to Screen adviser and a persistent chat. This adds evidence-based discussion to the planned session timeline.
+- **Completion check:** identify the evidence behind each finding and separate likely explanations from observed facts. Aggregate totals alone cannot establish an exact death cause. This is a post-fight review, with no live combat control or game input.
+
+### 9. Build tutor and experiment notebook: SimulationCraft
+
+The [SimulationCraft addon](https://www.curseforge.com/wow/addons/simulationcraft) provides copyable character-profile text through `/simc`, including numerical item and talent references. Its [October 2026 prereleases](https://github.com/simulationcraft/simc-addon/releases) describe Forever support as experimental.
+
+- **Input:** a selected profile export, the player's preferred role/play style, and optionally an existing simulation report from a compatible engine.
+- **Agent contribution:** explain how the chosen talents and equipment interact, teach the assumptions behind a recommendation, propose a controlled comparison, and retain the question and result across sessions.
+- **Fit:** extend Character status and Journal from an item comparison into a continuing build discussion. Start with profile explanation and imported report interpretation; running simulations would be a separate tool capability.
+- **Completion check:** verify export parsing and simulation-engine support independently. A readable Forever profile does not prove accurate Forever simulation. Do not claim numerical performance gains without supported results, and treat profile text as data rather than executable instructions.
+
+### 10. Dungeon route walkthrough: Mythic Dungeon Tools
+
+[Mythic Dungeon Tools](https://www.curseforge.com/wow/addons/mythic-dungeon-tools) exports route strings with planned pulls and provides enemy information, drawings, and notes. Its inspected listing covers Retail and MoP Classic, not Forever.
+
+- **Input:** an explicitly selected route export or screenshot, the dungeon/edition, and the player's role. A route importer needs a bounded, version-aware data decoder.
+- **Agent contribution:** walk through the plan, explain why pulls are grouped, answer role-specific questions, and carry that discussion into a post-run review. Verify additional mechanic claims against sources for the selected edition.
+- **Fit:** a dedicated planning conversation using Screen adviser, Journal, and imported route context. It teaches a chosen route without claiming to track the player's live position.
+- **Completion check:** unsupported editions are explicit. A Forever dungeon discussion based on screenshots and researched sources is not an MDT integration. Do not bundle addon map artwork or execute imported route content.
+
+For the next agent-focused implementation, start with BugSack troubleshooting and Journalator analysis: their documented text and CSV exports provide concrete inputs without first extending the in-game exporter. Details needs a verified export path; SimulationCraft and MDT need stronger edition-specific validation. Across all five, reuse the chosen agent session, preview selected context, retain source timestamps, and preserve the existing explicit-send and game-input boundaries.
+
 ## Interface and workflow build order
 
 ### 1. Compact pinned advice
