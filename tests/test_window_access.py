@@ -8,6 +8,8 @@ import time
 import pytest
 
 from wow_helper.window_access import WindowAccess, WindowsAPI, event_name, signal_existing
+from wow_helper import window_access
+from wow_helper.chat import ChatError
 
 
 class API:
@@ -108,6 +110,90 @@ def test_launch_reveals_existing_instance_without_starting_tk(monkeypatch):
     monkeypatch.setattr(window_access, "signal_existing", lambda _: True)
     monkeypatch.setitem(sys.modules, "tkinter", None)
     assert chat_window.launch() is None
+
+
+def test_restart_event_is_separate_from_reveal_and_released_on_close(tmp_path):
+    layout = tmp_path / "windows.json"
+    api = API()
+    access = WindowAccess(layout, api=api)
+    name = event_name(layout, "Restart")
+    try:
+        assert api.signal_event(name)
+        assert not access.requested()
+        assert access.restart_requested()
+        assert not access.restart_requested()
+    finally:
+        access.close()
+    assert not api.signal_event(name)
+    assert not access.restart_requested()
+
+
+def test_restart_waits_for_the_saved_layout_to_be_released(tmp_path, monkeypatch):
+    layout = tmp_path / "windows.json"
+    api = API()
+    name = event_name(layout, "Restart")
+    api.create_event(name)
+    attempts = []
+    class Lock:
+        def __init__(self, path):
+            assert path == layout and api.events[name]
+            attempts.append("acquire")
+            if len(attempts) == 1:
+                raise ChatError("Synthetic existing owner")
+        def close(self):
+            attempts.append("release")
+    monkeypatch.setattr(window_access, "LayoutLock", Lock)
+    assert window_access.restart_existing(layout, api=api)
+    assert attempts == ["acquire", "acquire", "release"]
+
+
+def test_restart_timeout_does_not_proceed_past_a_locked_layout(tmp_path, monkeypatch):
+    layout = tmp_path / "windows.json"
+    api = API()
+    api.create_event(event_name(layout, "Restart"))
+    def locked(_):
+        raise ChatError("Synthetic existing owner")
+    monkeypatch.setattr(window_access, "LayoutLock", locked)
+    with pytest.raises(ChatError, match="could not finish restarting"):
+        window_access.restart_existing(layout, api=api, timeout=0)
+
+
+def test_restart_reports_older_versions_and_starts_normally_when_none_exist(tmp_path):
+    layout = tmp_path / "windows.json"
+    api = API()
+    assert not window_access.restart_existing(layout, api=api)
+    name = event_name(layout)
+    api.create_event(name)
+    with pytest.raises(ChatError, match="older companion"):
+        window_access.restart_existing(layout, api=api)
+    assert api.take_event(name)  # Reveal the older app so its Quit menu is reachable.
+
+
+def test_restart_launcher_uses_only_the_companion_argv(monkeypatch):
+    calls = []
+    monkeypatch.setattr(window_access.sys, "executable", "synthetic-python.exe")
+    monkeypatch.setattr(window_access.subprocess, "Popen", lambda args, **kw: calls.append((args, kw)) or "process")
+    assert window_access.start_restart("F10") == "process"
+    args, options = calls[0]
+    assert args[1:] == ["-m", "wow_helper", "chat", "--restart", "--hotkey", "F10"]
+    assert options["shell"] is False
+    assert options["stdin"] == options["stdout"] == options["stderr"] == window_access.subprocess.DEVNULL
+
+
+def test_restart_launch_opens_fresh_ui_after_the_old_owner_exits(monkeypatch):
+    from types import SimpleNamespace
+    from wow_helper import chat_window, workspace
+    calls = []
+    access = SimpleNamespace(close=lambda: calls.append("release"))
+    root = SimpleNamespace(mainloop=lambda: calls.append("run"))
+    manager = SimpleNamespace(enable_reopening=lambda _: calls.append("enable"))
+    monkeypatch.setitem(sys.modules, "tkinter", SimpleNamespace(Tk=lambda: root))
+    monkeypatch.setattr(window_access, "restart_existing", lambda _: calls.append("restart"))
+    monkeypatch.setattr(window_access, "signal_existing", lambda _: pytest.fail("Restart only revealed old UI"))
+    monkeypatch.setattr(window_access, "WindowAccess", lambda *a, **kw: access)
+    monkeypatch.setattr(workspace, "WindowManager", lambda _: manager)
+    chat_window.launch(restart=True)
+    assert calls == ["restart", "enable", "run", "release"]
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows named event and shortcut registration")

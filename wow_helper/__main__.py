@@ -15,6 +15,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="WoW Forever Helper: one human request, one mapped key chord; plus a read-only quest companion.")
     commands = parser.add_subparsers(dest="command", required=True)
     chat = commands.add_parser("chat", help="Open or reveal persistent companion windows")
+    chat.add_argument("--restart", action="store_true", help="Save and restart the running companion to load updates (Windows)")
     chat.add_argument("--hotkey", choices=["H", "F10"], default="H",
                       help="Windows reopen shortcut: Ctrl+Alt+H (default) or Ctrl+Alt+F10")
     poll = commands.add_parser("chat-poll", help="Read one queued chat message from an existing Claude session")
@@ -60,7 +61,7 @@ def main(argv=None):
         try:
             if args.command == "chat":
                 from .chat_window import launch
-                launch(hotkey=args.hotkey)
+                launch(hotkey=args.hotkey, restart=args.restart)
             elif args.command == "chat-poll":
                 print(json.dumps(poll_claude(args.session, wait=args.wait)))
             else:

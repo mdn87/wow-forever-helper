@@ -8,6 +8,7 @@ from .chat_window import ChatWindow
 from .window_state import LayoutLock, MAX_WINDOWS, MIN_HEIGHT, MIN_WIDTH, display_workareas, window_bounds
 from .theme import ACCENT, BACKGROUND, MUTED, PANEL, TEXT, apply_theme, display_font, menu as themed_menu
 from .window_frame import WindowFrame
+from .window_access import start_restart
 
 LAYOUT_PATH = CHAT_STATE / "windows.json"
 
@@ -60,7 +61,9 @@ class CompanionWindow:
         self.hide_menu_index = self.options_menu.index("end")
         self.options_menu.add_command(label="Close this window", command=lambda: manager.close_window(self))
         self.options_menu.add_separator()
-        self.options_menu.add_command(label="Quit companion (keep all windows)", command=manager.close)
+        self.options_menu.add_command(label="Restart companion (load updates)", command=manager.restart, state="disabled")
+        self.restart_menu_index = self.options_menu.index("end")
+        self.options_menu.add_command(label="Quit companion (stops shortcut)", command=manager.close)
         self.notice = tk.StringVar(master=self.root, value="Layout and selected session save automatically.")
         self.notice_label = tk.Label(surface, textvariable=self.notice, bg=BACKGROUND, fg=MUTED,
                                     anchor="w", justify="left", padx=8, pady=3, wraplength=400,
@@ -172,6 +175,7 @@ class WindowManager:
         self._save_after = None
         self.access = None
         self._access_after = None
+        self._restart_process = None
         self.next_number = 1
         self.areas = areas or display_workareas(root)
         root.withdraw()
@@ -265,16 +269,33 @@ class WindowManager:
                 window.hide_menu_index, state="normal" if self.can_reopen else "disabled",
                 label=(f"Hide all windows ({self.access.shortcut} reopens)" if self.can_reopen
                        else "Hide all windows (shortcut unavailable)"))
+            window.options_menu.entryconfigure(window.restart_menu_index,
+                                               state="normal" if self.can_restart else "disabled")
             window.windows_menu.delete(0, "end")
             for other in self.windows:
                 window.windows_menu.add_command(label=other.caption,
                                                  command=lambda w=other: self.reveal(w))
             window.windows_menu.add_separator()
-            window.windows_menu.add_command(label="Quit companion (keep all windows)", command=self.close)
+            window.windows_menu.add_command(label="Quit companion (stops shortcut)", command=self.close)
 
     @property
     def can_reopen(self):
         return bool(not self.closed and self.access and self.access.available)
+
+    @property
+    def can_restart(self):
+        return bool(not self.closed and self.access and self.access.restart_handle and self._restart_process is None)
+
+    def restart(self):
+        if not self.can_restart or not self.save_layout():
+            return
+        try:
+            self._restart_process = start_restart(self.access.hotkey)
+        except OSError:
+            for window in self.windows:
+                window.notice.set("Could not start the restart command. The companion is still open.")
+            return
+        self.refresh_menus()
 
     def enable_reopening(self, access):
         self.access = access
@@ -288,6 +309,16 @@ class WindowManager:
         if self._access_after is not None:
             self.root.after_cancel(self._access_after)
             self._access_after = None
+        if self.access.restart_requested():
+            self.show_all()
+            self.close()
+            if self.closed:
+                return
+        if self._restart_process is not None and self._restart_process.poll() is not None:
+            self._restart_process = None
+            self.refresh_menus()
+            for window in self.windows:
+                window.notice.set("Restart did not finish. Check that windows can be saved, then try again.")
         if self.access.requested():
             self.show_all()
         self._access_after = self.root.after(100, self._check_reopen)
