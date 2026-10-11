@@ -2,7 +2,7 @@
 
 Status: proposed, not implemented. Last updated: 2026-10-11.
 
-This plan records ideas for the user-command accessibility helper and its desktop companion, based on a review of the current app and established apps. The recommended first three upgrades are compact pinned advice, saved activity layouts, and a linked journal with a Resume session view. Later ideas remain a backlog, without delivery dates.
+This plan records ideas for the user-command accessibility helper and its desktop companion. The current research focus is features from popular WoW addons on Wago and CurseForge that extend or complement the existing tools. The earlier desktop interface ideas remain below. All items are proposals, without delivery dates.
 
 Current behavior and verification evidence remain in [Chat](CHAT.md), [Quest companion](QUESTS.md), and [Assistive input](ASSISTIVE_INPUT.md). This plan does not replace the existing product boundaries in [AGENTS.md](../AGENTS.md).
 
@@ -22,7 +22,53 @@ Classic and Modern Synth are selectable. Modern Synth has charcoal panels, cyan 
 
 The additions below extend that foundation. Content pinning is different from keeping an entire window on top. Named activity layouts are different from restoring the last layout or loading a single window's setup preset.
 
-## Recommended build order
+## WoW addon shortlist
+
+Research checked on 2026-10-11. The five candidates below were selected for fit with the existing app, not as a ranking of the five most popular addons. Approximate CurseForge lifetime downloads provide evidence of adoption; they are not active-player counts. Wago research used indexed project and version pages where the main page required JavaScript. Listed game support is not an in-game compatibility test.
+
+### 1. BtWQuests: quest chains and prerequisites
+
+BtWQuests shows current and future quests, their connections, and prerequisite quest lines. CurseForge lists about 11.1 million downloads. [CurseForge description](https://www.curseforge.com/wow/addons/btw-quests), [Wago listing](https://addons.wago.io/addons/btwquests/versions?page=2&stability=stable).
+
+- **Fit:** add a Quest chain view to Quest guide: completed, current, and next steps, with an explanation of why a chosen quest is unavailable and what it unlocks.
+- **Data needed:** we already export completed quest IDs. We do not have a dependency graph. Start with a selected chain researched on request, retain its sources, and distinguish verified prerequisites from uncertain ones. Our existing quest ordering does not provide this view.
+- **Compatibility:** the inspected listings do not establish Forever support. Edition-specific chain information needs verification, especially for beta content.
+
+### 2. Pawn: explainable gear comparisons
+
+Pawn evaluates items using role-specific, customizable stat weights and highlights potential upgrades. CurseForge lists about 129.4 million downloads. [CurseForge description and versions](https://www.curseforge.com/wow/addons/pawn).
+
+- **Fit:** extend Character status and Find better gear with a side-by-side comparison of an equipped item and a selected item or quest reward. Show stat gains and losses, role suitability, requirements, sources, and uncertainty.
+- **Data needed:** the current snapshot has equipped item IDs, item levels, and durability, but no full item stats, build, or bag contents. Begin with explicit item input and sourced research; richer read-only exports could follow. Exact upgrade percentages require validated weights.
+- **Compatibility:** a Forever file is listed, named `2.13.17 alpha 1 (Forever)`. That is evidence of an available build, not verified accuracy for every beta item or spec.
+
+### 3. Baganator: inventory categories and search
+
+Baganator organizes inventory into categories or a unified view and supports detailed searches. CurseForge lists about 38.8 million downloads. [CurseForge description](https://www.curseforge.com/wow/addons/baganator), [Wago listing](https://addons.wago.io/addons/baganator/gallery?page=1).
+
+- **Fit:** turn Character status's bag-space summary into an inventory preparation view. Group quest items, consumables, crafting materials, and user-kept items; show quantities, search results, and changes since the previous snapshot.
+- **Data needed:** we currently export bag-slot totals, not item contents. Add item IDs, quantities, classification fields, and retained comparison snapshots before claiming to explain what is filling the bags. Keep item-use and selling decisions with the player.
+- **Compatibility:** both listings include Forever. Our own export fields and classifications would still need checking on the selected client.
+
+### 4. ALL THE THINGS: personal goals and missing requirements
+
+ALL THE THINGS tracks collections and completion, with filters and acquisition information. CurseForge lists about 60.8 million downloads. [CurseForge description](https://www.curseforge.com/wow/addons/all-the-things), [Wago versions](https://addons.wago.io/addons/allthethings/versions?page=1&stability=stable).
+
+- **Fit:** add a small personal wishlist shared by Journal, quest research, and gear research. Pin an item, mount, recipe, or quest reward, then show its source, prerequisites, current progress, and next useful step.
+- **Data needed:** start with user-selected goals and reviewed research. Automatic ownership or collection completion needs additional exports; the current snapshot cannot establish everything the character owns. Scope the first version to selected goals rather than a comprehensive catalog.
+- **Compatibility:** Forever is listed. Verify each goal and its requirements against the selected edition.
+
+### 5. SavedInstances: repeatable activity checklists
+
+SavedInstances tracks lockouts, daily and weekly completion, currencies, and profession cooldowns. CurseForge lists about 15.5 million downloads. [CurseForge description](https://www.curseforge.com/wow/addons/saved_instances).
+
+- **Fit:** add Today and This week lists to Journal, linked to Character status and Resume session. Track chosen activities, completion, reset or expiry, and when an activity becomes available again.
+- **Data needed:** a manual checklist with explicit repeat rules can come first. Automatic tracking needs lockout, completion, cooldown, and reset-time data that the companion does not currently export. Display the last checked time and distinguish manual completion from observed completion.
+- **Compatibility:** the inspected upstream listing is Retail-only. The checklist pattern can inform our UI; automatic Forever tracking needs separate API and reset-behavior validation.
+
+Prioritize the quest-chain view and gear comparisons as extensions of existing research workflows. Manual goals and repeatable checklists are smaller starting points for the Journal. Inventory analysis follows a richer bag export. These proposals borrow feature patterns; they do not include third-party addon code, databases, or executable imports.
+
+## Interface and workflow build order
 
 ### 1. Compact pinned advice
 
@@ -62,7 +108,7 @@ Acceptance: saved notes remain usable when a source conversation is unavailable;
 
 The intended flow is: **get advice → keep it visible → save what mattered → pick up next time**.
 
-## Further ideas
+## Further interface and workflow ideas
 
 These follow the first three upgrades. Their order should be reconsidered after trying those workflows.
 
