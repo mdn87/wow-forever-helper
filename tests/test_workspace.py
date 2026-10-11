@@ -11,6 +11,7 @@ import pytest
 from wow_helper.chat import ChatError, Message, Session
 from wow_helper.workspace import WindowManager
 from wow_helper.window_state import LayoutLock, MAX_WINDOWS, MIN_HEIGHT, MIN_WIDTH, window_bounds
+from wow_helper.activities import ActivityService, TYPES
 
 SESSIONS = [Session("codex", str(uuid.UUID(int=0)), "Synthetic planning", "ExampleProject", "idle"),
             Session("claude", str(uuid.UUID(int=1)), "Synthetic review", "ExampleProject", "idle")]
@@ -40,15 +41,35 @@ class Service:
         self.closed = True
 
 
+class SyntheticActivities(ActivityService):
+    def __init__(self, path):
+        super().__init__(path)
+        self.calls = []
+
+    def reports(self, steps, flavor):
+        from pathlib import Path
+        from wow_helper import character, quests
+        from wow_helper.savedvars import parse
+        self.calls.append((steps, flavor))
+        parsed = parse((Path(__file__).parent / "fixtures" / "savedvariables_quests.lua").read_text())
+        reports = {}
+        for kind in steps:
+            data = (quests.report(quests.load(parsed), 1000, flavor=flavor, now=1030) if kind == "quests"
+                    else character.report(parsed, 1000, flavor=flavor, now=1030))
+            reports[kind] = {"snapshot_at": 1000, "data": data,
+                             "text": quests.as_text(data) if kind == "quests" else character.as_text(data)}
+        return reports
+
+
 @pytest.fixture
 def manager_factory(tmp_path, desktop):
     tk, parent = desktop
     managers, views = [], []
 
-    def create(path=tmp_path / "windows.json", service=Service):
+    def create(path=tmp_path / "windows.json", service=Service, activity=None):
         root = tk.Toplevel(parent)
         root.withdraw()
-        manager = WindowManager(root, service_factory=service, layout_path=path)
+        manager = WindowManager(root, service_factory=service, activity_factory=activity, layout_path=path)
         managers.append(manager)
         root.update()
         for window in manager.windows:
@@ -735,3 +756,225 @@ def test_save_failure_does_not_expose_paths_or_stop_other_windows(manager_factor
     assert not manager.closed
     if previous:
         assert manager.layout_path.read_bytes() == previous
+
+
+def test_chooser_offers_all_five_working_types_at_minimum_size(manager_factory):
+    manager = manager_factory()
+    chooser = manager.new_window(manager.windows[0])
+    chooser.root.geometry(f"{MIN_WIDTH}x{MIN_HEIGHT}")
+    chooser.root.update()
+    assert set(chooser.type_buttons) == set(TYPES)
+    for button in chooser.type_buttons.values():
+        assert button.winfo_ismapped()
+        assert button.winfo_rooty() + button.winfo_height() < chooser.root.winfo_rooty() + MIN_HEIGHT
+    chooser.type_buttons["quests"].invoke()
+    settle(chooser.view)
+    assert chooser.kind == "quests" and chooser.view.book.index("current") == 0
+    assert chooser.view.service.sent == []
+
+
+@pytest.mark.parametrize("kind", ["quests", "character"])
+def test_report_windows_work_without_agent_and_do_not_repeat_preparation_on_restore(manager_factory, tmp_path, kind):
+    activity = SyntheticActivities(tmp_path)
+    manager = manager_factory(activity=lambda: activity)
+    window = manager.new_window(kind=kind)
+    settle(window.view)
+    assert activity.calls == []
+    window.view.report_button.invoke()
+    settle(window.view)
+    text = window.view.report_text.get("1.0", "end")
+    assert ("Synthetic" if kind == "quests" else "12g 34s 56c") in text
+    assert activity.calls == [([kind], "_classic_beta_")]
+    assert window.view.service.sent == []
+    manager.close()
+    restored = manager_factory(activity=lambda: activity)
+    assert restored.windows[1].kind == kind
+    assert activity.calls == [([kind], "_classic_beta_")]
+    assert restored.windows[1].view.service.sent == []
+
+
+def test_setup_preview_and_delivery_preserve_the_chat_draft_and_do_not_replay(manager_factory, tmp_path):
+    activity = SyntheticActivities(tmp_path)
+    manager = manager_factory(activity=lambda: activity)
+    window = manager.new_window(kind="quests")
+    settle(window.view)
+    choose(window, 0)
+    view = window.view
+    view.editor.insert("1.0", "Keep this unrelated draft")
+    view.show_setup()
+    dialog = view._setup_dialog
+    dialog.fields["opening"].delete("1.0", "end")
+    dialog.fields["opening"].insert("1.0", "Explain the first suggested quest.")
+    dialog.save()
+    assert view.service.sent == [] and activity.calls == []
+    view.prepare_request()
+    settle(view)
+    request = view._request_dialog
+    assert request is not None
+    assert "Explain the first suggested quest." in request.preview.get("1.0", "end")
+    assert view.service.sent == []
+    request.send()
+    request.send()  # a repeated callback cannot send the same prepared request twice
+    settle(view)
+    assert len(view.service.sent) == 1
+    assert view.service.sent[0][0] == SESSIONS[0].key
+    assert view.editor.get("1.0", "end-1c") == "Keep this unrelated draft"
+    packet = json.loads(next((tmp_path / "prepared").glob("*.json")).read_text())
+    assert packet["task"] == "Explain the first suggested quest."
+    assert packet["reports"]["quests"]["data"]["quest_count"] == 6
+    manager.close()
+    restored = manager_factory(activity=lambda: activity)
+    view = restored.windows[1].view
+    assert view.service.sent == []
+    assert len(activity.calls) == 1
+    assert view.profile["opening"] == packet["task"]
+    assert view.editor.get("1.0", "end-1c") == "Keep this unrelated draft"
+
+
+def test_prepared_request_cannot_silently_follow_a_changed_session(manager_factory, tmp_path):
+    manager = manager_factory(activity=lambda: SyntheticActivities(tmp_path))
+    window = manager.windows[0]
+    choose(window, 0)
+    window.view.prepare_request()
+    settle(window.view)
+    request = window.view._request_dialog
+    choose(window, 1)
+    request.send()
+    assert "session changed" in request.notice.get()
+    assert window.view.service.sent == []
+
+
+def test_saved_preset_reopens_setup_and_creates_a_window_without_session_data(manager_factory, tmp_path, monkeypatch):
+    from tkinter import filedialog, simpledialog
+    activity = SyntheticActivities(tmp_path)
+    manager = manager_factory(activity=lambda: activity)
+    window = manager.new_window(kind="quests")
+    settle(window.view)
+    choose(window, 0)
+    view = window.view
+    view.profile["instructions"] = "Synthetic saved instructions"
+    monkeypatch.setattr(simpledialog, "askstring", lambda *args, **kwargs: "Example preset")
+    view.save_preset()
+    path = next((tmp_path / "presets").glob("*.json"))
+    data = json.loads(path.read_text())
+    assert set(data) == {"version", "name", "kind", "profile"}
+    monkeypatch.setattr(filedialog, "askopenfilename", lambda **kwargs: str(path))
+    view.show_setup()
+    previous = view._setup_dialog
+    previous.fields["instructions"].insert("end", " Unsaved change")
+    view.load_preset()
+    assert view._setup_dialog is not previous
+    assert view._setup_dialog.fields["instructions"].get("1.0", "end-1c") == "Synthetic saved instructions"
+    chooser = manager.new_window(window)
+    chooser.open_preset()
+    settle(chooser.view)
+    assert chooser.kind == "quests" and chooser.view.profile == view.profile
+    assert chooser.view.selection_key is None
+    assert chooser.view.service.sent == [] and view.service.sent == [] and activity.calls == []
+
+
+def test_failed_preparation_does_not_send_and_setup_cancel_does_not_change_profile(manager_factory, tmp_path):
+    class Broken(SyntheticActivities):
+        def reports(self, *_):
+            raise ChatError("Synthetic snapshot unavailable")
+    manager = manager_factory(activity=lambda: Broken(tmp_path))
+    window = manager.new_window(kind="quests")
+    settle(window.view)
+    choose(window, 0)
+    before = dict(window.view.profile)
+    window.view.show_setup()
+    dialog = window.view._setup_dialog
+    dialog.fields["opening"].insert("end", " Should not save")
+    dialog.close()
+    assert window.view.profile == before
+    window.view.prepare_request()
+    settle(window.view)
+    assert window.view._request_dialog is None
+    assert "unavailable" in window.view.activity_notice.get()
+    assert window.view.service.sent == []
+
+
+def test_setup_tabs_keep_controls_visible_at_minimum_size(manager_factory):
+    window = manager_factory().windows[0]
+    window.view.show_setup()
+    dialog = window.view._setup_dialog
+    dialog.root.geometry("460x480")
+    for index in range(3):
+        dialog.book.select(index)
+        dialog.root.update()
+        assert dialog.save_button.winfo_ismapped()
+        assert dialog.save_button.winfo_rooty() + dialog.save_button.winfo_height() < dialog.root.winfo_rooty() + 480
+        if index:
+            key = "context_files" if index == 1 else "skill_files"
+            box = dialog.file_lists[key]
+            assert box.winfo_ismapped() and box.winfo_height() >= 20
+            for button in dialog.file_buttons[key]:
+                assert button.winfo_ismapped()
+                assert button.winfo_rooty() + button.winfo_height() < dialog.save_button.winfo_rooty()
+
+
+def test_journal_keeps_notes_and_unsent_note_across_restart_without_chat_retention(manager_factory):
+    manager = manager_factory()
+    window = manager.new_window(kind="journal")
+    settle(window.view)
+    window.remember.set(False)
+    window.view.note.insert("1.0", "Synthetic session goal")
+    window.view.note_button.invoke()
+    settle(window.view)
+    assert "Synthetic session goal" in window.view.report_text.get("1.0", "end")
+    assert window.view.note.get("1.0", "end-1c") == ""
+    window.view.note.insert("1.0", "Unfinished note")
+    key = window.view.journal_id
+    manager.close()
+    restored = manager_factory()
+    view = restored.windows[1].view
+    assert view.journal_id == key
+    assert "Synthetic session goal" in view.report_text.get("1.0", "end")
+    assert view.note.get("1.0", "end-1c") == "Unfinished note"
+    assert view.service.sent == []
+
+
+def test_journal_save_finishing_after_close_does_not_duplicate_the_note(manager_factory, tmp_path):
+    gate = threading.Event()
+    class Slow(ActivityService):
+        def add_note(self, *args):
+            assert gate.wait(5)
+            return super().add_note(*args)
+    manager = manager_factory(activity=lambda: Slow(tmp_path))
+    window = manager.new_window(kind="journal")
+    settle(window.view)
+    window.view.note.insert("1.0", "Save once, even across closing")
+    window.view.add_note()
+    try:
+        manager.close()
+    finally:
+        gate.set()
+        window.view.worker.shutdown(wait=True)
+    restored = manager_factory(activity=lambda: Slow(tmp_path))
+    view = restored.windows[1].view
+    assert view.note.get("1.0", "end-1c") == ""
+    assert len(view.activity.journal(view.journal_id)["entries"]) == 1
+    assert view.pending_note is None
+
+
+def test_screen_window_previews_a_managed_image_and_only_sends_after_review(manager_factory, tmp_path):
+    from PIL import Image
+    from wow_helper.screen_capture import import_image
+    manager = manager_factory()
+    window = manager.new_window(kind="screen")
+    settle(window.view)
+    source = tmp_path / "synthetic-scene.png"
+    Image.new("RGB", (640, 360), "#224466").save(source)
+    view = window.view
+    name = import_image(view.activity.storage, source)
+    view._image_result(name, None)
+    window.root.update()
+    assert view._preview_image is not None
+    assert view.service.sent == []
+    choose(window, 1)
+    view.prepare_request()
+    settle(view)
+    assert view._request_dialog.packet["image"].endswith(name)
+    view._request_dialog.send()
+    settle(view)
+    assert len(view.service.sent) == 1 and view.service.sent[0][0] == SESSIONS[1].key

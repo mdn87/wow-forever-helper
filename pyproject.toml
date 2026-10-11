@@ -11,7 +11,7 @@ license = "MIT"
 dependencies = []
 
 [project.optional-dependencies]
-chat = ["websocket-client>=1.8,<2"]
+chat = ["websocket-client>=1.8,<2", "Pillow>=11.2.1,<13"]
 
 [project.scripts]
 wow-helper = "wow_helper.__main__:main"
@@ -20,7 +20,7 @@ wow-helper = "wow_helper.__main__:main"
 include = ["wow_helper*"]
 
 [tool.setuptools.package-data]
-wow_helper = ["assets/*.png", "assets/*.ttf", "assets/*.txt", "assets/*.md"]
+wow_helper = ["assets/*.png", "assets/*.ttf", "assets/*.txt", "assets/*.md", "skills/*/SKILL.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
