@@ -69,7 +69,8 @@ def test_response_timer_updates_without_redrawing_or_disabling_chat(window, monk
     assert str(window.send_button["state"]) == "normal"
     shown, saves = [], []
     window.on_change = lambda: saves.append(True)
-    monkeypatch.setattr(window, "_show", lambda *_: shown.append(True))
+    # Restoring a bound method on the instance would retain the closed Tk view.
+    monkeypatch.setattr(type(window), "_show", lambda *_: shown.append(True))
     monkeypatch.setattr(response_wait.time, "time", lambda: 1075)
     window.auto_refresh = 0
     window._tick()
