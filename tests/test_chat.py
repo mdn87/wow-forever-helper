@@ -209,10 +209,12 @@ def test_cli_poll_does_not_print_transcript_or_machine_details(monkeypatch, caps
 def test_cli_chat_does_not_initialize_assistive_input(monkeypatch):
     from wow_helper import chat_window
     calls = []
-    monkeypatch.setattr(chat_window, "launch", lambda: calls.append("window"))
+    monkeypatch.setattr(chat_window, "launch", lambda **options: calls.append(options))
     monkeypatch.setattr(cli, "Assistant", lambda *_: pytest.fail("chat touched game input"))
     assert cli.main(["chat"]) == 0
-    assert calls == ["window"]
+    assert calls == [{"hotkey": "H"}]
+    assert cli.main(["chat", "--hotkey", "F10"]) == 0
+    assert calls[-1] == {"hotkey": "F10"}
 
 
 def test_codex_send_uses_native_argv_and_never_shell(monkeypatch):

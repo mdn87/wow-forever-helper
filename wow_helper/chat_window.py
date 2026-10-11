@@ -406,7 +406,12 @@ class ChatWindow:
         self.root.destroy()
 
 
-def launch():
+def launch(*, hotkey="H"):
+    from .window_access import WindowAccess, signal_existing
+    from .workspace import LAYOUT_PATH, WindowManager
+
+    if signal_existing(LAYOUT_PATH):
+        return
     try:
         import tkinter as tk
         root = tk.Tk()
@@ -414,13 +419,21 @@ def launch():
         raise ChatError("Chat needs Python with Tk and a graphical desktop.") from None
     except Exception:
         raise ChatError("The chat window could not open on this desktop.") from None
+    manager = access = None
     try:
-        from .workspace import WindowManager
-        WindowManager(root)
+        manager = WindowManager(root)
+        access = WindowAccess(LAYOUT_PATH, hotkey=hotkey)
+        manager.enable_reopening(access)
         root.mainloop()
     except ChatError:
         root.destroy()
+        # Another launch may have acquired the layout while this one opened Tk.
+        if manager is None and signal_existing(LAYOUT_PATH):
+            return
         raise
     except Exception:
         root.destroy()
         raise ChatError("The chat window could not run on this desktop.") from None
+    finally:
+        if access:
+            access.close()

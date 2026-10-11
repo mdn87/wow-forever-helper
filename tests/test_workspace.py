@@ -387,6 +387,98 @@ def test_window_menu_recovers_minimized_window(manager_factory):
     assert second.root.state() == "normal"
 
 
+class Access:
+    api = True
+    available = True
+    shortcut = "Ctrl+Alt+H"
+    pending = False
+    closed = False
+
+    def requested(self):
+        result, self.pending = self.pending, False
+        return result
+
+    def close(self):
+        self.closed = True
+
+
+def test_hide_and_reopen_keep_all_windows_sessions_and_drafts(manager_factory):
+    manager = manager_factory()
+    first = manager.windows[0]
+    second = new_chat(manager, first)
+    choose(first, 0)
+    choose(second, 1)
+    first.view.editor.insert("1.0", "Keep the first draft")
+    second.view.editor.insert("1.0", "Keep the second draft")
+    access = Access()
+    manager.enable_reopening(access)
+    first.root.update()
+    before = [window.snapshot() for window in manager.windows]
+    first.options_menu.invoke(first.hide_menu_index)
+    first.root.update()
+    assert not manager.closed
+    assert all(window.root.state() == "withdrawn" for window in manager.windows)
+    access.pending = True
+    manager._check_reopen()
+    first.root.update()
+    assert all(window.root.state() == "normal" for window in manager.windows)
+    assert [window.snapshot() for window in manager.windows] == before
+    assert all(window.view.service.sent == [] for window in manager.windows)
+    callback = manager._access_after
+    manager.close()
+    assert access.closed
+    assert callback not in first.root.tk.call("after", "info")
+
+
+def test_last_close_hides_with_shortcut_and_full_quit_preserves_restart(manager_factory):
+    manager = manager_factory()
+    access = Access()
+    manager.enable_reopening(access)
+    window = manager.windows[0]
+    window.view.editor.insert("1.0", "Do not lose this draft")
+    manager.close_window(window)
+    assert not manager.closed and not window.closed
+    assert window.root.state() == "withdrawn"
+    manager.show_all()
+    window.root.update()
+    assert window.view.editor.get("1.0", "end-1c") == "Do not lose this draft"
+    manager.close()
+    assert manager.closed and access.closed
+    restored = manager_factory()
+    assert restored.windows[0].view.editor.get("1.0", "end-1c") == "Do not lose this draft"
+
+
+def test_unavailable_shortcut_cannot_leave_last_window_hidden(manager_factory):
+    manager = manager_factory()
+    access = Access()
+    access.available = False
+    manager.enable_reopening(access)
+    window = manager.windows[0]
+    assert "unavailable" in window.notice.get()
+    assert window.options_menu.entrycget(window.hide_menu_index, "state") == "disabled"
+    manager.hide_all()
+    assert window.root.state() == "normal"
+    manager.close_window(window)
+    assert manager.closed and access.closed
+
+
+def test_failed_save_keeps_windows_visible_and_shortcut_registered(manager_factory, monkeypatch):
+    from wow_helper import workspace
+    manager = manager_factory()
+    access = Access()
+    manager.enable_reopening(access)
+    window = manager.windows[0]
+    def fail(*_):
+        raise OSError("Synthetic storage failure")
+    with monkeypatch.context() as patch:
+        patch.setattr(workspace, "write_json", fail)
+        manager.hide_all()
+        manager.close_window(window)
+        manager.close()
+        assert not manager.closed and not access.closed
+        assert window.root.state() == "normal"
+
+
 def test_negative_coordinates_and_removed_monitor_recovery():
     areas = [(0, 0, 1920, 1040), (-1440, -200, 0, 2300)]
     raw = {"width": 620, "height": 700, "x": -1200, "y": -100}
