@@ -5,16 +5,16 @@
   "assessmentState": "unassessed",
   "assessmentScope": "current-milestone",
   "percentComplete": null,
-  "milestonePhase": "build-and-validate",
-  "portfolioGroup": "personal",
+  "milestonePhase": "closeout",
+  "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T02:59:50.411Z",
+  "assessedAt": "2026-10-23T03:20:25.360Z",
   "confidence": "authoritative",
   "currentMilestone": "Linked journal and Resume session",
-  "remainingSummary": "Build linked notes, saved evidence, conversation navigation, explicit follow-up, and verification.",
-  "nextChipId": "linked-journal-resume",
+  "remainingSummary": "Linked journal delivered with synthetic checks. Compact pinned advice is the next planned feature. Fresh live-provider follow-up remains unverified.",
+  "nextChipId": null,
   "source": {
-    "label": "Repository planning session",
+    "label": "Linked journal implementation and Windows verification",
     "updatedAt": "2026-10-23"
   }
 }

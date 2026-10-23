@@ -204,7 +204,7 @@
       "projectId": "wow-forever-helper",
       "title": "Save linked advice and resume its conversation",
       "summary": "Save reviewed replies with their original evidence and next steps; reopen the source conversation and explicitly prepare follow-ups.",
-      "stage": "planned",
+      "stage": "done",
       "sequence": 6,
       "prereqs": [
         "chat-window-live-cli",
@@ -214,7 +214,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-23T02:59:50.411Z",
-        "updatedAt": "2026-10-23T02:59:50.411Z"
+        "updatedAt": "2026-10-23T03:20:25.360Z"
       },
       "evidence": [
         {
@@ -222,6 +222,18 @@
           "at": "2026-10-23T02:59:50.411Z",
           "kind": "created",
           "message": "Selected the first upgrade feature: preserve useful advice and return to its conversation without automatic requests."
+        },
+        {
+          "entryId": "linked-journal-active",
+          "at": "2026-10-23T03:00:17.771Z",
+          "kind": "stage-change",
+          "message": "Dias parsers accepted the planned board and status. Building storage compatibility, reply saving, resume navigation, and reviewed follow-up."
+        },
+        {
+          "entryId": "linked-journal-done",
+          "at": "2026-10-23T03:20:25.360Z",
+          "kind": "stage-change",
+          "message": "Linked notes, resume navigation, and reviewed follow-ups implemented. Windows: 315 passed, two existing skips; seven journal checks passed after a metadata fix."
         }
       ]
     }

@@ -37,12 +37,14 @@ def replace_text(widget, body):
 
 class TaskWindow(ChatWindow):
     def __init__(self, root, service, *, kind="chat", activity=None, window_id=None,
-                 service_factory=ChatService, **kwargs):
+                 service_factory=ChatService, resume_conversation=None, **kwargs):
         import tkinter as tk
         from tkinter import ttk
         state = kwargs.get("state")
         state = state if isinstance(state, dict) else {}
         self.kind = kind
+        self.resume_conversation = resume_conversation
+        self._resume_dialog = None
         self.activity = activity or ActivityService()
         self.profile = profile_settings(kind, state.get("profile"))
         raw = state.get("activity")
@@ -146,6 +148,7 @@ class TaskWindow(ChatWindow):
             name.bind("<KeyRelease>", lambda _: self.on_change())
             self._button(choices, "Open journal", self.open_journal)
             self._button(choices, "New", self.new_journal)
+            self._button(choices, "Resume session", self.resume_session)
             composer = tk.Frame(self.panel, bg=palette(self.root).PANEL, padx=8, pady=5)
             composer.pack(side="bottom", fill="x")
             self.note_button = ttk.Button(composer, text="Add note", command=self.add_note)
@@ -600,6 +603,23 @@ class TaskWindow(ChatWindow):
         else:
             self.status.set("There is no agent reply to copy yet.")
 
+    def save_to_journal(self):
+        active = self.active_quest_chat()
+        if active:
+            active.save_to_journal()
+        else:
+            super().save_to_journal()
+
+    def resume_session(self):
+        from .journal_ui import ResumeDialog
+        if self._resume_dialog:
+            self._resume_dialog.root.lift()
+            return
+        try:
+            self._resume_dialog = ResumeDialog(self)
+        except ChatError as error:
+            self.activity_notice.set(str(error))
+
     def capture(self):
         from .screen_capture import capture_game
         flavor = self.profile["flavor"]
@@ -767,7 +787,7 @@ class TaskWindow(ChatWindow):
             view.close()
         if hasattr(self, "quest_tree"):
             self.quest_tree.close()
-        for dialog in (self._setup_dialog, self._request_dialog):
+        for dialog in (self._setup_dialog, self._request_dialog, self._resume_dialog):
             if dialog is not None:
                 dialog.close()
         self._preview_image = None

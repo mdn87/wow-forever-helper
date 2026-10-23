@@ -104,11 +104,11 @@ def test_unicode_journal_cannot_save_beyond_its_readable_byte_limit(tmp_path):
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     before = path.read_bytes()
-    assert service.journal(key) == data
+    assert [{k: v for k, v in e.items() if k != "id"} for e in service.journal(key)["entries"]] == data["entries"]
     with pytest.raises(ChatError, match="journal is full"):
         service.add_note(key, "Example", "\U0001f3ae" * 4000)
     assert path.read_bytes() == before
-    assert service.journal(key) == data
+    assert [{k: v for k, v in e.items() if k != "id"} for e in service.journal(key)["entries"]] == data["entries"]
 
 
 def test_import_strips_metadata_and_preparation_uses_only_managed_images(tmp_path):

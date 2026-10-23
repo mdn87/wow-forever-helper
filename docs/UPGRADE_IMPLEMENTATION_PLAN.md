@@ -1,18 +1,18 @@
 # Companion upgrade implementation plan
 
-Status: planned; feature implementation has not started. Updated: 2026-10-11. Baseline: `c5fa294`.
+Status: F01 delivered; remaining features planned. Updated: 2026-10-22. Original baseline: `c5fa294`.
 
 This is the build sequence for the ideas in [Future upgrades](FUTURE_UPGRADES.md), incorporating the checked [Fable review](FUTURE_UPGRADES_REVIEW.md). It supersedes the competing priority lists in that research document. All ten addon ideas and the earlier interface ideas are retained. Current behavior remains documented in [Chat](CHAT.md), [Quests](QUESTS.md), and [Assistive input](ASSISTIVE_INPUT.md).
 
 The product outcome is a continuing conversation that can use selected game evidence, explain choices, remember what the player decided, and revisit the result. Each feature below must complete a useful part of that workflow. Addon inspiration does not imply a dependency on that addon or verified Forever compatibility.
 
-**Next feature: F01, Linked journal and Resume session.** Complete, verify, and land one feature before moving to the next. The numbered order is the default priority; the Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
+**Next feature: F02, Compact pinned advice.** F01 is implemented and verified as recorded below. Complete, verify, and land one feature before moving to the next. The numbered order is the default priority; the Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
 
 ## Build sequence
 
 | Order | Feature and first deliverable | Requires | Original idea | State |
 | --- | --- | --- | --- | --- |
-| [F01](#f01-linked-journal-and-resume-session) | Save advice with its conversation and evidence; resume from Journal. | Existing chat and Journal | Linked journal / Resume session | Next; not started |
+| [F01](#f01-linked-journal-and-resume-session) | Save advice with its conversation and evidence; resume from Journal. | Existing chat and Journal | Linked journal / Resume session | Delivered |
 | [F02](#f02-compact-pinned-advice) | Pin selected advice in a compact Play view. | F01 source references | Compact pinned advice / Play and Desk views | Queued |
 | [F03](#f03-saved-activity-layouts) | Save and restore named arrangements of companion windows. | Existing window manager | Saved activity layouts | Queued |
 | [F04](#f04-personal-goals-and-wishlist) | Track selected goals and their researched next steps. | F01 | Addon 4: ALL THE THINGS | Queued |
@@ -245,10 +245,10 @@ Before landing a feature:
 
 ## Delivery record
 
-The plan itself is complete; the feature checks above have not been executed.
+F01 is delivered. Later features have not started; checks below describe only the delivered scope.
 
 | Feature | Delivered scope / commit | Verification | Remaining work |
 | --- | --- | --- | --- |
-| F01 | Not started | None for this feature | Implement the five F01 batches. |
+| F01 | Versioned linked notes, frozen reply/evidence selection, manual Next time items, source-session navigation, and reviewed text follow-ups. See the feature commit recorded on the project board. | Windows: 315 passed, 2 existing skips; subsequent managed-quest metadata fix: 7 journal tests passed. Synthetic Classic/Modern dialogs inspected at 440 × 480, plus 18-point Save text. | Existing provider transport reused; no fresh live-provider round trip. Image references retained; follow-up is explicitly text-only. Real game evidence remains outside these synthetic checks. |
 
 Add one row as each feature begins; keep the build-sequence state in sync. A feature is complete only when its selected deliverable and acceptance checks are satisfied, with any broader integration limitation stated explicitly.

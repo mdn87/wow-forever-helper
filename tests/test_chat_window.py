@@ -59,6 +59,30 @@ def test_drafts_and_replies_stay_with_the_selected_session(window):
     assert "Synthetic Claude" not in window.transcript.get("1.0", "end")
 
 
+def test_saving_selected_unicode_excerpt_and_failed_save_keeps_review(window, tmp_path):
+    from wow_helper.activities import ActivityService
+    from wow_helper.chat import ChatError
+    window.activity = ActivityService(tmp_path)
+    choose(window, 0)
+    window._show([Message("emoji-answer", "assistant", "🎮 Advice " + "x" * 8000)])
+    start, end, message = window.reply_ranges[0]
+    assert window.transcript.get(start, end) == message.text
+    window.transcript.tag_add("sel", start, f"{start}+9c")
+    expected = window.transcript.get("sel.first", "sel.last")
+    window.save_to_journal()
+    dialog = window._journal_dialog
+    assert dialog.selection["text"] == expected
+    original = window.activity.add_note
+    def fail(*_, **__):
+        raise ChatError("Synthetic save failure; draft kept")
+    window.activity.add_note = fail
+    dialog.save()
+    assert window._journal_dialog is dialog and dialog.body.get("1.0", "end-1c") == expected
+    window.activity.add_note = original
+    dialog.save()
+    assert window.activity.journal(dialog.new_id)["entries"][0]["text"] == expected.strip()
+
+
 def test_response_timer_updates_without_redrawing_or_disabling_chat(window, monkeypatch):
     from wow_helper import response_wait
     choose(window, 0)
