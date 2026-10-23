@@ -5,16 +5,16 @@
   "assessmentState": "unassessed",
   "assessmentScope": "current-milestone",
   "percentComplete": null,
-  "milestonePhase": "build-and-validate",
+  "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T04:46:12.921Z",
+  "assessedAt": "2026-10-23T05:08:41.509Z",
   "confidence": "authoritative",
-  "currentMilestone": "Quest and resumable activity displays",
-  "remainingSummary": "Build two companion views, preserve workflow state, verify touch navigation and restart, and defer DBM.",
-  "nextChipId": "quest-and-activity-displays",
+  "currentMilestone": "Quest and resumable activity displays delivered",
+  "remainingSummary": "Two helper displays are delivered. Physical touch and coexistence over Dias remain unverified. DBM is deferred; native Dias integration is still proposed.",
+  "nextChipId": null,
   "source": {
-    "label": "Operator two-display direction",
+    "label": "Two-display implementation and CI verification",
     "updatedAt": "2026-10-23"
   }
 }
