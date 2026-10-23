@@ -56,6 +56,8 @@ The quest companion's parser, advice order, and CLI are tested against synthetic
 
 **Compact pinned advice** keeps a reviewed objective and next step in a small Play card. Pin a selected chat reply, saved Journal note, or quest step; Expand shows the saved advice and evidence, and Open source returns to its conversation without sending. Cards keep their content and separate Play/Desk sizes after restart. See [pinned advice](docs/CHAT.md#compact-pinned-advice).
 
+**Dungeon route walkthrough** reviews a chosen route image or readable notes, then keeps preparation and later run review in the same conversation. See [route discussion](docs/CHAT.md#dungeon-route-walkthrough); MDT string decoding remains unsupported.
+
 **Build tutor and experiments** imports a bounded Retail SimulationCraft profile or manual build notes, previews a discussion, and saves comparison questions with evidence in Journal. See [build tutoring](docs/CHAT.md#build-tutor-and-experiment-notebook).
 
 **Search companion** opens with **Ctrl+K** inside a companion window. Find saved notes and next steps, known quests and conversations, layouts, and settings without sending requests.

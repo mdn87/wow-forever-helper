@@ -182,6 +182,62 @@ def manager_factory(tmp_path, desktop):
     parent.update()
 
 
+@pytest.mark.parametrize('provider', ['codex', 'claude'])
+def test_route_preparation_and_review_reuse_conversation_after_restart(manager_factory, provider):
+    manager = manager_factory()
+    view = manager.windows[0].view
+    view._select_session(next(s for s in SESSIONS if s.provider == provider)); settle(view)
+    view.editor.insert('1.0', 'Keep route conversation draft')
+    view.show_route_notebook()
+    dialog = view._notebooks['route']
+    dialog.fields['dungeon'].set('Example dungeon'); dialog.fields['role'].set('Healer')
+    dialog.editors['route'].insert('1.0', '1. Example entrance\n2. Example hallway')
+    dialog.prepare(); dialog.send(); settle(view); dialog.save()
+    source = view.selection_key
+    assert len(view.service.sent) == 1 and not view.activity.calls
+    assert view.editor.get('1.0', 'end-1c') == 'Keep route conversation draft'
+    manager.close()
+    restored = manager_factory()
+    view = restored.windows[0].view
+    view.show_route_notebook(); dialog = view._notebooks['route']
+    assert not view.service.sent
+    dialog.fields['phase'].set('Review run')
+    dialog.editors['observations'].insert('1.0', 'Stopped before the second pull.')
+    view._select_session(next(s for s in SESSIONS if s.provider != provider)); settle(view)
+    dialog.prepare()
+    assert dialog.packet is None and 'original route conversation' in dialog.notice.get()
+    view._select_session(next(s for s in SESSIONS if s.provider == provider)); settle(view)
+    dialog.prepare(); dialog.send(); dialog.send(); settle(view); dialog.save()
+    assert len(view.service.sent) == 1 and view.service.sent[0][0] == source
+    entries = view.activity.journal(view.journal_id)['entries']
+    assert len(entries) == 2
+    assert 'Stopped before' in entries[1]['evidence']['text']
+
+
+def test_route_image_is_previewed_and_missing_saved_image_blocks_send(manager_factory, tmp_path, monkeypatch):
+    from PIL import Image
+    from tkinter import filedialog
+    manager = manager_factory()
+    view = manager.windows[0].view
+    view._select_session(SESSIONS[0]); settle(view)
+    view.show_route_notebook(); dialog = view._notebooks['route']
+    dialog.fields['dungeon'].set('Example dungeon'); dialog.fields['role'].set('Tank')
+    source = tmp_path / 'synthetic-route.png'; Image.new('RGB', (320, 160), 'blue').save(source)
+    monkeypatch.setattr(filedialog, 'askopenfilename', lambda **_: str(source))
+    dialog.open_image()
+    assert dialog.photo is not None and not view.service.sent
+    dialog.prepare(); dialog.save()
+    note = view.activity.journal(view.journal_id)['entries'][0]
+    assert note['evidence']['image'] == dialog.fields['image'].get()
+    assert str(source) not in note['evidence']['text']
+    from wow_helper.chat import ChatError
+    def missing(*_):
+        raise ChatError('The saved image is unavailable.')
+    monkeypatch.setattr('wow_helper.route_notebook.saved_image', missing)
+    dialog.send()
+    assert 'unavailable' in dialog.notice.get() and not view.service.sent
+
+
 def settle(view):
     deadline = time.monotonic() + 4
     while time.monotonic() < deadline:
