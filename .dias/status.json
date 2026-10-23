@@ -8,13 +8,13 @@
   "milestonePhase": "build-and-validate",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T03:39:36.700Z",
+  "assessedAt": "2026-10-23T03:50:04.570Z",
   "confidence": "authoritative",
-  "currentMilestone": "Compact pinned advice",
-  "remainingSummary": "Build and verify frozen advice cards, compact and expanded views, source navigation, and restart without automatic requests.",
-  "nextChipId": "compact-pinned-advice",
+  "currentMilestone": "Plan a WoW companion view for Dias",
+  "remainingSummary": "Define the display trial, quest data boundary, and healer and boss-timer feasibility checks; compact pinned advice is a separate workstream.",
+  "nextChipId": "plan-dias-wow-integration",
   "source": {
-    "label": "Upgrade plan and handoff review",
+    "label": "Operator integration planning request",
     "updatedAt": "2026-10-23"
   }
 }
