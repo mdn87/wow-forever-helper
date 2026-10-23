@@ -11,7 +11,7 @@
   "assessedAt": "2026-10-23T05:02:51.825Z",
   "confidence": "authoritative",
   "currentMilestone": "Search, build tutor, routes, and quest chains",
-  "remainingSummary": "Search is delivered. Build tutor, dungeon routes, and quest chains remain in the selected sequence. Dias integration remains separate.",
+  "remainingSummary": "Search delivered; build tutor, route walkthrough, and quest chains remain. Separate companion display work is recorded on the board.",
   "nextChipId": "build-tutor-notebook",
   "source": {
     "label": "Saved activity layouts verification and helper upgrade sequence",

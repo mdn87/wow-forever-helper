@@ -1,5 +1,21 @@
 # Interactive agent chat
 
+## Quest and activity displays
+
+Open **Settings → WoW companion displays…** and select two different connected screens: one for **Quest log**, the other for **Activity cards**. No monitor is selected automatically. Opening the pair again reuses its windows and current work; both count toward the eight-window limit. The helper draws these ordinary desktop windows above the selected screens. It does not change Dias's host or project board.
+
+The quest display reads the selected edition's SavedVariables only when you press **Read saved snapshot**. Its large rows show turn-ins, remaining objectives, and separately labelled pickups where supported. Tap a row for details. The original snapshot age stays visible and continues aging after restart. A failed read keeps the prior information; changing edition clears the displayed snapshot until you read that edition. The player must reload in WoW to write newer data. This view never connects to an agent or starts research.
+
+The activity display starts with four large cards: **Quest help**, **Gear check**, **Screen adviser**, and **Journal / Resume**. A card opens the existing workflow within that display. **Activity cards** returns to the grid without destroying the workflow or its in-flight work. **Resume** reopens the last activity; selecting another card switches to that activity's own saved state. Drafts, session selection, journal notes in progress, equipment choices, image references, report context, and the selected activity survive restart through the existing private window storage. Chat retention continues to follow **Remember draft and recent chat**. Explicitly closing a display removes that window from the current arrangement; use the return controls to keep it resumable.
+
+Opening cards, switching activities, and restoring windows send no request, capture no image, and deliver no game input. New Quest help cards have **Guide on expand** off; use the explicit research controls or deliberately enable that setting. Once expanded, workflows retain their existing controls, including their explicit Ask, Send, Capture, and research actions. Cached reports are restored with their original save time; Refresh reads a newer export.
+
+**Return to Dias** hides both display windows and saves their state. It leaves other helper windows and Dias running, and does not change game focus. Hidden displays stay hidden on restart. Reopen them through the setup menu or the existing companion reveal shortcut. If a selected monitor disappears, its window remains hidden until you select screens again rather than moving over the game screen. Saved activity layouts keep the display placement; they do not make extra copies of workflow drafts.
+
+DBM and live combat forecasting are deferred. Synthetic Windows checks cover persistence and navigation; live physical touch and topmost-window interaction with Dias still need verification. Tk interaction may take keyboard focus.
+
+## Chat windows
+
 Open floating companion windows connected to new or existing agent sessions. A new installation starts with one chat window. Each chat has its own session picker, conversation, composer, and connection. Choose a session, type a message, and press **Enter** or **Send ↵** beside the message box. **Shift+Enter** inserts a new line; **Ctrl+Enter** also sends. The compact toolbar holds **+ New**, the session picker, **Codex +**, **Claude +**, **↻** (refresh sessions), and the **⚙** menu. References to **Menu** below mean this cog button.
 
 **Codex +** and **Claude +** prepare a new conversation using that window's setup. Its first request starts the installed CLI in the background; later turns resume the same provider conversation. Sending with no session selected also creates a conversation, using Codex initially or the last provider chosen in that window. An unavailable saved session is never silently replaced. These conversations use the CLI's existing sign-in, read-only/advice permissions, and local transcripts. They do not open a console or require a separate Claude polling connection. Each turn has a ten-minute timeout and a 16 MB output limit; an interrupted turn is not automatically resent. Closing the UI allows an already dispatched turn to finish. An idle conversation has no continuously running CLI process.

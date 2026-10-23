@@ -35,6 +35,8 @@ def layout_record(window):
               "topmost": window.topmost.get(), "remember": window.remember.get()}
     if window.card:
         record.update(pin=window.pin, mode=window.mode, mode_bounds=window.mode_bounds)
+    elif window.kind in ("questlog", "activities"):
+        record["display_area"] = list(window.display_area) if window.display_area else None
     elif window.view:
         view = window.view
         activity = {}
@@ -57,7 +59,7 @@ def layout_record(window):
 
 def normalize_record(raw):
     try:
-        if not isinstance(raw, dict) or raw.get("kind") not in (*TYPES, "chooser", "play"):
+        if not isinstance(raw, dict) or raw.get("kind") not in (*TYPES, "chooser", "play", "questlog", "activities"):
             raise ValueError
         kind = raw["kind"]
         record = {"id": valid_id(raw["id"]), "kind": kind, "bounds": bounds(raw["bounds"])}
@@ -67,6 +69,13 @@ def normalize_record(raw):
         if type(raw.get("remember", True)) is not bool:
             raise ValueError
         record["remember"] = raw.get("remember", True)
+        if kind in ("questlog", "activities"):
+            area = raw.get("display_area")
+            if area is not None and (not isinstance(area, list) or len(area) != 4 or
+                                     any(type(v) is not int or abs(v) > 32_000 for v in area) or
+                                     area[2] <= area[0] or area[3] <= area[1]):
+                raise ValueError
+            record["display_area"] = area
         if kind == "play":
             if raw.get("mode") not in {"play", "desk"}:
                 raise ValueError
