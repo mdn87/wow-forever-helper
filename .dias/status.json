@@ -8,11 +8,11 @@
   "milestonePhase": "build-and-validate",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T03:50:04.570Z",
+  "assessedAt": "2026-10-23T03:53:57.155Z",
   "confidence": "authoritative",
-  "currentMilestone": "Plan a WoW companion view for Dias",
-  "remainingSummary": "Define the display trial, quest data boundary, and healer and boss-timer feasibility checks; compact pinned advice is a separate workstream.",
-  "nextChipId": "plan-dias-wow-integration",
+  "currentMilestone": "Dias integration plan recorded",
+  "remainingSummary": "Plan complete. Next integration step is a synthetic companion-display trial; compact pinned advice continues as a separate workstream.",
+  "nextChipId": "compact-pinned-advice",
   "source": {
     "label": "Operator integration planning request",
     "updatedAt": "2026-10-23"
