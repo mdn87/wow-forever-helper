@@ -80,9 +80,16 @@ def test_missing_monitor_stays_hidden_even_on_reveal(manager_factory, monkeypatc
     assert cards.root.state() == "withdrawn"
     manager.close()
     monkeypatch.setattr("wow_helper.workspace.display_workareas", lambda _: [(0, 0, 1280, 800)])
+    mapped = []
+    original = manager.tk.Toplevel.deiconify
+    def observe(window):
+        mapped.append(window.title())
+        return original(window)
+    monkeypatch.setattr(manager.tk.Toplevel, "deiconify", observe)
     restored = manager_factory()
     cards = next(w for w in restored.windows if w.kind == "activities")
     assert cards.root.state() == "withdrawn"
+    assert not any("Activity cards" in title for title in mapped)
     restored.reveal(cards)
     assert cards.root.state() == "withdrawn"
 

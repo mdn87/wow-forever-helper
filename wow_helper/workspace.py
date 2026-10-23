@@ -102,12 +102,12 @@ class CompanionWindow:
         else:
             self.kind = "chooser"
             self.show_chooser()
-        self.root.deiconify()
+        hidden = self.display and (record.get("display_hidden") or
+                                  self.display_area is not None and self.display_area not in manager.areas)
+        if not hidden:
+            self.root.deiconify()
         self.chrome.apply_native()
         self.opacity = WindowOpacity(self.root, lambda: manager.display_settings)
-        if self.display and (record.get("display_hidden") or
-                             self.display_area is not None and self.display_area not in manager.areas):
-            self.root.withdraw()
 
     @property
     def minimum(self):
@@ -388,12 +388,13 @@ class WindowManager:
 
     def return_to_dias(self):
         displays = [w for w in self.windows if w.display]
+        visible = [w for w in displays if w.root.state() != "withdrawn"]
         if not self.can_reopen and not any(w not in displays for w in self.windows):
             self.new_window()
         for window in displays:
             window.root.withdraw()
         if not self.save_layout():
-            for window in displays:
+            for window in visible:
                 window.root.deiconify()
 
     def _check_display_connections(self):
