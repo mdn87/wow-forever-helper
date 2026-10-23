@@ -10,9 +10,9 @@
   "displayPriority": 100,
   "assessedAt": "2026-10-23T05:02:51.825Z",
   "confidence": "authoritative",
-  "currentMilestone": "Dungeon route walkthrough",
-  "remainingSummary": "Search and build notebook delivered. Route walkthrough and selected quest-chain research remain.",
-  "nextChipId": "dungeon-route-walkthrough",
+  "currentMilestone": "Quest chains and prerequisites",
+  "remainingSummary": "Search, build notebook, and manual route walkthrough delivered. Selected quest-chain research remains.",
+  "nextChipId": "quest-chains-prerequisites",
   "source": {
     "label": "Saved activity layouts verification and helper upgrade sequence",
     "updatedAt": "2026-10-23"

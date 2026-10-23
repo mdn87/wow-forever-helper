@@ -273,3 +273,16 @@ The SimulationCraft reader accepts one static **Retail** profile: a class header
 **Save note** keeps the comparison question, reviewed evidence, original conversation reference when available, and a Next time item in Journal. Saving works offline and is repeat-safe for the same review. Use Journal's **Resume session** or Ctrl+K to return to that conversation without sending. Form drafts restore when **Remember draft and recent chat** is enabled; explicit Journal saves remain durable independently. Imports are editable before review so unnecessary details can be removed. Reopening performs no import, report refresh, or request.
 
 Validation used synthetic profiles and fake Codex/Claude delivery, plus hidden-desktop checks in both themes at 440 by 480. No live SimulationCraft engine, game build, or provider conversation was verified for this feature.
+
+
+## Dungeon route walkthrough
+
+Open **Dungeon route walkthrough…** in a chat or activity menu. Enter the dungeon, edition, role, and question. Add readable route notes or explicitly open/paste an image, then declare the route's edition. The image preview shows the whole image scaled to fit; imported images are copied into private companion storage without metadata. Remove any unwanted details before importing. Nothing captures the game or reads the clipboard automatically.
+
+**Prepare review** freezes the text and chosen image reference for an explicit **Send**. Notes support up to 24,000 UTF-8 bytes and 300 lines; numbered pulls are counted, and absent pull order is labeled unknown. An edition declaration that conflicts with the chosen edition is refused. Encoded MDT strings and serialized exports are unsupported, including unknown versions; no decoder or addon map database is bundled. Image imports use the existing 64 MB and 40 megapixel limits.
+
+After preparation, choose **Review run** and describe what actually happened in the Run review tab. Preparing a later review requires the original conversation when a source was saved. The window restores that source reference and draft without sending; if its selection changed, select the original conversation or use Journal's **Resume session**. A new preparation can explicitly start a separate discussion. Expected mechanics remain separate from observed outcomes, and additional mechanic claims require edition-specific sources. Missing pulls or unavailable sources must be called out rather than invented.
+
+**Save note** stores the question, frozen route evidence, optional local image reference, and original conversation in Journal. Text remains readable if an image disappears, but Send refuses a missing selected image. Reopening a saved note or window never dispatches a request. Form retention follows the same control as the build notebook; saved Journal notes remain independent.
+
+Synthetic checks cover both provider selections, preparation-to-review continuity across restart, changed destinations, missing images, oversized input, unsupported exports, edition mismatch, and explicit sends. Both themes were inspected at 440 by 480. This delivers manual image/text discussion, including Forever beta discussion with explicit uncertainty. MDT decoding, real dungeon mechanics, live position, and route execution are not verified or implemented.

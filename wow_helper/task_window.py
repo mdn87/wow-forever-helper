@@ -97,6 +97,7 @@ class TaskWindow(ChatWindow):
         self.actions_menu.add_command(label="Save window preset…", command=self.save_preset)
         self.actions_menu.add_command(label="Load window preset…", command=self.load_preset)
         self.actions_menu.add_command(label="Build tutor and experiments…", command=self.show_build_tutor)
+        self.actions_menu.add_command(label="Dungeon route walkthrough…", command=self.show_route_notebook)
         if self.book is not None:
             self._build_panel(raw)
             if kind == "quests":
@@ -825,6 +826,13 @@ class TaskWindow(ChatWindow):
             self._notebooks['build'].root.lift()
         else:
             self._notebooks['build'] = DiscussionNotebook(self)
+
+    def show_route_notebook(self):
+        from .route_notebook import RouteNotebook
+        if 'route' in self._notebooks:
+            self._notebooks['route'].root.lift()
+        else:
+            self._notebooks['route'] = RouteNotebook(self)
 
     def close(self):
         self._view_ready = False

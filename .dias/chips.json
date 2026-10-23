@@ -450,7 +450,7 @@
       "projectId": "wow-forever-helper",
       "title": "Prepare and review dungeon routes",
       "summary": "Discuss a selected route image or text with dungeon, edition, and role, then return to the same conversation.",
-      "stage": "planned",
+      "stage": "done",
       "sequence": 12,
       "prereqs": [
         "linked-journal-resume"
@@ -459,7 +459,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-23T04:49:16.298Z",
-        "updatedAt": "2026-10-23T04:49:16.298Z"
+        "updatedAt": "2026-10-23T05:29:50+00:00"
       },
       "evidence": [
         {
@@ -467,6 +467,18 @@
           "at": "2026-10-23T04:49:16.298Z",
           "kind": "created",
           "message": "Operator selected this feature for implementation, in the order search, build tutor, dungeon routes, and quest chains."
+        },
+        {
+          "entryId": "route-walkthrough-active",
+          "at": "2026-10-23T05:24:21+00:00",
+          "kind": "stage-change",
+          "message": "Building reviewed image and text route discussions with preparation and later run review in one conversation. MDT decoding remains unsupported."
+        },
+        {
+          "entryId": "route-walkthrough-done",
+          "at": "2026-10-23T05:29:50+00:00",
+          "kind": "stage-change",
+          "message": "Manual route image and text discussion delivered with linked preparation and run review. Windows: 391 passed, 2 skips; both themes checked. MDT decoder unsupported."
         }
       ]
     },
