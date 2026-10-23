@@ -15,13 +15,13 @@
       "linkedRunIds": [],
       "confidence": "authoritative",
       "timestamps": {
-        "createdAt": "2026-10-07T02:55:58.77Z",
+        "createdAt": "2026-10-07T02:55:58.770Z",
         "updatedAt": "2026-10-07T03:01:54.681Z"
       },
       "evidence": [
         {
           "entryId": "snapshot-edition-created",
-          "at": "2026-10-07T02:55:58.77Z",
+          "at": "2026-10-07T02:55:58.770Z",
           "kind": "created",
           "message": "Repository review found that reports always select the newest snapshot across game editions. The board has no prior steps."
         },
@@ -65,37 +65,37 @@
       "linkedRunIds": [],
       "confidence": "authoritative",
       "timestamps": {
-        "createdAt": "2026-10-10T16:23:57Z",
-        "updatedAt": "2026-10-10T20:20:25Z"
+        "createdAt": "2026-10-10T16:23:57.000Z",
+        "updatedAt": "2026-10-10T20:20:25.000Z"
       },
       "evidence": [
         {
           "entryId": "snapshot-check-created",
-          "at": "2026-10-10T16:23:57Z",
+          "at": "2026-10-10T16:23:57.000Z",
           "kind": "created",
           "message": "Repository review: live verification is next but needs the operator in game. This builds the tool that turns that reload into a checklist result."
         },
         {
           "entryId": "snapshot-check-active",
-          "at": "2026-10-10T16:24:33Z",
+          "at": "2026-10-10T16:24:33.000Z",
           "kind": "stage-change",
           "message": "Board and status passed Dias validation. Implementing the check command, addon client info, synthetic tests, and docs."
         },
         {
           "entryId": "snapshot-check-done",
-          "at": "2026-10-10T16:29:39Z",
+          "at": "2026-10-10T16:29:39.000Z",
           "kind": "stage-change",
           "message": "check-snapshot command, addon 0.4.0 client info, and docs shipped as commit bf62989. 119 tests passed on Windows with synthetic fixtures; leak check clean; pushed to main."
         },
         {
           "entryId": "snapshot-check-handoff",
-          "at": "2026-10-10T16:29:39Z",
+          "at": "2026-10-10T16:29:39.000Z",
           "kind": "note",
           "message": "Next: the operator installs the addon, reloads once in game, and runs check-snapshot. Its output decides the .toc fix and whether Forever lists quests to pick up."
         },
         {
           "entryId": "snapshot-check-live-beta",
-          "at": "2026-10-10T20:20:25Z",
+          "at": "2026-10-10T20:20:25.000Z",
           "kind": "note",
           "message": "Live beta: addon 0.4.0 on client 1.60.1 (interface 16001) passed all 13 snapshot checks; quest and character reports ran clean. Quest coverage unverified; no real data committed."
         }
@@ -116,13 +116,13 @@
       "linkedRunIds": [],
       "confidence": "authoritative",
       "timestamps": {
-        "createdAt": "2026-10-10T16:30:41Z",
+        "createdAt": "2026-10-10T16:30:41.000Z",
         "updatedAt": "2026-10-10T19:42:51.884Z"
       },
       "evidence": [
         {
           "entryId": "chat-window-created",
-          "at": "2026-10-10T16:30:41Z",
+          "at": "2026-10-10T16:30:41.000Z",
           "kind": "created",
           "message": "Operator request on 2026-10-10: make this the first planned feature. Open before work starts: which CLI session it attaches to and how it is discovered."
         },
@@ -231,7 +231,7 @@
         },
         {
           "entryId": "linked-journal-done",
-          "at": "2026-10-23T03:20:25.36Z",
+          "at": "2026-10-23T03:20:25.360Z",
           "kind": "stage-change",
           "message": "Linked notes, resume navigation, and reviewed follow-ups implemented. Windows: 315 passed, two existing skips; seven journal checks passed after a metadata fix."
         },
@@ -258,13 +258,13 @@
       "linkedRunIds": [],
       "confidence": "authoritative",
       "timestamps": {
-        "createdAt": "2026-10-23T03:39:36.7Z",
-        "updatedAt": "2026-10-23T03:39:36.7Z"
+        "createdAt": "2026-10-23T03:39:36.700Z",
+        "updatedAt": "2026-10-23T03:39:36.700Z"
       },
       "evidence": [
         {
           "entryId": "compact-pinned-created",
-          "at": "2026-10-23T03:39:36.7Z",
+          "at": "2026-10-23T03:39:36.700Z",
           "kind": "created",
           "message": "The upgrade plan and handoff select compact pinned advice next, using saved source links to keep the next step visible while playing."
         }
