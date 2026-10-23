@@ -249,6 +249,6 @@ F01 is delivered. Later features have not started; checks below describe only th
 
 | Feature | Delivered scope / commit | Verification | Remaining work |
 | --- | --- | --- | --- |
-| F01 | Versioned linked notes, frozen reply/evidence selection, manual Next time items, source-session navigation, and reviewed text follow-ups. See the feature commit recorded on the project board. | Windows: 315 passed, 2 existing skips; subsequent managed-quest metadata fix: 7 journal tests passed. Synthetic Classic/Modern dialogs inspected at 440 × 480, plus 18-point Save text. | Existing provider transport reused; no fresh live-provider round trip. Image references retained; follow-up is explicitly text-only. Real game evidence remains outside these synthetic checks. |
+| F01 | Versioned linked notes, frozen reply/evidence selection, manual Next time items, source-session navigation, and reviewed text follow-ups. Feature commit `75d8570`, merged in PR #16. | Windows: 315 passed, 2 existing skips; subsequent managed-quest metadata fix: 7 journal tests passed. Synthetic Classic/Modern dialogs inspected at 440 × 480, plus 18-point Save text. | Existing provider transport reused; no fresh live-provider round trip. Image references retained; follow-up is explicitly text-only. Real game evidence remains outside these synthetic checks. |
 
 Add one row as each feature begins; keep the build-sequence state in sync. A feature is complete only when its selected deliverable and acceptance checks are satisfied, with any broader integration limitation stated explicitly.
