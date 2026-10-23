@@ -327,6 +327,33 @@
           "message": "Integration proposal completed with quest display, local data contract, touch handoff checks, healer preparation, and DBM feasibility gates. No integration implemented."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "saved-activity-layouts",
+      "projectId": "wow-forever-helper",
+      "title": "Save and restore named activity layouts",
+      "summary": "Save arrangements such as Leveling and Review, restore compatible windows, and keep current conversations and drafts safe.",
+      "stage": "planned",
+      "sequence": 9,
+      "prereqs": [
+        "persistent-companion-windows",
+        "compact-pinned-advice"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-23T04:20:12.328Z",
+        "updatedAt": "2026-10-23T04:20:12.328Z"
+      },
+      "evidence": [
+        {
+          "entryId": "saved-layouts-created",
+          "at": "2026-10-23T04:20:12.328Z",
+          "kind": "created",
+          "message": "Continue the helper upgrade sequence with named layouts, leaving the separate Dias integration workstream intact."
+        }
+      ]
     }
   ]
 }
