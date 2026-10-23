@@ -238,6 +238,118 @@ def test_route_image_is_previewed_and_missing_saved_image_blocks_send(manager_fa
     assert 'unavailable' in dialog.notice.get() and not view.service.sent
 
 
+@pytest.mark.parametrize('provider', ['codex', 'claude'])
+def test_chain_research_review_and_snapshot_update_are_explicit(manager_factory, provider):
+    from copy import deepcopy
+    from test_guidance import Agents
+    from test_quest_chain import CHAIN
+    manager = manager_factory(service=CreatingService)
+    view = manager.new_window(kind='quests').view
+    settle(view)
+    view.default_provider = provider
+    view._guidance.agents = Agents()
+    key = next(iter(view.quest_tree.quests))
+    view.quest_tree.tree.focus(key); view.quest_tree.tree.selection_set(key)
+    view.show_quest_chain(); dialog = view._chain_dialog
+    dialog.provider.set(provider)
+    assert not view._guidance.agents.calls and not view.quest_chats
+    dialog.research(); settle(view)
+    session, request, *_ = view._guidance.agents.calls[0]
+    raw = deepcopy(CHAIN); raw['nodes'][1]['id'] = dialog.quest['id']
+    view._guidance.agents.results[session, request] = {'status': 'completed', 'structured': raw}
+    dialog.poll(); settle(view)
+    assert dialog.record['status'] == 'completed'
+    dialog.prepare(); target = dialog.target; settle(target)
+    assert not target.service.sent and not target.service.created
+    assert 'chain' not in target.context
+    target.editor.insert('1.0', 'Keep quest draft')
+    dialog.send(); dialog.send(); settle(target)
+    assert len(target.service.sent) == 1
+    assert target.selected.provider == provider
+    assert target.editor.get('1.0', 'end-1c') == 'Keep quest draft'
+    assert target.context['chain']['chain']['nodes']
+    saved = deepcopy(target.context)
+    dialog.refresh_snapshot(); settle(view)
+    assert target.context == saved and dialog.packet is None
+    dialog.prepare()
+    assert dialog.target is target and target.context == saved
+    assert 'stale' in dialog.review.get('1.0', 'end-1c')
+    dialog.send(); settle(target)
+    assert len(target.service.sent) == 2
+    assert manager.save_layout()
+    manager.close()
+    restored = manager_factory(service=CreatingService)
+    loaded = restored.windows[1].view
+    child = next(iter(loaded.quest_chats.values())); settle(child)
+    assert child.context['chain']['chain']['nodes']
+    assert not child.service.sent and not child.service.created
+    assert loaded.chain_keys
+
+
+def test_chain_failure_retry_and_closed_target_preserve_draft(manager_factory):
+    from test_guidance import Agents
+    from test_quest_chain import CHAIN
+    manager = manager_factory(service=CreatingService)
+    view = manager.new_window(kind='quests').view; settle(view)
+    view._guidance.agents = Agents()
+    key = next(iter(view.quest_tree.quests)); view.quest_tree.tree.focus(key)
+    view.show_quest_chain(); dialog = view._chain_dialog
+    dialog.research(); settle(view)
+    session, request, *_ = view._guidance.agents.calls[0]
+    view._guidance.agents.results[session, request] = {'status': 'failed', 'error': 'Synthetic research unavailable'}
+    dialog.poll(); settle(view); dialog.prepare()
+    assert dialog.record['status'] == 'failed' and dialog.packet is None
+    dialog.poll(); settle(view)
+    assert len(view._guidance.agents.calls) == 1
+    dialog.research(True); settle(view)
+    session, request, *_ = view._guidance.agents.calls[1]
+    view._guidance.agents.results[session, request] = {'status': 'completed', 'structured': CHAIN}
+    dialog.poll(); settle(view); dialog.prepare(); settle(dialog.target)
+    target = dialog.target
+    tab_id = next(k for k, v in view.quest_chats.items() if v is target)
+    view.close_quest_chat(tab_id)
+    dialog.send()
+    assert 'closed' in dialog.notice.get() and not target.service.sent
+
+
+def test_search_opens_new_discussion_dialogs_without_requests(manager_factory):
+    manager = manager_factory()
+    window = manager.windows[0]
+    for action in ('build', 'route'):
+        manager.show_search(window)
+        dialog = manager._search_dialog
+        result = next(r for r in dialog.rows if r['kind'] == 'command' and r['target'] == action)
+        dialog.open_result(result)
+        assert action in window.view._notebooks
+        assert not window.view.service.sent and not window.view.activity.calls
+    manager.show_search(window)
+    dialog = manager._search_dialog
+    with pytest.raises(ChatError, match='Select a quest'):
+        dialog.open_result(next(r for r in dialog.rows if r['kind'] == 'command' and r['target'] == 'chain'))
+    assert window.view._chain_dialog is None
+
+
+def test_search_navigates_loaded_activity_quests_and_new_dialogs(manager_factory, monkeypatch):
+    from test_wow_displays import pair
+    manager = manager_factory()
+    _, window = pair(manager, monkeypatch)
+    view = window.display.open_activity('quests'); settle(view)
+    view.refresh_panel(); settle(view)
+    calls = len(view.activity.calls)
+    window.display.show_cards()
+    manager.show_search(window)
+    dialog = manager._search_dialog
+    row = next(r for r in dialog.rows if r['kind'] == 'quest')
+    dialog.open_result(row)
+    assert window.display.active == 'quests'
+    assert view.quest_tree.selected() == row['target'][1]
+    manager.show_search(window)
+    dialog = manager._search_dialog
+    dialog.open_result(next(r for r in dialog.rows if r['kind'] == 'command' and r['target'] == 'chain'))
+    assert view._chain_dialog is not None
+    assert len(view.activity.calls) == calls and not view.service.sent
+
+
 def settle(view):
     deadline = time.monotonic() + 4
     while time.monotonic() < deadline:

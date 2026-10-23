@@ -10,6 +10,10 @@ from .journal_ui import note_summary
 
 MAX_RESULTS = 1000
 MAX_INDEX_BYTES = 8_000_000
+SETTINGS_ACTIONS = (("interface", "Interface and transparency"), ("layouts", "Activity layouts"),
+                    ("appearance", "Chat appearance"), ("setup", "Window setup"),
+                    ("build", "Build tutor and experiments"), ("route", "Dungeon route walkthrough"),
+                    ("chain", "Selected quest chain and prerequisites"))
 
 
 def folded(text):
@@ -25,7 +29,7 @@ def search_index(manager):
     rows, notices, sessions = [], [], set()
 
     def add(kind, title, detail, target, body=""):
-        if kind != "command" and len(rows) >= MAX_RESULTS - len(TYPES) - 4:
+        if kind != "command" and len(rows) >= MAX_RESULTS - len(TYPES) - len(SETTINGS_ACTIONS):
             notices.append("Search reached its result limit; some records are omitted.")
             return
         rows.append({"kind": kind, "title": title, "detail": detail, "target": target,
@@ -35,21 +39,20 @@ def search_index(manager):
         add("window", window.caption, f"Open window {window.number}", window.id)
         if window.card:
             add("window", window.pin["objective"], "Pinned advice", window.id, window.pin["text"])
-        view = window.view
-        if not view:
-            continue
-        for chat in [view, *view.quest_chats.values()]:
-            known = [(s.key, s.title, s.project) for s in chat.sessions]
-            if chat.selection_key:
-                known.append((chat.selection_key, chat.session_title or "Saved conversation", "Saved reference"))
-            for key, title, project in known[:500]:
-                if key not in sessions:
-                    sessions.add(key)
-                    add("session", title, f"{key[0].title()} · {key[1][:8]} · {project}", key)
-        if window.kind == "quests":
-            for key, quest in list(view.quest_tree.quests.items())[:200]:
-                add("quest", quest["title"], f"{view.quest_tree.edition} · {quest.get('zone', '')} · Window {window.number}",
-                    (window.id, key), "\n".join([quest.get("action", ""), *quest.get("remaining", [])]))
+        views = [window.view] if window.view else list(getattr(window.display, "views", {}).values())
+        for view in views:
+            for chat in [view, *view.quest_chats.values()]:
+                known = [(s.key, s.title, s.project) for s in chat.sessions]
+                if chat.selection_key:
+                    known.append((chat.selection_key, chat.session_title or "Saved conversation", "Saved reference"))
+                for key, title, project in known[:500]:
+                    if key not in sessions:
+                        sessions.add(key)
+                        add("session", title, f"{key[0].title()} · {key[1][:8]} · {project}", key)
+            if view.kind == "quests":
+                for key, quest in list(view.quest_tree.quests.items())[:200]:
+                    add("quest", quest["title"], f"{view.quest_tree.edition} · {quest.get('zone', '')} · Window {window.number}",
+                        (window.id, key, view.kind) if window.display else (window.id, key), "\n".join([quest.get("action", ""), *quest.get("remaining", [])]))
     storage = manager.activity_factory().storage
     journal = JournalService(storage)
     directory = storage / "journals"
@@ -87,8 +90,7 @@ def search_index(manager):
         notices.append("Saved layouts could not be indexed; the file is kept.")
     for kind, (title, _) in TYPES.items():
         add("command", "Open " + title, "New companion window; no opening request", kind)
-    for action, title in (("interface", "Interface and transparency"), ("layouts", "Activity layouts"),
-                          ("appearance", "Chat appearance"), ("setup", "Window setup")):
+    for action, title in SETTINGS_ACTIONS:
         add("command", title, "Companion settings", action)
     return rows[:MAX_RESULTS], list(dict.fromkeys(notices))
 
@@ -227,10 +229,15 @@ class SearchDialog:
             if window is None:
                 raise ChatError("That window is closed. Refresh the index.")
             if kind == "quest":
-                tree = window.view.quest_tree
+                view = window.view
+                if len(target) > 2:
+                    if target[2] not in getattr(window.display, "views", {}):
+                        raise ChatError("That activity is closed. Refresh the index.")
+                    view = window.display.open_activity(target[2])
+                tree = view.quest_tree
                 if target[1] not in tree.quests:
                     raise ChatError("That quest changed with the snapshot. Refresh the index.")
-                window.view.book.select(window.view.panel)
+                view.book.select(view.panel)
                 tree.tree.selection_set(target[1]); tree.tree.focus(target[1]); tree.tree.see(target[1])
             manager.reveal(window)
         elif kind == "layout":
@@ -239,14 +246,20 @@ class SearchDialog:
             manager._layouts_dialog.selected.set(target)
             manager._layouts_dialog.preview()
         elif kind == "command":
+            view = self.window.view or getattr(self.window.display, "views", {}).get(getattr(self.window.display, "active", None))
             if target in TYPES:
                 manager.open_search_window(target)
             elif target == "interface":
                 manager.show_interface(self.window)
             elif target == "layouts":
                 manager.show_activity_layouts(self.window)
-            elif target in {"appearance", "setup"} and self.window.view:
-                (self.window.view.show_appearance if target == "appearance" else self.window.view.show_setup)()
+            elif target in {"appearance", "setup"} and view:
+                (view.show_appearance if target == "appearance" else view.show_setup)()
+            elif target in {"build", "route", "chain"} and view:
+                if target == "chain" and (view.kind != "quests" or view.quest_tree.selected() is None):
+                    raise ChatError("Select a quest in a Quest guide window before opening its chain.")
+                {"build": view.show_build_tutor, "route": view.show_route_notebook,
+                 "chain": view.show_quest_chain}[target]()
             else:
                 raise ChatError("Open a chat or activity window to use that setting.")
         else:
