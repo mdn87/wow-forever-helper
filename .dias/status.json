@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T03:56:16.929Z",
+  "assessedAt": "2026-10-23T03:58:26.176Z",
   "confidence": "authoritative",
-  "currentMilestone": "Compact pinned advice",
-  "remainingSummary": "Compact pinned advice is delivered with synthetic Windows checks. Saved activity layouts are the next candidate; live game behavior remains unverified.",
+  "currentMilestone": "Pinned advice delivered; Dias integration planned",
+  "remainingSummary": "Pinned advice delivered. Dias integration next needs a synthetic companion-display trial; saved activity layouts remain next in the helper upgrade sequence.",
   "nextChipId": null,
   "source": {
-    "label": "Pinned advice implementation and Windows verification",
+    "label": "Pinned advice verification and merged Dias integration plan",
     "updatedAt": "2026-10-23"
   }
 }

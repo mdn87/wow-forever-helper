@@ -281,6 +281,46 @@
           "message": "Feature 809774d: frozen cards, source links, and separate Play and Desk sizes. Windows: 324 passed, two existing skips; both themes visually checked."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "plan-dias-wow-integration",
+      "projectId": "wow-forever-helper",
+      "title": "Plan a WoW companion view for Dias",
+      "summary": "Define a quest board and temporary companion display mode, then separate healer preparation from unproven live boss forecasts.",
+      "stage": "done",
+      "sequence": 8,
+      "prereqs": [
+        "snapshot-check-report",
+        "persistent-companion-windows",
+        "linked-journal-resume"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-23T03:50:04.57Z",
+        "updatedAt": "2026-10-23T03:53:57.155Z"
+      },
+      "evidence": [
+        {
+          "at": "2026-10-23T03:50:04.57Z",
+          "kind": "created",
+          "entryId": "dias-wow-plan-created",
+          "message": "Operator requested an integration plan covering quest summaries, helpful tips, healer support, boss timers, and a temporary Dias overlay."
+        },
+        {
+          "entryId": "dias-wow-plan-active",
+          "at": "2026-10-23T03:50:29.282Z",
+          "kind": "stage-change",
+          "message": "Dias parsers accepted the board and status. Writing the integration design; implementation remains a future step."
+        },
+        {
+          "entryId": "dias-wow-plan-done",
+          "at": "2026-10-23T03:53:57.155Z",
+          "kind": "stage-change",
+          "message": "Integration proposal completed with quest display, local data contract, touch handoff checks, healer preparation, and DBM feasibility gates. No integration implemented."
+        }
+      ]
     }
   ]
 }
