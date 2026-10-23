@@ -60,6 +60,13 @@ The [upgrade implementation plan](docs/UPGRADE_IMPLEMENTATION_PLAN.md) tracks de
 
 Run tests with `python -m pytest -q -p no:cacheprovider`. CI runs on Windows and Linux; neither job sends live keys.
 
+On Windows, UI tests use a separate, non-visible desktop by default, so test
+windows cannot flash over your work or take its keyboard focus. Isolation failure
+stops the UI tests instead of opening windows on your desktop. For deliberate
+visual inspection, add `--visible-ui` to the pytest command; this opens and closes
+real test windows on your current desktop. Linux UI tests still require a display
+(for example, Xvfb), and skip when none is available.
+
 ## For contributors
 
 Read [AGENTS.md](AGENTS.md) first. This repository is public and has strict rules about what must never be committed: account names, character names, screenshots, logs, and local paths.

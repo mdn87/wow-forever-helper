@@ -7,6 +7,11 @@ import sys
 import pytest
 
 
+def pytest_addoption(parser):
+    parser.addoption("--visible-ui", action="store_true",
+                     help="Show UI test windows on the current desktop (Windows isolation opt-out).")
+
+
 @pytest.fixture(autouse=True)
 def collect_closed_tk_views():
     # Tests pump update() instead of running Tk's mainloop. Collect previous
@@ -17,7 +22,10 @@ def collect_closed_tk_views():
 
 
 @pytest.fixture(scope="session")
-def desktop():
+def desktop(request):
+    if os.name == "nt" and not request.config.getoption("--visible-ui"):
+        from ui_desktop import isolate_windows_desktop
+        isolate_windows_desktop()
     tk = pytest.importorskip("tkinter")
     try:
         root = tk.Tk()

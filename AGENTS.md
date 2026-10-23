@@ -65,3 +65,11 @@ Everything here is world-readable: code, docs, commits, branch names, issues, PR
 
 - Keep current behavior, proposed work, and verified behavior separate. `docs/ASSISTIVE_INPUT.md` describes the current command component. `docs/PLAN.md` and `docs/M1_TASKS.md` preserve the earlier, unimplemented advice-only roadmap; their input-removal instructions are superseded. `docs/PLAN_REVIEW.md` is historical.
 - State exactly what was tested and on what. Do not relabel old results as new checks.
+
+## Automated UI checks
+
+- Run `python -m pytest -q -p no:cacheprovider` for routine verification. On Windows,
+  the shared `desktop` fixture isolates Tk windows on a non-visible desktop.
+- Use the shared fixture for new UI tests. Reserve `--visible-ui` for deliberate
+  visual inspection; it opens real windows on the current desktop.
+- Do not bypass an isolation failure by silently switching to visible tests.
