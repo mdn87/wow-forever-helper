@@ -197,6 +197,33 @@
           "message": "Floating windows, chooser, window and chat restore, pins, monitor recovery done; 173 Windows tests pass; checked at 620x700 and 440x540. Live message round trip unverified."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "linked-journal-resume",
+      "projectId": "wow-forever-helper",
+      "title": "Save linked advice and resume its conversation",
+      "summary": "Save reviewed replies with their original evidence and next steps; reopen the source conversation and explicitly prepare follow-ups.",
+      "stage": "planned",
+      "sequence": 6,
+      "prereqs": [
+        "chat-window-live-cli",
+        "persistent-companion-windows"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-23T02:59:50.411Z",
+        "updatedAt": "2026-10-23T02:59:50.411Z"
+      },
+      "evidence": [
+        {
+          "entryId": "linked-journal-created",
+          "at": "2026-10-23T02:59:50.411Z",
+          "kind": "created",
+          "message": "Selected the first upgrade feature: preserve useful advice and return to its conversation without automatic requests."
+        }
+      ]
     }
   ]
 }
