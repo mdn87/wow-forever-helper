@@ -259,7 +259,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-23T03:39:36.700Z",
-        "updatedAt": "2026-10-23T03:56:16.929Z"
+        "updatedAt": "2026-10-23T04:02:35.113Z"
       },
       "evidence": [
         {
@@ -279,6 +279,12 @@
           "at": "2026-10-23T03:56:16.929Z",
           "kind": "stage-change",
           "message": "Feature 809774d: frozen cards, source links, and separate Play and Desk sizes. Windows: 324 passed, two existing skips; both themes visually checked."
+        },
+        {
+          "entryId": "compact-pinned-shipped",
+          "at": "2026-10-23T04:02:35.113Z",
+          "kind": "note",
+          "message": "PR 18 merged after Windows and Linux CI passed. Preserved the separate Dias integration plan and its completed board chip."
         }
       ]
     },
