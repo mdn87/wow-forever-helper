@@ -488,7 +488,7 @@
       "projectId": "wow-forever-helper",
       "title": "Research quest chains and prerequisites",
       "summary": "Research a selected chain with sources, show observed completion separately, and discuss it in the quest conversation.",
-      "stage": "planned",
+      "stage": "active",
       "sequence": 13,
       "prereqs": [
         "linked-journal-resume"
@@ -497,7 +497,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-23T04:49:16.298Z",
-        "updatedAt": "2026-10-23T04:49:16.298Z"
+        "updatedAt": "2026-10-23T05:30:41+00:00"
       },
       "evidence": [
         {
@@ -505,6 +505,12 @@
           "at": "2026-10-23T04:49:16.298Z",
           "kind": "created",
           "message": "Operator selected this feature for implementation, in the order search, build tutor, dungeon routes, and quest chains."
+        },
+        {
+          "entryId": "quest-chains-active",
+          "at": "2026-10-23T05:30:41+00:00",
+          "kind": "stage-change",
+          "message": "Building explicit selected-chain research, source and uncertainty checks, snapshot annotations, and reviewed updates to the existing quest conversation."
         }
       ]
     },
