@@ -5,16 +5,16 @@
   "assessmentState": "unassessed",
   "assessmentScope": "current-milestone",
   "percentComplete": null,
-  "milestonePhase": "build-and-validate",
+  "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-10T21:40:41.111Z",
-  "confidence": "inferred",
-  "currentMilestone": "Create persistent companion windows with independent agent chats.",
-  "remainingSummary": "Verify a live chat message and reply. The chooser lists quest overview, character status, screenshot advice, and character journal as planned window types. Connecting quest context to chat and validating available-quest coverage remain outstanding.",
+  "assessedAt": "2026-10-23T03:20:25.360Z",
+  "confidence": "authoritative",
+  "currentMilestone": "Linked journal and Resume session",
+  "remainingSummary": "Linked journal delivered with synthetic checks. Compact pinned advice is the next planned feature. Fresh live-provider follow-up remains unverified.",
   "nextChipId": null,
   "source": {
-    "label": "Persistent desktop windows; 173 Windows tests and a synthetic visual check",
-    "updatedAt": "2026-10-10"
+    "label": "Linked journal implementation and Windows verification",
+    "updatedAt": "2026-10-23"
   }
 }

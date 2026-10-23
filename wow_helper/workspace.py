@@ -119,6 +119,7 @@ class CompanionWindow:
         self.view = TaskWindow(self.body, self.manager.service_factory(), embedded=True, kind=kind,
                                activity=self.manager.activity_factory(), window_id=self.id,
                                service_factory=self.manager.service_factory,
+                               resume_conversation=self.manager.resume_conversation,
                                state=state, on_change=lambda: self.manager.changed(self),
                                toolbar=self.toolbar, actions_menu=self.options_menu)
         self.options_menu.entryconfigure(self.appearance_menu_index, state="normal")
@@ -305,6 +306,30 @@ class WindowManager:
                   "remember": source.remember.get() if source else True}
         self.next_number += 1
         return self._add(record)
+
+    def resume_conversation(self, source):
+        """Reveal or restore the exact saved session, without an opening request."""
+        from .journal import metadata
+        metadata(source=source)
+        key = (source["provider"], source["session_id"])
+        for window in self.windows:
+            view = window.view
+            if view is None:
+                continue
+            for candidate in [view, *view.quest_chats.values()]:
+                if candidate.selection_key == key:
+                    if view.book:
+                        view.book.select(candidate.root)
+                    self.reveal(window)
+                    return candidate
+        if len(self.windows) >= MAX_WINDOWS:
+            raise ChatError("Eight windows are open. Close one before opening this conversation; notes and drafts are kept.")
+        if self.closed:
+            raise ChatError("The companion is closing. Reopen it to resume this note.")
+        record = {"id": str(uuid.uuid4()), "number": self.next_number, "kind": "chat",
+                  "chat": {"session": {"provider": key[0], "id": key[1]}, "title": "Saved conversation"}}
+        self.next_number += 1
+        return self._add(record).view
 
     def changed(self, window):
         if self.closed or window.closed:

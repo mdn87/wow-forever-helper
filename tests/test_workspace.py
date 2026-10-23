@@ -127,6 +127,158 @@ def new_chat(manager, source):
     return window
 
 
+def test_linked_reply_save_freezes_source_and_resume_keeps_drafts(manager_factory):
+    manager = manager_factory()
+    window = manager.windows[0]
+    choose(window, 0)
+    view = window.view
+    view.editor.insert("1.0", "Unsent conversation draft")
+    view.transcript.focus_force()
+    view.root.update()
+    view.transcript.event_generate("<Control-j>")
+    view.root.update()
+    dialog = view._journal_dialog
+    source = dict(dialog.selection["source"])
+    choose(window, 1)
+    dialog.next_time.set("Check the route")
+    journal_id = dialog.new_id
+    dialog.save()
+    entry = view.activity.journal(journal_id)["entries"][0]
+    assert entry["source"] == source and entry["text"] == SESSIONS[0].title
+    journal = manager.new_window(kind="journal")
+    journal.view.journal_id = journal_id
+    journal.view.show_journal(view.activity.journal(journal_id))
+    journal.view.note.insert("1.0", "Unsent journal draft")
+    journal.view.resume_session()
+    resume = journal.view._resume_dialog
+    resume.entries.selection_set(entry["id"])
+    resumed = resume.continue_conversation()
+    settle(resumed)
+    assert resumed.selection_key == SESSIONS[0].key
+    assert len(manager.windows) == 3  # Do not replace the window now displaying another chat.
+    assert journal.view.note.get("1.0", "end-1c") == "Unsent journal draft"
+    resume.mark_done()
+    assert view.activity.journal(journal_id)["entries"][0]["next_time"]["state"] == "done"
+    assert not any(w.view.service.sent for w in manager.windows)
+    choose(window, 0)
+    assert view.editor.get("1.0", "end-1c") == "Unsent conversation draft"
+    assert manager.resume_conversation(source) is view
+
+
+def test_resume_unavailable_source_and_window_limit_never_create_or_send(manager_factory):
+    manager = manager_factory(service=CreatingService)
+    source = {"provider": "codex", "session_id": str(uuid.UUID(int=900)), "message_id": "missing"}
+    resumed = manager.resume_conversation(source)
+    settle(resumed)
+    assert resumed.selected is None and resumed.desired_key == ("codex", source["session_id"])
+    assert not resumed.service.created and not resumed.service.sent
+    while len(manager.windows) < MAX_WINDOWS:
+        manager.new_window()
+    other = dict(source, session_id=str(uuid.UUID(int=901)))
+    with pytest.raises(ChatError, match="Eight"):
+        manager.resume_conversation(other)
+    assert len(manager.windows) == MAX_WINDOWS
+
+
+def test_journal_followup_reviews_history_and_refresh_sends_once(manager_factory):
+    manager = manager_factory()
+    target = manager.windows[0]
+    choose(target, 0)
+    target.view.editor.insert("1.0", "Keep this draft")
+    journal = manager.new_window(kind="journal")
+    view = journal.view
+    settle(view)
+    entry = view.activity.add_note(view.journal_id, "Example", "Historical advice",
+                                  source={"provider": SESSIONS[0].provider, "session_id": SESSIONS[0].id},
+                                  evidence={"edition": "Classic Forever beta", "text": json.dumps({"reports": {
+                                      "quests": {"snapshot_at": 500, "text": "Old snapshot"}}})})["entries"][0]
+    view.resume_session()
+    resume = view._resume_dialog
+    resume.prepare_followup()
+    followup = resume.followup
+    followup.refresh_report()
+    settle(view)
+    assert not target.view.service.sent
+    assert followup.packet is not None, followup.notice.get()
+    assert "Old snapshot" in followup.packet["context_files"][0]["text"]
+    assert '"snapshot_at": 1000' in followup.packet["context_files"][0]["text"]
+    assert followup.entry == entry
+    from copy import deepcopy
+    from wow_helper.activities import packet_preview
+    packet = deepcopy(followup.packet)
+    assert followup.preview.get("1.0", "end-1c") == packet_preview(packet)
+    followup.send()
+    followup.send()
+    settle(target.view)
+    assert len(target.view.service.sent) == 1
+    saved = json.loads((view.activity.storage / "prepared" / (followup.request_id + ".json")).read_text())
+    assert saved == packet
+    assert target.view.editor.get("1.0", "end-1c") == "Keep this draft"
+    manager.save_layout()
+    path = manager.layout_path
+    manager.close()
+    restored = manager_factory(path)
+    assert all(not window.view.service.sent for window in restored.windows)
+
+
+def test_followup_session_change_invalidates_preview_even_after_switching_back(manager_factory):
+    manager = manager_factory()
+    target = manager.windows[0]
+    choose(target, 0)
+    journal = manager.new_window(kind="journal")
+    view = journal.view
+    view.activity.add_note(view.journal_id, "Example", "Advice", source={"provider": "codex", "session_id": SESSIONS[0].id})
+    view.resume_session()
+    view._resume_dialog.prepare_followup()
+    dialog = view._resume_dialog.followup
+    choose(target, 1)
+    choose(target, 0)
+    dialog.send()
+    assert not target.view.service.sent and dialog.packet is None
+
+
+def test_linked_notes_survive_restart_with_chat_retention_off(manager_factory):
+    manager = manager_factory()
+    window = manager.windows[0]
+    choose(window, 0)
+    window.remember.set(False)
+    window.view.save_to_journal()
+    dialog = window.view._journal_dialog
+    key = dialog.new_id
+    dialog.save()
+    saved = window.view.activity.journal(key)
+    manager.save_layout()
+    path = manager.layout_path
+    manager.close()
+    restored = manager_factory(path)
+    assert restored.windows[0].view.activity.journal(key) == saved
+
+
+def test_quest_reply_save_and_resume_reuse_tab_without_opening_request(manager_factory):
+    manager = manager_factory(service=CreatingService)
+    window = manager.new_window(kind="quests")
+    view = window.view
+    settle(view)
+    _, child = open_synthetic_quest_chat(view)
+    before = len(child.service.sent)
+    child.editor.insert("1.0", "Unsent quest question")
+    view.save_to_journal()
+    dialog = child._journal_dialog
+    assert dialog.selection["evidence"]["quest_id"] == child.context["quest"]["id"]
+    original = dialog.selection["evidence"]["text"]
+    view.book.select(view.panel)
+    child._show([Message("newer", "assistant", "A later reply")])
+    key = dialog.new_id
+    dialog.save()
+    entry = child.activity.journal(key)["entries"][0]
+    assert entry["evidence"]["text"] == original
+    assert entry["text"] != "A later reply"
+    assert manager.resume_conversation(entry["source"]) is child
+    assert view.active_quest_chat() is child
+    assert child.editor.get("1.0", "end-1c") == "Unsent quest question"
+    assert len(child.service.sent) == before
+
+
 def test_interface_preview_cancel_and_save_preserve_chats(manager_factory):
     from wow_helper.theme import PALETTES, settings_icon
     manager = manager_factory()

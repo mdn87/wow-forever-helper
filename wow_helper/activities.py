@@ -1,6 +1,5 @@
 """Window presets and explicit, read-only preparation for local agent requests."""
 
-from datetime import datetime, timezone
 import json
 from pathlib import Path
 import time
@@ -9,7 +8,7 @@ import uuid
 from . import character, quests, wtf
 from .chat import CHAT_STATE, ChatError, write_json
 from .savedvars import SavedVariablesError, read_stable
-from .window_state import LayoutLock
+from .journal import JOURNAL_MAX_BYTES, JournalService
 
 TYPES = {
     "chat": ("Agent chat", "Start Codex or Claude, or connect to an open session."),
@@ -33,7 +32,6 @@ OPENING = {
     "journal": "Summarize my recent notes and suggest the next goal to resume.",
 }
 ROOT = Path(__file__).resolve().parent
-JOURNAL_MAX_BYTES = 2_000_000
 
 
 def _strings(raw, limit=8):
@@ -100,58 +98,13 @@ class ActivityService:
             raise ChatError("The snapshot could not be read. Check the game folder and try again.") from None
 
     def journal_path(self, journal_id):
-        try:
-            key = str(uuid.UUID(journal_id))
-        except (ValueError, TypeError, AttributeError):
-            raise ChatError("That journal could not be opened.") from None
-        return self.storage / "journals" / (key + ".json")
+        return JournalService(self.storage).path(journal_id)
 
     def journal(self, journal_id):
-        path = self.journal_path(journal_id)
-        if not path.exists():
-            return {"name": "My journal", "entries": []}
-        try:
-            if path.stat().st_size > JOURNAL_MAX_BYTES:
-                raise ChatError("This journal is too large to open here.")
-            data = json.loads(path.read_text(encoding="utf-8"))
-            if (not isinstance(data, dict) or not isinstance(data.get("name"), str)
-                    or not isinstance(data.get("entries"), list)
-                    or any(not isinstance(e, dict) or not isinstance(e.get("text"), str)
-                           or not isinstance(e.get("at"), str) for e in data["entries"])):
-                raise ValueError
-            return data
-        except (OSError, ValueError):
-            raise ChatError("The journal could not be read. Its existing file has been kept.") from None
+        return JournalService(self.storage).load(journal_id)
 
-    def add_note(self, journal_id, name, text, note_id=None):
-        if not text.strip() or len(text) > 8000:
-            raise ChatError("Write a note between 1 and 8,000 characters.")
-        path = self.journal_path(journal_id)
-        note_id = str(uuid.UUID(note_id)) if note_id is not None else str(uuid.uuid4())
-        path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            lock = LayoutLock(path)
-        except ChatError:
-            raise ChatError("Another window is saving this journal. Your draft is kept; try again when it finishes.") from None
-        try:
-            data = self.journal(journal_id)
-            previous = next((e for e in data["entries"] if e.get("id") == note_id), None)
-            if previous:
-                if previous["text"] != text.strip():
-                    raise ChatError("This note was already saved with different text. Start a new note.")
-                return data
-            if sum(len(e["text"]) for e in data["entries"]) + len(text) > 500_000:
-                raise ChatError("This journal is full. Create a new journal; existing notes are kept.")
-            data["name"] = name.strip()[:80] or "My journal"
-            data["entries"].append({"id": note_id, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "text": text.strip()})
-            if len(json.dumps(data, ensure_ascii=False).encode("utf-8")) > JOURNAL_MAX_BYTES:
-                raise ChatError("This journal is full. Create a new journal; existing notes are kept.")
-            write_json(path, data)
-            return data
-        except OSError:
-            raise ChatError("The note could not be saved. Your draft is still here.") from None
-        finally:
-            lock.close()
+    def add_note(self, journal_id, name, text, note_id=None, **metadata):
+        return JournalService(self.storage).add(journal_id, name, text, note_id, **metadata)
 
     def prepare(self, kind, profile, *, journal_id=None, image=None, task=None):
         reports = self.reports(profile["steps"], profile["flavor"])

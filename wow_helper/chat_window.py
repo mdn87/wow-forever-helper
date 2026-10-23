@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import queue
 import uuid
 
-from .chat import ChatError, ChatService, MAX_MESSAGE, claude_connection_text
+from .chat import CHAT_STATE, ChatError, ChatService, MAX_MESSAGE, claude_connection_text
 from .appearance import AppearanceDialog, append_turn, appearance_settings, style_text
 from .window_state import history_state, restored_history, saved_selection
 from .response_wait import ResponseWait, elapsed
@@ -30,6 +30,9 @@ class ChatWindow:
         self.selection_revision = 0
         self.appearance = appearance_settings(state.get("appearance"))
         self._appearance_dialog = None
+        self._journal_dialog = None
+        self.reply_ranges = []
+        self.selected_reply_id = None
         self.desired_key = tuple(selection) if selection else saved_selection(state.get("session"))
         if not self.desired_key and self.pending_creation:
             self.desired_key = saved_selection(self.pending_creation)
@@ -106,6 +109,7 @@ class ChatWindow:
             button.pack(side="right", padx=(3, 0))
             self.provider_buttons[provider] = button
         self.actions_menu.add_command(label="Refresh open sessions", command=self.refresh)
+        self.actions_menu.add_command(label="Save selected reply to Journal…", command=self.save_to_journal)
         self.session_picker = ttk.Combobox(selector, state="readonly", width=1, font=("Segoe UI", 9))
         self.session_picker.set("Choose an open session…")
         self.session_picker.pack(side="left", fill="x", expand=True)
@@ -133,6 +137,7 @@ class ChatWindow:
         self.transcript.pack(side="left", fill="both", expand=True)
         self.transcript.bind("<Configure>", self._queue_scroll_to_bottom)
         self.transcript.bind("<Map>", self._queue_scroll_to_bottom)
+        self.transcript.bind("<Control-j>", lambda _: self.save_to_journal())
         composer = tk.Frame(conversation, bg=palette(self.root).PANEL)
         composer.pack(fill="x", pady=(5, 0))
         self.send_button = ttk.Button(composer, text="Send ↵", style="Primary.TButton", command=self.send, state="disabled")
@@ -414,13 +419,52 @@ class ChatWindow:
         if not messages and not pending:
             self.transcript.insert("end", "Your conversation appears here.\n\nChoose an existing session, or use Codex + / Claude +. "
                                    "Sending with no session selected starts a new " + self.default_provider.title() + " conversation.", "note")
+        self.reply_ranges = []
         for message in messages:
             append_turn(self.transcript, message.text, message.role)
+            if message.role == "assistant":
+                end = self.transcript.index("end-1c")
+                start = self.transcript.index(f"{end}-{len(message.text.strip(chr(10)))}c")
+                self.reply_ranges.append((start, end, message))
+                tag = "reply-" + str(len(self.reply_ranges))
+                self.transcript.tag_add(tag, start, end)
+                self.transcript.tag_bind(tag, "<ButtonRelease-1>",
+                                         lambda _, key=message.id: setattr(self, "selected_reply_id", key))
         for body, status, _previous_ids in pending:
             append_turn(self.transcript, body, "user", pending=status)
         self.transcript.configure(state="disabled")
         self._queue_scroll_to_bottom()
         self.on_change()
+
+    def save_to_journal(self):
+        if self._journal_dialog is not None:
+            self._journal_dialog.root.lift()
+            return
+        from .journal import advice_selection
+        from .journal_ui import SaveAdviceDialog
+        from .activities import ActivityService
+        if not hasattr(self, "activity"):
+            self.activity = ActivityService(getattr(self.service, "state", None) or CHAT_STATE)
+        ranges = self.transcript.tag_ranges("sel")
+        selection = None
+        if ranges:
+            for start, end, message in self.reply_ranges:
+                if self.transcript.compare(ranges[0], ">=", start) and self.transcript.compare(ranges[1], "<=", end):
+                    selection = message, self.transcript.get(*ranges)
+                    break
+            if selection is None:
+                self.status.set("Select text within a single assistant reply.")
+                return
+        elif self.reply_ranges:
+            message = next((m for _, _, m in self.reply_ranges if m.id == self.selected_reply_id), self.reply_ranges[-1][2])
+            selection = message, message.text
+        if selection is None:
+            self.status.set("There is no assistant reply to save yet.")
+            return
+        try:
+            self._journal_dialog = SaveAdviceDialog(self, advice_selection(self, *selection))
+        except ChatError as error:
+            self.status.set(str(error))
 
     def _queue_scroll_to_bottom(self, _event=None):
         # Wait for wrapping and geometry to settle, including initial mapping
@@ -602,6 +646,8 @@ class ChatWindow:
         self._send_callback = None
         if self._appearance_dialog is not None:
             self._appearance_dialog.close()
+        if self._journal_dialog is not None:
+            self._journal_dialog.close()
         self.root.after_cancel(self._after_id)
         if self._scroll_after_id is not None:
             self.root.after_cancel(self._scroll_after_id)
