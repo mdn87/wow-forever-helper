@@ -5,16 +5,16 @@
   "assessmentState": "unassessed",
   "assessmentScope": "current-milestone",
   "percentComplete": null,
-  "milestonePhase": "closeout",
+  "milestonePhase": "build-and-validate",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T04:34:06.721Z",
+  "assessedAt": "2026-10-23T04:46:12.921Z",
   "confidence": "authoritative",
-  "currentMilestone": "Saved activity layouts delivered",
-  "remainingSummary": "Personal goals and wishlist are next in the helper sequence. Dias integration remains a separate workstream with a synthetic companion-display trial to implement.",
-  "nextChipId": null,
+  "currentMilestone": "Quest and resumable activity displays",
+  "remainingSummary": "Build two companion views, preserve workflow state, verify touch navigation and restart, and defer DBM.",
+  "nextChipId": "quest-and-activity-displays",
   "source": {
-    "label": "Saved activity layouts verification and helper upgrade sequence",
+    "label": "Operator two-display direction",
     "updatedAt": "2026-10-23"
   }
 }

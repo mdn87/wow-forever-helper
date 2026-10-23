@@ -372,6 +372,34 @@
           "message": "Windows CI exposed rollback resizing on a small desktop. Exact prior geometry is now preserved; the regression and full 346-test suite pass locally."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "quest-and-activity-displays",
+      "projectId": "wow-forever-helper",
+      "title": "Use separate quest and resumable activity displays",
+      "summary": "Show saved quests on one companion screen and tappable workflow cards on another; preserve each activity and toggle back without losing progress.",
+      "stage": "planned",
+      "sequence": 10,
+      "prereqs": [
+        "plan-dias-wow-integration",
+        "saved-activity-layouts",
+        "compact-pinned-advice"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-23T04:46:12.921Z",
+        "updatedAt": "2026-10-23T04:46:12.921Z"
+      },
+      "evidence": [
+        {
+          "entryId": "quest-activity-displays-created",
+          "at": "2026-10-23T04:46:12.921Z",
+          "kind": "created",
+          "message": "Operator deferred DBM and chose two displays: a quest log and expandable activity cards with saved state and a return-to-cards toggle."
+        }
+      ]
     }
   ]
 }
