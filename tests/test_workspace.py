@@ -74,6 +74,84 @@ class CreatingService(Service):
         return session
 
 
+@pytest.mark.parametrize('provider', ['codex', 'claude'])
+def test_build_notebook_review_save_send_and_restore(manager_factory, provider):
+    manager = manager_factory()
+    view = manager.windows[0].view
+    view._select_session(next(s for s in SESSIONS if s.provider == provider))
+    settle(view)
+    view.editor.insert('1.0', 'Keep this conversation draft')
+    view.show_build_tutor()
+    dialog = view._notebooks['build']
+    dialog.fields['role'].set('Healer')
+    dialog.fields['question'].set('Compare these healing choices.')
+    dialog.editors['profile'].insert('1.0', 'Synthetic build notes')
+    dialog.prepare()
+    assert dialog.packet and not view.service.sent
+    assert not view.activity.calls
+    dialog.save(); dialog.save()
+    entries = view.activity.journal(view.journal_id)['entries']
+    assert len(entries) == 1 and entries[0]['source']['provider'] == provider
+    assert 'Synthetic build notes' in entries[0]['evidence']['text']
+    dialog.send(); dialog.send()
+    settle(view)
+    assert len(view.service.sent) == 1
+    assert view.editor.get('1.0', 'end-1c') == 'Keep this conversation draft'
+    assert manager.save_layout()
+    manager.close()
+    restored = manager_factory()
+    loaded = restored.windows[0].view
+    loaded.show_build_tutor()
+    assert loaded._notebooks['build'].editors['profile'].get('1.0', 'end-1c') == 'Synthetic build notes'
+    assert not loaded.service.sent
+    assert 'notebooks' not in loaded.snapshot(False)['activity']
+
+
+def test_build_notebook_rejects_changed_review_and_source(manager_factory):
+    manager = manager_factory()
+    view = manager.windows[0].view
+    view._select_session(SESSIONS[0]); settle(view)
+    view.show_build_tutor()
+    dialog = view._notebooks['build']
+    dialog.fields['role'].set('Damage')
+    dialog.fields['question'].set('What should I compare?')
+    dialog.editors['profile'].insert('1.0', 'Synthetic build')
+    dialog.prepare()
+    dialog.fields['role'].set('Healer')
+    dialog.send(); dialog.save()
+    assert 'fresh review' in dialog.notice.get()
+    assert not view.service.sent and not view.activity.journal(view.journal_id)['entries']
+    dialog.prepare()
+    view._select_session(SESSIONS[1]); settle(view)
+    dialog.send()
+    assert 'conversation changed' in dialog.notice.get()
+    assert not view.service.sent
+
+
+@pytest.mark.parametrize('theme', ['classic', 'modern'])
+def test_build_notebook_minimum_size_and_failed_import_keep_draft(manager_factory, monkeypatch, tmp_path, theme):
+    from tkinter import filedialog
+    manager = manager_factory()
+    manager.preview_interface({'theme': theme})
+    view = manager.windows[0].view
+    view.show_build_tutor()
+    dialog = view._notebooks['build']
+    dialog.chrome.place('440x480+40+40')
+    dialog.editors['profile'].insert('1.0', 'Keep synthetic notes')
+    monkeypatch.setattr(filedialog, 'askopenfilename', lambda **_: str(tmp_path / 'missing.simc'))
+    dialog.import_text('profile', 64000)
+    assert 'unavailable' in dialog.notice.get()
+    assert dialog.editors['profile'].get('1.0', 'end-1c') == 'Keep synthetic notes'
+    oversized = tmp_path / 'large.simc'; oversized.write_text('x' * 64001)
+    monkeypatch.setattr(filedialog, 'askopenfilename', lambda **_: str(oversized))
+    dialog.import_text('profile', 64000)
+    assert '64,000' in dialog.notice.get()
+    manager.root.update()
+    for widget in (dialog.prepare_button, dialog.save_button, dialog.send_button):
+        assert widget.winfo_ismapped()
+        assert widget.winfo_rooty() + widget.winfo_height() <= dialog.root.winfo_rooty() + dialog.root.winfo_height()
+
+
 @pytest.fixture
 def manager_factory(tmp_path, desktop):
     tk, parent = desktop

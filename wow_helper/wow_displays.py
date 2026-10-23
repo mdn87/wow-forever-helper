@@ -184,6 +184,8 @@ class ActivityDeck:
             for state in states.values():
                 for key in ("draft", "messages", "pending", "response_waits"):
                     state.pop(key, None)
+                if isinstance(state.get("activity"), dict):
+                    state["activity"].pop("notebooks", None)
         return display_state("activities", dict(version=1, active=self.active, last=self.last, states=states))
 
     def close(self):

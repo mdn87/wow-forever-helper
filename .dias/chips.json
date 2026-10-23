@@ -412,7 +412,7 @@
       "projectId": "wow-forever-helper",
       "title": "Explain builds and save experiment questions",
       "summary": "Import bounded supported profiles, discuss role and preferences, and retain comparison questions and report provenance.",
-      "stage": "planned",
+      "stage": "done",
       "sequence": 11,
       "prereqs": [
         "linked-journal-resume"
@@ -421,7 +421,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-23T04:49:16.298Z",
-        "updatedAt": "2026-10-23T04:49:16.298Z"
+        "updatedAt": "2026-10-23T05:23:29+00:00"
       },
       "evidence": [
         {
@@ -429,6 +429,18 @@
           "at": "2026-10-23T04:49:16.298Z",
           "kind": "created",
           "message": "Operator selected this feature for implementation, in the order search, build tutor, dungeon routes, and quest chains."
+        },
+        {
+          "entryId": "build-tutor-active",
+          "at": "2026-10-23T05:14:56+00:00",
+          "kind": "stage-change",
+          "message": "Building bounded profile import, reviewed discussion, and saved experiment questions with explicit report provenance."
+        },
+        {
+          "entryId": "build-tutor-done",
+          "at": "2026-10-23T05:23:29+00:00",
+          "kind": "stage-change",
+          "message": "Static Retail profiles, manual notes, reviewed requests, and linked experiment saves delivered. Full suite: 378 passed, 2 skips; retention regression passed."
         }
       ]
     },

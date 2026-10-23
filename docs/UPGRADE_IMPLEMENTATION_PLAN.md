@@ -1,12 +1,12 @@
 # Companion upgrade implementation plan
 
-Status: F01–F03 and F13 delivered; F16, F17, and F06 selected next. Updated: 2026-10-23. Original baseline: `c5fa294`.
+Status: F01–F03, F13, and F16 delivered; F17 and F06 selected next. Updated: 2026-10-23. Original baseline: `c5fa294`.
 
 This is the build sequence for the ideas in [Future upgrades](FUTURE_UPGRADES.md), incorporating the checked [Fable review](FUTURE_UPGRADES_REVIEW.md). It supersedes the competing priority lists in that research document. All ten addon ideas and the earlier interface ideas are retained. Current behavior remains documented in [Chat](CHAT.md), [Quests](QUESTS.md), and [Assistive input](ASSISTIVE_INPUT.md).
 
 The product outcome is a continuing conversation that can use selected game evidence, explain choices, remember what the player decided, and revisit the result. Each feature below must complete a useful part of that workflow. Addon inspiration does not imply a dependency on that addon or verified Forever compatibility.
 
-**Operator-selected sequence: F13, F16, F17, then F06. Next: F16, Build tutor and experiment notebook.** F01–F03 and F13 are implemented as recorded below. F04 remains first in the remaining default backlog. Complete, verify, and land one feature before moving to the next. The numbered order is the default priority; the Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
+**Operator-selected sequence: F13, F16, F17, then F06. Next: F17, Dungeon route walkthrough.** F01–F03, F13, and F16 are implemented as recorded below. F04 remains first in the remaining default backlog. Complete, verify, and land one feature before moving to the next. The numbered order is the default priority; the Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
 
 ## Build sequence
 
@@ -27,7 +27,7 @@ The product outcome is a continuing conversation that can use selected game evid
 | [F13](#f13-search-and-command-menu) | Find saved content and companion actions with Ctrl+K. | F01; expands with future F04/F12 records | Search and command menu | Delivered |
 | [F14](#f14-inventory-preparation) | Export bag contents and explain supplies or changes between selected snapshots. | F08 evidence/import conventions; addon field validation | Addon 3: Baganator | Queued; client fields unverified |
 | [F15](#f15-post-fight-coaching) | Review one supported encounter summary and compare a later attempt. | F08 import layer, F01 | Addon 8: Details! | Queued; transport and fields unverified |
-| [F16](#f16-build-tutor-and-experiment-notebook) | Explain a supported character profile and an optional existing simulation report. | F08 import layer, F07 | Addon 9: SimulationCraft | Queued; edition support unverified |
+| [F16](#f16-build-tutor-and-experiment-notebook) | Explain a supported character profile and an optional existing simulation report. | Bounded profile import; full F07 inspection remains separate | Addon 9: SimulationCraft | Delivered: Retail static subset and manual notes; simulation accuracy unverified |
 | [F17](#f17-dungeon-route-walkthrough) | Discuss a selected route; decode supported route strings only after validation. | F01, F08; F10 for marked-up images | Addon 10: Mythic Dungeon Tools | Queued; Forever integration unverified |
 | [F18](#f18-local-read-only-agent-tools) | Let a configured agent read only context published to its conversation. | Stable records from F08 and at least one importer | Optional addon-to-agent tool interface | Later extension |
 | [F19](#f19-recording-linked-review) | Add recording evidence in measured stages, beginning with lifecycle and recovery. | F11; existing recording proposal | Recording-backed Journal | Later extension |
@@ -245,7 +245,7 @@ Before landing a feature:
 
 ## Delivery record
 
-F01–F03 and F13 are delivered. The operator selected F16, F17, and F06 next. Checks below describe only the delivered scope.
+F01–F03, F13, and F16 are delivered. The operator selected F17 and F06 next. Checks below describe only the delivered scope.
 
 | Feature | Delivered scope / commit | Verification | Remaining work |
 | --- | --- | --- | --- |
@@ -253,6 +253,10 @@ F01–F03 and F13 are delivered. The operator selected F16, F17, and F06 next. C
 | F02 | Frozen advice cards from chat, Quest chat, Journal, or a selected quest; separate Play/Desk sizes and explicit source navigation. Feature commit `809774d`, merged in PR #18; Windows and Linux CI passed. | Windows: 324 passed, 2 existing keypad-event skips. Synthetic Classic/Modern Play at 340 × 300, Desk at 440 × 580, review at 440 × 480, and 24-point text at 65% opacity inspected. | Existing source navigation reused; no fresh live-provider round trip or game check. Missing sources and times remain unknown. |
 | F03 | Named arrangements with save/replace, restore previews, compatible-window reuse, card modes, and rollback on failed workspace saves. Feature commit `804cfa7`. | Windows: 346 passed, 2 existing keypad-event skips. Eighteen new checks cover storage, limits, drafts, retention, restart, monitor recovery, rollback, and no new requests. Classic/Modern dialogs inspected at 480 × 540 on a hidden desktop. | Existing provider transport reused; no new live-provider or in-game check. Dias integration remains a separate workstream. |
 
-| F13 | Ctrl+K searches bounded app-owned notes, next steps, quests, known sessions, windows, cards, layouts, and registered actions. | Windows: 355 passed, 2 existing keypad-event skips. Both themes inspected at 480 × 540; keyboard draft preservation, Unicode, missing sources, limits, and restart covered. | Future wishlist and activity-history records are not implemented by search. Navigation reuses existing transport without requests. |
+| F13 | Ctrl+K searches bounded app-owned notes, next steps, quests, known sessions, windows, cards, layouts, and registered actions. | Windows: 363 passed, 2 existing keypad-event skips after merging the two-display feature. Both themes inspected at 480 × 540; keyboard draft preservation, Unicode, missing sources, limits, and restart covered. | Future wishlist and activity-history records are not implemented by search. Navigation reuses existing transport without requests. |
+
+| F16 | Static Retail profile import, manual notes, reviewed requests, and linked experiment notes. | Windows: 378 passed, 2 existing skips; final retention regression and 20 related checks passed. Both themes inspected at 440 × 480. | Simulation accuracy, live provider responses for this flow, and full item inspection unverified. |
 
 Add one row as each feature begins; keep the build-sequence state in sync. A feature is complete only when its selected deliverable and acceptance checks are satisfied, with any broader integration limitation stated explicitly.
+
+F16 delivers bounded static Retail profile reading, explicit review/send, optional report provenance, and linked experiment notes. Classic Forever uses manual notes. Simulation execution, numerical accuracy, and full item inspection are not claimed.
