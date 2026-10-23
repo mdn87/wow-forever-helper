@@ -169,6 +169,7 @@ class ResumeDialog(JournalDialog):
         self.ttk.Button(buttons, text="Continue conversation", command=self.continue_conversation).grid(row=0, column=0, sticky="ew")
         self.ttk.Button(buttons, text="Follow-up…", command=self.prepare_followup).grid(row=0, column=1, sticky="ew", padx=5)
         self.ttk.Button(buttons, text="Mark done / reopen", command=self.mark_done).grid(row=1, column=0, sticky="ew", pady=(5, 0))
+        self.ttk.Button(buttons, text="Pin to Play…", command=self.pin_selected).grid(row=1, column=1, sticky="ew", padx=5, pady=(5, 0))
         buttons.columnconfigure((0, 1), weight=1)
         self.preview = self.text(self.surface)
         self.reload()
@@ -223,6 +224,21 @@ class ResumeDialog(JournalDialog):
             return result
         except ChatError as error:
             self.notice.set(str(error))
+
+    def pin_selected(self):
+        from .pinned_advice import PinAdviceDialog
+        entry = self.entry()
+        if not entry:
+            return
+        if self.view.pin_advice is None:
+            self.notice.set("Open this journal in the companion workspace to pin advice.")
+            return
+        if self.view._pin_dialog:
+            self.view._pin_dialog.root.lift()
+            return
+        selection = deepcopy(entry)
+        selection["next_step"] = entry.get("next_time", {}).get("text", "")
+        self.view._pin_dialog = PinAdviceDialog(self.view, selection)
 
     def mark_done(self):
         entry = self.entry()

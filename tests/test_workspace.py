@@ -1715,3 +1715,173 @@ def test_screen_window_previews_a_managed_image_and_only_sends_after_review(mana
     view._request_dialog.send()
     settle(view)
     assert len(view.service.sent) == 1 and view.service.sent[0][0] == SESSIONS[1].key
+
+
+def test_pinned_advice_freezes_and_restores_without_sending(manager_factory, tmp_path):
+    manager = manager_factory()
+    source = manager.windows[0]
+    choose(source, 0)
+    source.remember.set(False)
+    source.view.editor.insert('1.0', 'Keep my unsent draft')
+    source.view.pin_to_play()
+    dialog = source.view._pin_dialog
+    dialog.objective.set('Reach the example camp')
+    dialog.next_step.set('Follow the eastern road')
+    choose(source, 1)
+    dialog.save()
+    card = manager.windows[-1]
+    assert card.kind == 'play' and card.mode == 'play'
+    assert card.pin['source']['session_id'] == SESSIONS[0].id
+    assert card.pin['text'] == SESSIONS[0].title
+    assert card.root.minsize() == (340, 300)
+    choose(source, 0)
+    assert source.view.editor.get('1.0', 'end-1c') == 'Keep my unsent draft'
+    card.root.geometry('360x320+80+90'); card.root.update()
+    card.toggle_play()
+    assert card.mode == 'desk' and card.root.minsize() == (440, 580)
+    assert SESSIONS[0].title in card.card.text.get('1.0', 'end-1c')
+    card.root.geometry('650x720+90+100'); card.root.update()
+    card.toggle_play(); card.root.update()
+    assert card.capture_bounds()['width'] == 360
+    assert card.card.open_source() is source.view
+    assert not source.view.service.sent
+    frozen = dict(card.pin)
+    manager.close()
+    restored = manager_factory()
+    card = restored.windows[-1]
+    assert card.pin == frozen and card.mode == 'play'
+    assert card.capture_bounds()['width'] == 360
+    card.toggle_play(); card.root.update()
+    assert card.capture_bounds()['width'] == 650
+    assert not any(w.view.service.sent for w in restored.windows if w.view)
+
+
+def test_pin_failure_preserves_review_and_window_limit(manager_factory, monkeypatch):
+    manager = manager_factory()
+    source = manager.windows[0]
+    choose(source, 0)
+    source.view.pin_to_play()
+    dialog = source.view._pin_dialog
+    dialog.objective.set('Example objective')
+    dialog.next_step.set('Example step')
+    monkeypatch.setattr(manager, 'save_layout', lambda: False)
+    dialog.save()
+    assert len(manager.windows) == 1 and source.view._pin_dialog is dialog
+    assert 'save' in dialog.notice.get().lower()
+    while len(manager.windows) < MAX_WINDOWS:
+        manager.new_window()
+    dialog.save()
+    assert len(manager.windows) == MAX_WINDOWS
+    assert 'Eight' in dialog.notice.get()
+    assert dialog.next_step.get() == 'Example step'
+
+
+def test_pin_missing_source_stays_readable(manager_factory):
+    manager = manager_factory()
+    pin = {'text':'Saved synthetic advice', 'evidence':{'gaps':['Source time unknown.']}}
+    card = manager.pin_advice(pin, 'Example objective', 'Example next step')
+    assert card.card.open_source() is None
+    card.toggle_play()
+    assert 'Saved synthetic advice' in card.card.text.get('1.0', 'end-1c')
+    assert not manager.windows[0].view.service.sent
+
+
+def test_quest_step_pin_uses_frozen_snapshot_without_starting_research(manager_factory):
+    manager = manager_factory(service=CreatingService)
+    view = manager.new_window(kind='quests').view
+    settle(view)
+    key = next(iter(view.quest_tree.quests))
+    view.quest_tree.tree.focus(key)
+    calls = list(view.activity.calls)
+    view.pin_quest_step()
+    dialog = view._pin_dialog
+    expected = dict(dialog.selection)
+    view.quest_tree.quests[key]['title'] = 'Changed after opening review'
+    dialog.save()
+    card = manager.windows[-1]
+    assert card.pin['objective'] == expected['objective']
+    assert card.pin['evidence']['snapshot_at'] == 1000
+    assert 'source' not in card.pin
+    assert view.activity.calls == calls and not view.quest_chats
+    assert not view.service.sent and not view.service.created
+
+
+def test_pin_active_quest_reply_and_new_reply_never_replaces_it(manager_factory):
+    manager = manager_factory(service=CreatingService)
+    view = manager.new_window(kind='quests').view
+    _, child = open_synthetic_quest_chat(view)
+    child._show([Message('synthetic-first', 'assistant', 'First saved quest advice')])
+    sent_before = list(child.service.sent)
+    view.pin_to_play()
+    dialog = child._pin_dialog
+    dialog.next_step.set('Check the example route')
+    dialog.save()
+    card = manager.windows[-1]
+    child._show([Message('synthetic-second', 'assistant', 'Later different advice')])
+    card.card.poll()
+    assert card.pin['text'] == 'First saved quest advice'
+    assert card.pin['source']['session_id'] == child.selection_key[1]
+    assert card.pin['evidence']['quest_id'] == child.context['quest']['id']
+    assert child.service.sent == sent_before
+    assert card.card.open_source() is child
+
+
+def test_pin_validation_and_damaged_layout_keep_existing_file(manager_factory, tmp_path):
+    from wow_helper.pinned_advice import pinned_selection, validate_pin
+    with pytest.raises(ChatError):
+        pinned_selection({'text': 'x' * 8001}, 'Goal', 'Step')
+    with pytest.raises(ChatError):
+        pinned_selection({'text': 'Advice', 'evidence': {'text': '🧭' * 17000}}, 'Goal', 'Step')
+    pin = pinned_selection({'text':'Advice'}, 'Goal', 'Step')
+    for bad in (dict(pin, version=2), dict(pin, version=True), dict(pin, objective=''), dict(pin, next_step=[])):
+        with pytest.raises(ChatError):
+            validate_pin(bad)
+    path = tmp_path / 'damaged.json'
+    raw = json.dumps({'version':1, 'windows':[{'kind':'play','pin':dict(pin,version=2)}]})
+    path.write_text(raw)
+    with pytest.raises(ChatError):
+        manager_factory(path)
+    assert path.read_text() == raw
+
+
+@pytest.mark.parametrize('theme', ['classic', 'modern'])
+def test_compact_card_keyboard_theme_opacity_and_monitor_recovery(manager_factory, theme):
+    from wow_helper.theme import palette
+    manager = manager_factory()
+    card = manager.pin_advice({'text':'Readable saved advice'}, 'Example objective', 'Check the next step', {'font_size': 24})
+    manager.preview_interface({'theme':theme, 'opacity':65, 'solid_when_active':False})
+    card.root.geometry('340x300+80+80'); card.root.update()
+    assert card.card.text.cget('bg') == palette(card.root).PANEL
+    assert float(card.root.attributes('-alpha')) == pytest.approx(.65, abs=.01)
+    for button in (card.card.expand, card.card.source):
+        assert button.winfo_ismapped()
+        assert button.winfo_rooty() + button.winfo_height() <= card.root.winfo_rooty() + card.root.winfo_height()
+    card.card.text.focus_force(); card.root.update()
+    card.card.text.event_generate('<Control-e>'); card.root.update()
+    assert card.mode == 'desk'
+    card.card.text.event_generate('<Control-e>'); card.root.update()
+    assert card.mode == 'play'
+    assert card.card.text.tk.call('tk_focusNext', str(card.card.text))
+    bounds = window_bounds({'x':-3000,'y':-2000,'width':340,'height':300}, [(0,0,1920,1080)], card.minimum)
+    assert bounds['width'] == 340 and bounds['height'] == 300
+    assert bounds['x'] >= 0 and bounds['y'] >= 0
+    manager.preview_interface(None)
+
+
+def test_journal_selection_can_pin_without_changing_note_or_draft(manager_factory):
+    manager = manager_factory()
+    journal = manager.new_window(kind='journal').view
+    settle(journal)
+    journal.activity.add_note(journal.journal_id, 'Synthetic journal', 'Keep this saved advice',
+                              next_time={'text':'Check the example route','state':'open'})
+    journal.note.insert('1.0', 'Unsent journal draft')
+    original = journal.activity.journal(journal.journal_id)
+    journal.resume_session()
+    journal._resume_dialog.pin_selected()
+    dialog = journal._pin_dialog
+    assert dialog.next_step.get() == 'Check the example route'
+    dialog.save()
+    assert manager.windows[-1].pin['text'] == 'Keep this saved advice'
+    assert journal.note.get('1.0', 'end-1c') == 'Unsent journal draft'
+    assert journal.activity.journal(journal.journal_id) == original
+    assert not journal.service.sent
