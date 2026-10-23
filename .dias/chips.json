@@ -249,7 +249,7 @@
       "projectId": "wow-forever-helper",
       "title": "Keep selected advice in a compact Play view",
       "summary": "Pin reviewed advice or a quest step, preserve its source, and expand it without losing chat drafts or sending requests.",
-      "stage": "active",
+      "stage": "done",
       "sequence": 7,
       "prereqs": [
         "linked-journal-resume",
@@ -259,7 +259,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-23T03:39:36.700Z",
-        "updatedAt": "2026-10-23T03:40:02.313Z"
+        "updatedAt": "2026-10-23T03:56:16.929Z"
       },
       "evidence": [
         {
@@ -273,6 +273,12 @@
           "at": "2026-10-23T03:40:02.313Z",
           "kind": "stage-change",
           "message": "Both Dias parsers accepted the plan. Building reviewed cards, separate view sizes, source navigation, and synthetic restart checks."
+        },
+        {
+          "entryId": "compact-pinned-done",
+          "at": "2026-10-23T03:56:16.929Z",
+          "kind": "stage-change",
+          "message": "Feature 809774d: frozen cards, source links, and separate Play and Desk sizes. Windows: 324 passed, two existing skips; both themes visually checked."
         }
       ]
     }

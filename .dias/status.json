@@ -5,16 +5,16 @@
   "assessmentState": "unassessed",
   "assessmentScope": "current-milestone",
   "percentComplete": null,
-  "milestonePhase": "build-and-validate",
+  "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T03:39:36.700Z",
+  "assessedAt": "2026-10-23T03:56:16.929Z",
   "confidence": "authoritative",
   "currentMilestone": "Compact pinned advice",
-  "remainingSummary": "Build and verify frozen advice cards, compact and expanded views, source navigation, and restart without automatic requests.",
-  "nextChipId": "compact-pinned-advice",
+  "remainingSummary": "Compact pinned advice is delivered with synthetic Windows checks. Saved activity layouts are the next candidate; live game behavior remains unverified.",
+  "nextChipId": null,
   "source": {
-    "label": "Upgrade plan and handoff review",
+    "label": "Pinned advice implementation and Windows verification",
     "updatedAt": "2026-10-23"
   }
 }
