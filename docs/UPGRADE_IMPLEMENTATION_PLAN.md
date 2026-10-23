@@ -1,12 +1,12 @@
 # Companion upgrade implementation plan
 
-Status: F01–F03 delivered; remaining features planned. Updated: 2026-10-23. Original baseline: `c5fa294`.
+Status: F01–F03 and F13 delivered; F16, F17, and F06 selected next. Updated: 2026-10-23. Original baseline: `c5fa294`.
 
 This is the build sequence for the ideas in [Future upgrades](FUTURE_UPGRADES.md), incorporating the checked [Fable review](FUTURE_UPGRADES_REVIEW.md). It supersedes the competing priority lists in that research document. All ten addon ideas and the earlier interface ideas are retained. Current behavior remains documented in [Chat](CHAT.md), [Quests](QUESTS.md), and [Assistive input](ASSISTIVE_INPUT.md).
 
 The product outcome is a continuing conversation that can use selected game evidence, explain choices, remember what the player decided, and revisit the result. Each feature below must complete a useful part of that workflow. Addon inspiration does not imply a dependency on that addon or verified Forever compatibility.
 
-**Next feature: F04, Personal goals and wishlist.** F01–F03 are implemented and verified as recorded below. Complete, verify, and land one feature before moving to the next. The numbered order is the default priority; the Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
+**Operator-selected sequence: F13, F16, F17, then F06. Next: F16, Build tutor and experiment notebook.** F01–F03 and F13 are implemented as recorded below. F04 remains first in the remaining default backlog. Complete, verify, and land one feature before moving to the next. The numbered order is the default priority; the Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
 
 ## Build sequence
 
@@ -24,7 +24,7 @@ The product outcome is a continuing conversation that can use selected game evid
 | [F10](#f10-screenshot-markup) | Crop, annotate, and mask a selected image before sending it. | Existing Screen adviser | Screenshot markup | Queued |
 | [F11](#f11-session-bookmarks) | Save a manual timestamped note with optional reviewed image and context. | F01; F10 for edited images | Session bookmarks | Queued |
 | [F12](#f12-activity-list) | Collect request outcomes and open the relevant conversation. | Existing response tracking | Activity list | Queued |
-| [F13](#f13-search-and-command-menu) | Find saved content and companion actions with Ctrl+K. | F01, F04, F12 | Search and command menu | Queued |
+| [F13](#f13-search-and-command-menu) | Find saved content and companion actions with Ctrl+K. | F01; expands with future F04/F12 records | Search and command menu | Delivered |
 | [F14](#f14-inventory-preparation) | Export bag contents and explain supplies or changes between selected snapshots. | F08 evidence/import conventions; addon field validation | Addon 3: Baganator | Queued; client fields unverified |
 | [F15](#f15-post-fight-coaching) | Review one supported encounter summary and compare a later attempt. | F08 import layer, F01 | Addon 8: Details! | Queued; transport and fields unverified |
 | [F16](#f16-build-tutor-and-experiment-notebook) | Explain a supported character profile and an optional existing simulation report. | F08 import layer, F07 | Addon 9: SimulationCraft | Queued; edition support unverified |
@@ -245,12 +245,14 @@ Before landing a feature:
 
 ## Delivery record
 
-F01–F03 are delivered. Later features have not started; checks below describe only the delivered scope.
+F01–F03 and F13 are delivered. The operator selected F16, F17, and F06 next. Checks below describe only the delivered scope.
 
 | Feature | Delivered scope / commit | Verification | Remaining work |
 | --- | --- | --- | --- |
 | F01 | Versioned linked notes, frozen reply/evidence selection, manual Next time items, source-session navigation, and reviewed text follow-ups. Feature commit `75d8570`, merged in PR #16. | Windows: 315 passed, 2 existing skips; subsequent managed-quest metadata fix: 7 journal tests passed. Synthetic Classic/Modern dialogs inspected at 440 × 480, plus 18-point Save text. | Existing provider transport reused; no fresh live-provider round trip. Image references retained; follow-up is explicitly text-only. Real game evidence remains outside these synthetic checks. |
 | F02 | Frozen advice cards from chat, Quest chat, Journal, or a selected quest; separate Play/Desk sizes and explicit source navigation. Feature commit `809774d`, merged in PR #18; Windows and Linux CI passed. | Windows: 324 passed, 2 existing keypad-event skips. Synthetic Classic/Modern Play at 340 × 300, Desk at 440 × 580, review at 440 × 480, and 24-point text at 65% opacity inspected. | Existing source navigation reused; no fresh live-provider round trip or game check. Missing sources and times remain unknown. |
 | F03 | Named arrangements with save/replace, restore previews, compatible-window reuse, card modes, and rollback on failed workspace saves. Feature commit `804cfa7`. | Windows: 346 passed, 2 existing keypad-event skips. Eighteen new checks cover storage, limits, drafts, retention, restart, monitor recovery, rollback, and no new requests. Classic/Modern dialogs inspected at 480 × 540 on a hidden desktop. | Existing provider transport reused; no new live-provider or in-game check. Dias integration remains a separate workstream. |
+
+| F13 | Ctrl+K searches bounded app-owned notes, next steps, quests, known sessions, windows, cards, layouts, and registered actions. | Windows: 355 passed, 2 existing keypad-event skips. Both themes inspected at 480 × 540; keyboard draft preservation, Unicode, missing sources, limits, and restart covered. | Future wishlist and activity-history records are not implemented by search. Navigation reuses existing transport without requests. |
 
 Add one row as each feature begins; keep the build-sequence state in sync. A feature is complete only when its selected deliverable and acceptance checks are satisfied, with any broader integration limitation stated explicitly.

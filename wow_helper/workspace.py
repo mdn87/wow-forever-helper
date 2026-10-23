@@ -48,6 +48,10 @@ class CompanionWindow:
         self.root.attributes("-topmost", self.topmost.get())
         self.root.protocol("WM_DELETE_WINDOW", lambda: manager.close_window(self))
         self.root.bind("<Configure>", self._configure, add="+")
+        self.root.bind("<Control-k>", lambda _: manager.show_search(self))
+        self.search_tag = "CompanionSearch" + self.id.replace("-", "")
+        self.root.bind_class(self.search_tag, "<Control-k>", lambda _: manager.show_search(self))
+        self.root.bind("<Map>", self._bind_search, add="+")
         self._place()
         self.chrome = WindowFrame(self.root, close=lambda: manager.close_window(self),
                                   minimum=self.minimum)
@@ -71,6 +75,8 @@ class CompanionWindow:
             self.options_menu.entryconfigure("end", label="Pinned advice is always saved", state="disabled")
         self.options_menu.add_command(label="Interface & transparency…", command=lambda: manager.show_interface(self))
         self.options_menu.add_command(label="Activity layouts…", command=lambda: manager.show_activity_layouts(self))
+        self.options_menu.add_command(label="Search companion…  Ctrl+K", command=lambda: manager.show_search(self))
+
         self.options_menu.add_command(label="WoW companion displays…", command=lambda: show_display_setup(manager, self.root))
         self.options_menu.add_command(label="Chat appearance…", command=lambda: self.view.show_appearance(),
                                       state="disabled")
@@ -112,6 +118,15 @@ class CompanionWindow:
     @property
     def minimum(self):
         return PLAY_MINIMUM if self.kind == "play" and self.mode == "play" else (MIN_WIDTH, MIN_HEIGHT)
+
+    def _bind_search(self, event):
+        # Run before Text/Entry class bindings, which otherwise edit the draft
+        # on Ctrl+K. Map also covers quest tabs created after this window opens.
+        widget = event.widget
+        if hasattr(widget, "bindtags"):
+            tags = widget.bindtags()
+            if self.search_tag not in tags:
+                widget.bindtags((self.search_tag, *tags))
 
     def toggle_play(self):
         self.mode_bounds[self.mode] = self.capture_bounds()
@@ -243,10 +258,13 @@ class CompanionWindow:
         if self.closed:
             return
         self.closed = True
+        self.root.unbind_class(self.search_tag, "<Control-k>")
         if self.manager._interface_dialog and self.manager._interface_dialog.parent is self.root:
             self.manager._interface_dialog.close()
         if self.manager._layouts_dialog and self.manager._layouts_dialog.parent is self.root:
             self.manager._layouts_dialog.close()
+        if self.manager._search_dialog and self.manager._search_dialog.parent is self.root:
+            self.manager._search_dialog.close()
         if self.card:
             self.card.close()
         self.opacity.close()
@@ -277,6 +295,7 @@ class WindowManager:
         self._restart_process = None
         self._interface_dialog = None
         self._layouts_dialog = None
+        self._search_dialog = None
         self._interface_preview = None
         self.interface = interface_settings(None)
         self.next_number = 1
@@ -338,6 +357,24 @@ class WindowManager:
         else:
             self._layouts_dialog.root.deiconify()
             self._layouts_dialog.root.lift()
+
+    def show_search(self, window):
+        from .search import SearchDialog
+        if self._search_dialog is None:
+            self._search_dialog = SearchDialog(self, window)
+        else:
+            self._search_dialog.refresh()
+            self._search_dialog.root.deiconify()
+            self._search_dialog.root.lift()
+        return "break"
+
+    def open_search_window(self, kind):
+        if self.closed or len(self.windows) >= MAX_WINDOWS:
+            raise ChatError("Eight windows are open or the companion is closing. Your drafts are kept.")
+        record = {"id": str(uuid.uuid4()), "number": self.next_number, "kind": kind,
+                  "chat": {"activity": {}}}
+        self.next_number += 1
+        return self._add(record)
 
     def open_wow_displays(self, quest_area, activity_area):
         areas = display_workareas(self.root)

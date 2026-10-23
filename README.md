@@ -56,11 +56,13 @@ The quest companion's parser, advice order, and CLI are tested against synthetic
 
 **Compact pinned advice** keeps a reviewed objective and next step in a small Play card. Pin a selected chat reply, saved Journal note, or quest step; Expand shows the saved advice and evidence, and Open source returns to its conversation without sending. Cards keep their content and separate Play/Desk sizes after restart. See [pinned advice](docs/CHAT.md#compact-pinned-advice).
 
+**Search companion** opens with **Ctrl+K** inside a companion window. Find saved notes and next steps, known quests and conversations, layouts, and settings without sending requests.
+
 **Saved activity layouts** let you name arrangements such as Leveling and Review from **Settings → Activity layouts…**. Preview a restore before applying it; matching windows keep their current conversations and drafts, and other open windows remain accessible. See [saved activity layouts](docs/CHAT.md#saved-activity-layouts).
 
 **Two WoW displays** are available from **Settings → WoW companion displays…**. Choose one screen for the saved quest log and another for large Quest help, Gear check, Screen adviser, and Journal / Resume cards. Tap a card to expand its workflow; **Activity cards** returns to the grid and **Resume** reopens the last activity. Each workflow keeps its own state across switching and restart. **Return to Dias** hides the pair while keeping their state. These are helper windows placed over the selected displays; DBM remains deferred. See [quest and activity displays](docs/CHAT.md#quest-and-activity-displays).
 
-The [upgrade implementation plan](docs/UPGRADE_IMPLEMENTATION_PLAN.md) tracks delivered F01–F03 and the remaining build sequence, with personal goals and wishlist next. The [Dias integration proposal](docs/DIAS_INTEGRATION_PLAN.md) starts with a temporary quest-and-advice view on the companion touch display and separates healer preparation from live boss-timer research. The original addon research and interface ideas remain in [Future upgrades](docs/FUTURE_UPGRADES.md), with the checked [Fable review](docs/FUTURE_UPGRADES_REVIEW.md) alongside them. The remaining upgrades are planned.
+The [upgrade implementation plan](docs/UPGRADE_IMPLEMENTATION_PLAN.md) tracks delivered F01–F03 and F13, with build tutoring, dungeon routes, and quest chains selected next. The [Dias integration proposal](docs/DIAS_INTEGRATION_PLAN.md) starts with a temporary quest-and-advice view on the companion touch display and separates healer preparation from live boss-timer research. The original addon research and interface ideas remain in [Future upgrades](docs/FUTURE_UPGRADES.md), with the checked [Fable review](docs/FUTURE_UPGRADES_REVIEW.md) alongside them. The remaining upgrades are planned.
 
 Run tests with `python -m pytest -q -p no:cacheprovider`. CI runs on Windows and Linux; neither job sends live keys.
 

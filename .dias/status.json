@@ -5,16 +5,16 @@
   "assessmentState": "unassessed",
   "assessmentScope": "current-milestone",
   "percentComplete": null,
-  "milestonePhase": "closeout",
+  "milestonePhase": "build-and-validate",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T05:08:41.509Z",
+  "assessedAt": "2026-10-23T05:02:51.825Z",
   "confidence": "authoritative",
-  "currentMilestone": "Quest and resumable activity displays delivered",
-  "remainingSummary": "Two helper displays are delivered. Physical touch and coexistence over Dias remain unverified. DBM is deferred; native Dias integration is still proposed.",
-  "nextChipId": null,
+  "currentMilestone": "Search, build tutor, routes, and quest chains",
+  "remainingSummary": "Search delivered; build tutor, route walkthrough, and quest chains remain. Separate companion display work is recorded on the board.",
+  "nextChipId": "build-tutor-notebook",
   "source": {
-    "label": "Two-display implementation and CI verification",
+    "label": "Saved activity layouts verification and helper upgrade sequence",
     "updatedAt": "2026-10-23"
   }
 }
