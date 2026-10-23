@@ -259,7 +259,7 @@ F01–F03, F06, F13, F16, and F17 are delivered. F04 remains next in the default
 
 | F17 | `6d30fb0` / PR 23. Manual image/text route preparation and later review in one conversation, linked notes, and safe imports. | Windows: 391 passed, 2 existing skips. Both themes inspected at 440 × 480; restart, both provider selections, and missing images covered. | MDT decoding and actual dungeon mechanics remain unverified; no live tracking or route execution. |
 
-| F06 | Selected-chain research, sourced relationships, snapshot observations, and explicit Quest chat updates. | Windows: 410 passed, 2 existing skips. Both themes inspected at 440 × 480. Live synthetic chain schema passed for Codex and Claude. | Actual quest-chain accuracy needs edition-specific evidence; no addon database is bundled. |
+| F06 | `f74dd17`. Selected-chain research, sourced relationships, snapshot observations, and explicit Quest chat updates. | Windows: 410 passed, 2 existing skips. Both themes inspected at 440 × 480. Live synthetic chain schema passed for Codex and Claude. | Actual quest-chain accuracy needs edition-specific evidence; no addon database is bundled. |
 
 Add one row as each feature begins; keep the build-sequence state in sync. A feature is complete only when its selected deliverable and acceptance checks are satisfied, with any broader integration limitation stated explicitly.
 
