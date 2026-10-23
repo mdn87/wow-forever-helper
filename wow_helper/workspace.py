@@ -11,6 +11,7 @@ from .theme import palette, apply_theme, display_font, settings_icon, menu as th
 from .window_frame import WindowFrame
 from .window_access import start_restart
 from .interface import InterfaceDialog, WindowOpacity, interface_settings
+from .pinned_advice import AdviceCard, PLAY_MINIMUM, pinned_selection, validate_pin
 
 LAYOUT_PATH = CHAT_STATE / "windows.json"
 
@@ -24,14 +25,18 @@ class CompanionWindow:
         self.number = record["number"]
         self.kind = record.get("kind", "chooser")
         self.view = None
+        self.card = None
+        self.pin = validate_pin(record.get("pin")) if self.kind == "play" else None
+        self.mode = "desk" if record.get("mode") == "desk" else "play"
+        self.mode_bounds = dict(record.get("mode_bounds")) if isinstance(record.get("mode_bounds"), dict) else {}
         self.closed = False
-        self.bounds = window_bounds(record.get("bounds"), manager.areas)
+        self.bounds = window_bounds(record.get("bounds"), manager.areas, self.minimum)
         self.caption = ""
         tk = manager.tk
         self.root = tk.Toplevel(manager.root)
         self.root.withdraw()
         self.root.configure(bg=palette(self.root).BACKGROUND)
-        self.root.minsize(MIN_WIDTH, MIN_HEIGHT)
+        self.root.minsize(*self.minimum)
         self.topmost = tk.BooleanVar(master=self.root, value=record.get("topmost") is not False)
         self.remember = tk.BooleanVar(master=self.root, value=record.get("remember") is not False)
         self.root.attributes("-topmost", self.topmost.get())
@@ -39,7 +44,7 @@ class CompanionWindow:
         self.root.bind("<Configure>", self._configure, add="+")
         self._place()
         self.chrome = WindowFrame(self.root, close=lambda: manager.close_window(self),
-                                  minimum=(MIN_WIDTH, MIN_HEIGHT))
+                                  minimum=self.minimum)
         surface = self.chrome.content
 
         bar = self.toolbar = tk.Frame(surface, bg=palette(self.root).BACKGROUND, padx=8, pady=5)
@@ -56,6 +61,8 @@ class CompanionWindow:
                                           command=self.set_topmost)
         self.options_menu.add_checkbutton(label="Remember draft and recent chat", variable=self.remember,
                                           command=manager.save_layout)
+        if self.kind == "play":
+            self.options_menu.entryconfigure("end", label="Pinned advice is always saved", state="disabled")
         self.options_menu.add_command(label="Interface & transparency…", command=lambda: manager.show_interface(self))
         self.options_menu.add_command(label="Chat appearance…", command=lambda: self.view.show_appearance(),
                                       state="disabled")
@@ -77,7 +84,10 @@ class CompanionWindow:
                                     font=("Segoe UI", 8))
         self.body = tk.Frame(surface, bg=palette(self.root).PANEL)
         self.body.pack(fill="both", expand=True)
-        if self.kind in TYPES:
+        if self.kind == "play":
+            self.card = AdviceCard(self)
+            self.manager.changed(self)
+        elif self.kind in TYPES:
             self.open_kind(self.kind, record.get("chat"))
         else:
             self.kind = "chooser"
@@ -85,6 +95,21 @@ class CompanionWindow:
         self.root.deiconify()
         self.chrome.apply_native()
         self.opacity = WindowOpacity(self.root, lambda: manager.display_settings)
+
+    @property
+    def minimum(self):
+        return PLAY_MINIMUM if self.kind == "play" and self.mode == "play" else (MIN_WIDTH, MIN_HEIGHT)
+
+    def toggle_play(self):
+        self.mode_bounds[self.mode] = self.capture_bounds()
+        self.mode = "desk" if self.mode == "play" else "play"
+        self.root.minsize(*self.minimum)
+        self.chrome.minimum = self.minimum
+        default = dict(self.bounds, width=380, height=340) if self.mode == "play" else dict(self.bounds, width=620, height=700)
+        self.bounds = window_bounds(self.mode_bounds.get(self.mode, default), self.manager.areas, self.minimum)
+        self._place()
+        self.card.render()
+        self.manager.changed(self)
 
     def show_chooser(self):
         tk = self.manager.tk
@@ -120,6 +145,7 @@ class CompanionWindow:
                                activity=self.manager.activity_factory(), window_id=self.id,
                                service_factory=self.manager.service_factory,
                                resume_conversation=self.manager.resume_conversation,
+                               pin_advice=self.manager.pin_advice,
                                state=state, on_change=lambda: self.manager.changed(self),
                                toolbar=self.toolbar, actions_menu=self.options_menu)
         self.options_menu.entryconfigure(self.appearance_menu_index, state="normal")
@@ -183,7 +209,8 @@ class CompanionWindow:
         return dict(self.bounds)
 
     def snapshot(self):
-        return {"id": self.id, "number": self.number, "kind": self.kind,
+        extra = {"pin": self.pin, "mode": self.mode, "mode_bounds": self.mode_bounds} if self.pin else {}
+        return {**extra,"id": self.id, "number": self.number, "kind": self.kind,
                 "bounds": self.capture_bounds(), "topmost": self.topmost.get(),
                 "remember": self.remember.get(),
                 "chat": self.view.snapshot(self.remember.get()) if self.view else {}}
@@ -194,6 +221,8 @@ class CompanionWindow:
         self.closed = True
         if self.manager._interface_dialog and self.manager._interface_dialog.parent is self.root:
             self.manager._interface_dialog.close()
+        if self.card:
+            self.card.close()
         self.opacity.close()
         if self.view:
             self.view.close()
@@ -231,7 +260,7 @@ class WindowManager:
             records = records[:MAX_WINDOWS] if isinstance(records, list) else []
             used_ids, used_numbers = set(), set()
             for raw in records:
-                if not isinstance(raw, dict) or raw.get("kind") not in (*TYPES, "chooser"):
+                if not isinstance(raw, dict) or raw.get("kind") not in (*TYPES, "chooser", "play"):
                     continue
                 record = dict(raw)
                 try:
@@ -286,7 +315,16 @@ class WindowManager:
         except OSError:
             return {}
         data = read_json(self.layout_path)
-        return data if data.get("version") == 1 else {}
+        if data.get("version") == 1:
+            for record in data.get("windows", []) if isinstance(data.get("windows"), list) else []:
+                if isinstance(record, dict) and record.get("kind") == "play":
+                    # Refuse damaged cards before any restore or automatic save.
+                    try:
+                        validate_pin(record.get("pin"))
+                    except ChatError:
+                        raise ChatError("Saved pinned advice could not be read. The existing layout is kept; restore a valid local backup.") from None
+            return data
+        return {}
 
     def _add(self, record):
         window = CompanionWindow(self, record)
@@ -306,6 +344,23 @@ class WindowManager:
                   "remember": source.remember.get() if source else True}
         self.next_number += 1
         return self._add(record)
+
+    def pin_advice(self, selection, objective, next_step, appearance=None):
+        if self.closed:
+            raise ChatError("The companion is closing. Your review is kept.")
+        if len(self.windows) >= MAX_WINDOWS:
+            raise ChatError("Eight windows are open. Close one before pinning; your review and drafts are kept.")
+        pin = pinned_selection(selection, objective, next_step, appearance)
+        record = {"id": str(uuid.uuid4()), "number": self.next_number, "kind": "play",
+                  "pin": pin, "bounds": {"width": 380, "height": 340}, "mode": "play"}
+        self.next_number += 1
+        window = self._add(record)
+        if not self.save_layout():
+            self.windows.remove(window)
+            window.dispose()
+            self.refresh_menus()
+            raise ChatError("Could not save the pinned card. Your review is kept; try again after saving works.")
+        return window
 
     def resume_conversation(self, source):
         """Reveal or restore the exact saved session, without an opening request."""
@@ -335,7 +390,9 @@ class WindowManager:
         if self.closed or window.closed:
             return
         previous = window.caption
-        if window.view:
+        if window.card:
+            window.caption = "Pinned advice · " + ("Play" if window.mode == "play" else "Desk")
+        elif window.view:
             suffix = window.view.session_title[:50].replace("\n", " ") or "Choose a session"
             if window.view.selection_key and not window.view.selected:
                 suffix += " · Disconnected"
@@ -424,7 +481,7 @@ class WindowManager:
         if self.closed or window not in self.windows:
             return
         self.areas = display_workareas(self.root)
-        bounds = window_bounds(window.capture_bounds(), self.areas)
+        bounds = window_bounds(window.capture_bounds(), self.areas, window.minimum)
         window.root.deiconify()
         window.bounds = bounds
         window._place()
@@ -439,7 +496,7 @@ class WindowManager:
         for index, window in enumerate(self.windows):
             raw = window.capture_bounds()
             raw.update(x=area[0] + 24 + index * 32, y=area[1] + 24 + index * 32)
-            bounds = window_bounds(raw, [area])
+            bounds = window_bounds(raw, [area], window.minimum)
             window.root.deiconify()
             window.bounds = bounds
             window._place()

@@ -8,7 +8,7 @@ Start with a temporary **WoW mode on the Dias companion touch display**: a quest
 
 Use Dias's screen and interaction patterns, but give game quests their own data model and view. Its development chips describe software work and contribute to project completion; they must not become a player's quest database. Real play data stays in ignored local storage, never in the tracked project board.
 
-This is a proposed integration track alongside the [upgrade plan](UPGRADE_IMPLEMENTATION_PLAN.md). Linked journal and Resume session are delivered. Compact pinned advice is being developed separately and is a dependency for the full advice-card experience; this plan does not claim it is delivered.
+This is a proposed integration track alongside the [upgrade plan](UPGRADE_IMPLEMENTATION_PLAN.md). Linked journal and Resume session are delivered. Compact pinned advice is now delivered separately and supplies the saved selections for the full advice-card experience; the Dias display integration remains proposed.
 
 ## What we can build on
 

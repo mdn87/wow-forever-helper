@@ -17,7 +17,7 @@ class ChatWindow:
     """One independent conversation, usable in a window or a workspace panel."""
 
     def __init__(self, root, service=None, *, embedded=False, selection=None, on_change=None,
-                 state=None, toolbar=None, actions_menu=None):
+                 state=None, toolbar=None, actions_menu=None, pin_advice=None):
         import tkinter as tk
         from tkinter import ttk
 
@@ -31,6 +31,8 @@ class ChatWindow:
         self.appearance = appearance_settings(state.get("appearance"))
         self._appearance_dialog = None
         self._journal_dialog = None
+        self._pin_dialog = None
+        self.pin_advice = pin_advice
         self.reply_ranges = []
         self.selected_reply_id = None
         self.desired_key = tuple(selection) if selection else saved_selection(state.get("session"))
@@ -110,6 +112,7 @@ class ChatWindow:
             self.provider_buttons[provider] = button
         self.actions_menu.add_command(label="Refresh open sessions", command=self.refresh)
         self.actions_menu.add_command(label="Save selected reply to Journal…", command=self.save_to_journal)
+        self.actions_menu.add_command(label="Pin selected reply to Play…", command=self.pin_to_play)
         self.session_picker = ttk.Combobox(selector, state="readonly", width=1, font=("Segoe UI", 9))
         self.session_picker.set("Choose an open session…")
         self.session_picker.pack(side="left", fill="x", expand=True)
@@ -138,6 +141,7 @@ class ChatWindow:
         self.transcript.bind("<Configure>", self._queue_scroll_to_bottom)
         self.transcript.bind("<Map>", self._queue_scroll_to_bottom)
         self.transcript.bind("<Control-j>", lambda _: self.save_to_journal())
+        self.transcript.bind("<Control-p>", lambda _: self.pin_to_play())
         composer = tk.Frame(conversation, bg=palette(self.root).PANEL)
         composer.pack(fill="x", pady=(5, 0))
         self.send_button = ttk.Button(composer, text="Send ↵", style="Primary.TButton", command=self.send, state="disabled")
@@ -436,15 +440,8 @@ class ChatWindow:
         self._queue_scroll_to_bottom()
         self.on_change()
 
-    def save_to_journal(self):
-        if self._journal_dialog is not None:
-            self._journal_dialog.root.lift()
-            return
+    def selected_advice(self):
         from .journal import advice_selection
-        from .journal_ui import SaveAdviceDialog
-        from .activities import ActivityService
-        if not hasattr(self, "activity"):
-            self.activity = ActivityService(getattr(self.service, "state", None) or CHAT_STATE)
         ranges = self.transcript.tag_ranges("sel")
         selection = None
         if ranges:
@@ -454,15 +451,42 @@ class ChatWindow:
                     break
             if selection is None:
                 self.status.set("Select text within a single assistant reply.")
-                return
+                return None
         elif self.reply_ranges:
             message = next((m for _, _, m in self.reply_ranges if m.id == self.selected_reply_id), self.reply_ranges[-1][2])
             selection = message, message.text
         if selection is None:
             self.status.set("There is no assistant reply to save yet.")
+            return None
+        return advice_selection(self, *selection)
+
+    def pin_to_play(self):
+        if self._pin_dialog is not None:
+            self._pin_dialog.root.lift()
             return
+        if self.pin_advice is None:
+            self.status.set("Open this chat in the companion workspace to pin advice.")
+            return
+        from .pinned_advice import PinAdviceDialog
         try:
-            self._journal_dialog = SaveAdviceDialog(self, advice_selection(self, *selection))
+            selection = self.selected_advice()
+            if selection:
+                self._pin_dialog = PinAdviceDialog(self, selection)
+        except ChatError as error:
+            self.status.set(str(error))
+
+    def save_to_journal(self):
+        if self._journal_dialog is not None:
+            self._journal_dialog.root.lift()
+            return
+        from .journal_ui import SaveAdviceDialog
+        from .activities import ActivityService
+        if not hasattr(self, "activity"):
+            self.activity = ActivityService(getattr(self.service, "state", None) or CHAT_STATE)
+        try:
+            selection = self.selected_advice()
+            if selection:
+                self._journal_dialog = SaveAdviceDialog(self, selection)
         except ChatError as error:
             self.status.set(str(error))
 
@@ -646,6 +670,8 @@ class ChatWindow:
         self._send_callback = None
         if self._appearance_dialog is not None:
             self._appearance_dialog.close()
+        if self._pin_dialog is not None:
+            self._pin_dialog.close()
         if self._journal_dialog is not None:
             self._journal_dialog.close()
         self.root.after_cancel(self._after_id)

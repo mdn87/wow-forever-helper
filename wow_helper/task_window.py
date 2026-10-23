@@ -134,6 +134,7 @@ class TaskWindow(ChatWindow):
             self.gear_button = self._button(actions, "Find better gear", self.find_gear)
         if self.kind == "quests":
             self.quest_chat_button = self._button(actions, "Quest chat", self.open_quest_chat)
+            self.actions_menu.add_command(label="Pin selected quest step to Play…", command=self.pin_quest_step)
         self.ask_button = self._button(actions, "Ask agent", lambda: self.prepare_request(review=False))
         self.setup_button = self._button(actions, "Setup", self.show_setup)
         footer = tk.Label(self.panel, textvariable=self.activity_notice, bg=palette(self.root).PANEL, fg=palette(self.root).ACCENT,
@@ -295,7 +296,7 @@ class TaskWindow(ChatWindow):
                           "appearance": self.appearance}
         view = QuestChat(surface, self.service_factory(), activity=self.activity, context=context,
                          profile=state.get("profile", self.profile), state=state, embedded=True,
-                         on_change=self.on_change, toolbar=self.shared_toolbar)
+                         on_change=self.on_change, toolbar=self.shared_toolbar, pin_advice=self.pin_advice)
         self.quest_chats[tab_id] = view
         if self.shared_toolbar is not None:
             view.menu_button.pack_forget()  # The window's cog controls appearance for all its tabs.
@@ -602,6 +603,37 @@ class TaskWindow(ChatWindow):
             self.book.select(self.panel)
         else:
             self.status.set("There is no agent reply to copy yet.")
+
+    def pin_quest_step(self):
+        from .pinned_advice import PinAdviceDialog
+        import json
+        if self._pin_dialog:
+            self._pin_dialog.root.lift()
+            return
+        key = self.quest_tree.selected()
+        if key is None or self.pin_advice is None:
+            self.activity_notice.set("Select a quest in the companion workspace before pinning a step.")
+            return
+        quest = self.quest_tree.quests[key]
+        edition = next(k for k, v in FLAVORS.items() if v == self.quest_tree.edition)
+        context = quest_context(quest, self.quest_tree.report, self.quest_tree.guides.get(key, {}), edition,
+                                self.panel_report.get("quests", {}).get("snapshot_at"))
+        step = next(iter(quest.get("remaining", [])), quest["action"])
+        selection = {"text": quest["title"] + "\n" + quest["action"] + "\n" + "\n".join(quest.get("remaining", [])),
+                     "objective": quest["title"], "next_step": step,
+                     "evidence": {"text": json.dumps(context, ensure_ascii=False, indent=2), "edition": edition,
+                                  "snapshot_at": context["snapshot_at"],
+                                  "gaps": ["Saved quest snapshot; live progress and conversation source unknown."]}}
+        if quest.get("id"):
+            selection["evidence"]["quest_id"] = quest["id"]
+        self._pin_dialog = PinAdviceDialog(self, selection)
+
+    def pin_to_play(self):
+        active = self.active_quest_chat()
+        if active:
+            active.pin_to_play()
+        else:
+            super().pin_to_play()
 
     def save_to_journal(self):
         active = self.active_quest_chat()

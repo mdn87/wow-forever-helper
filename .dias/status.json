@@ -5,16 +5,16 @@
   "assessmentState": "unassessed",
   "assessmentScope": "current-milestone",
   "percentComplete": null,
-  "milestonePhase": "build-and-validate",
+  "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T03:53:57.155Z",
+  "assessedAt": "2026-10-23T03:58:26.176Z",
   "confidence": "authoritative",
-  "currentMilestone": "Dias integration plan recorded",
-  "remainingSummary": "Plan complete. Next integration step is a synthetic companion-display trial; compact pinned advice continues as a separate workstream.",
-  "nextChipId": "compact-pinned-advice",
+  "currentMilestone": "Pinned advice delivered; Dias integration planned",
+  "remainingSummary": "Pinned advice delivered. Dias integration next needs a synthetic companion-display trial; saved activity layouts remain next in the helper upgrade sequence.",
+  "nextChipId": null,
   "source": {
-    "label": "Operator integration planning request",
+    "label": "Pinned advice verification and merged Dias integration plan",
     "updatedAt": "2026-10-23"
   }
 }

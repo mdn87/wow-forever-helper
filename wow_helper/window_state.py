@@ -83,9 +83,10 @@ def display_workareas(root):
     return areas if user32.EnumDisplayMonitors(None, None, collect, 0) and areas else fallback
 
 
-def window_bounds(raw, areas):
+def window_bounds(raw, areas, minimum=(MIN_WIDTH, MIN_HEIGHT)):
     """Preserve negative monitor coordinates and recover windows from removed screens."""
     raw = raw if isinstance(raw, dict) else {}
+    min_width, min_height = minimum
 
     def integer(name, default, low, high):
         value = raw.get(name)
@@ -94,8 +95,8 @@ def window_bounds(raw, areas):
     x, y = integer("x", 60, -32_000, 32_000), integer("y", 80, -32_000, 32_000)
     area = next((a for a in areas if a[0] <= x < a[2] - 80 and a[1] <= y < a[3] - 80), areas[0])
     left, top, right, bottom = area
-    width = min(integer("width", 620, MIN_WIDTH, 4000), max(MIN_WIDTH, right - left - 24))
-    height = min(integer("height", 700, MIN_HEIGHT, 3000), max(MIN_HEIGHT, bottom - top - 48))
+    width = min(integer("width", 620, min_width, 4000), max(min_width, right - left - 24))
+    height = min(integer("height", 700, min_height, 3000), max(min_height, bottom - top - 48))
     x = max(left, min(x, right - width - 12))
     y = max(top, min(y, bottom - height - 40))
     return {"x": x, "y": y, "width": width, "height": height}
