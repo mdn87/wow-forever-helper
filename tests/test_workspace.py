@@ -1885,3 +1885,178 @@ def test_journal_selection_can_pin_without_changing_note_or_draft(manager_factor
     assert journal.note.get('1.0', 'end-1c') == 'Unsent journal draft'
     assert journal.activity.journal(journal.journal_id) == original
     assert not journal.service.sent
+
+
+def test_named_layout_reuses_current_conversation_and_keeps_omitted_drafts(manager_factory):
+    manager = manager_factory()
+    first = manager.windows[0]
+    choose(first, 0)
+    first.root.geometry('480x620+80+90'); first.root.update()
+    manager.save_activity_layout('Leveling')
+    choose(first, 1)
+    first.view.editor.insert('1.0', 'Keep the current conversation draft')
+    other = manager.new_window(kind='journal')
+    other.view.note.insert('1.0', 'Unsent note outside the layout')
+    first.root.geometry('700x800+200+200'); first.root.update()
+    plan = manager.preview_activity_layout('Leveling')
+    assert len(plan['reuse']) == 1 and not plan['create'] and len(plan['keep']) == 1
+    manager.restore_activity_layout(plan)
+    assert first.view.selection_key == SESSIONS[1].key
+    assert first.view.editor.get('1.0', 'end-1c') == 'Keep the current conversation draft'
+    assert other.view.note.get('1.0', 'end-1c') == 'Unsent note outside the layout'
+    assert first.capture_bounds()['width'] == 480
+    manager.restore_activity_layout(manager.preview_activity_layout('Leveling'))
+    assert len(manager.windows) == 2
+    assert not any(w.view.service.sent for w in manager.windows)
+
+
+def test_named_layout_recreates_closed_windows_without_refresh_or_requests(manager_factory):
+    manager = manager_factory(service=CreatingService)
+    quest = manager.new_window(kind='quests')
+    settle(quest.view)
+    choose(quest, 0)
+    card = manager.pin_advice({'text':'Saved synthetic advice'}, 'Example goal', 'Example step')
+    card.toggle_play()
+    manager.save_activity_layout('Review')
+    manager.close_window(quest)
+    manager.close_window(card)
+    plan = manager.preview_activity_layout('Review')
+    assert len(plan['create']) == 2
+    manager.restore_activity_layout(plan)
+    restored = next(w for w in manager.windows if w.kind == 'quests')
+    settle(restored.view)
+    assert restored.view.selection_key == SESSIONS[0].key
+    assert not restored.view.activity.calls and not restored.view.service.sent and not restored.view.service.created
+    restored_card = next(w for w in manager.windows if w.kind == 'play')
+    assert restored_card.mode == 'desk' and restored_card.pin == card.pin
+    manager.restore_activity_layout(manager.preview_activity_layout('Review'))
+    assert len(manager.windows) == 3
+
+
+def test_named_layout_limit_preview_and_stale_preview_preserve_windows(manager_factory):
+    manager = manager_factory()
+    extra = manager.new_window(kind='journal')
+    manager.save_activity_layout('Preparation')
+    manager.close_window(extra)
+    while len(manager.windows) < MAX_WINDOWS:
+        manager.new_window()
+    plan = manager.preview_activity_layout('Preparation')
+    assert len(plan['skipped']) == 1
+    with pytest.raises(ChatError, match='Eight'):
+        manager.restore_activity_layout(plan)
+    assert len(manager.windows) == MAX_WINDOWS
+    manager.restore_activity_layout(plan, allow_partial=True)
+    manager.close_window(manager.windows[-1])
+    with pytest.raises(ChatError, match='changed'):
+        manager.restore_activity_layout(plan, allow_partial=True)
+    manager.restore_activity_layout(manager.preview_activity_layout('Preparation'))
+    assert len(manager.windows) == MAX_WINDOWS and any(w.kind == 'journal' for w in manager.windows)
+
+
+def test_named_layout_restart_retention_off_and_changed_window_kind(manager_factory, tmp_path):
+    path = tmp_path / 'windows.json'
+    manager = manager_factory(path)
+    chooser = manager.new_window()
+    original_id = chooser.id
+    manager.windows[0].remember.set(False)
+    choose(manager.windows[0], 0)
+    manager.windows[0].view.editor.insert('1.0', 'Do not copy this draft')
+    manager.save_activity_layout('Leveling')
+    chooser.open_chat()
+    chooser.view.editor.insert('1.0', 'Keep changed window draft')
+    manager.restore_activity_layout(manager.preview_activity_layout('Leveling'))
+    replacement = next(w for w in manager.windows if w.kind == 'chooser')
+    assert replacement.id != original_id and replacement.layout_key == original_id
+    assert chooser.view.editor.get('1.0', 'end-1c') == 'Keep changed window draft'
+    manager.close()
+    restored = manager_factory(path)
+    plan = restored.preview_activity_layout('Leveling')
+    assert not plan['create'] and len(plan['reuse']) == 2
+    restored.restore_activity_layout(plan)
+    assert len(restored.windows) == 3
+    assert restored.windows[0].view.editor.get('1.0', 'end-1c') == ''
+    assert restored.windows[0].view.selection_key == SESSIONS[0].key
+
+
+def test_named_layout_recreated_window_keeps_retention_off(manager_factory):
+    manager = manager_factory()
+    chat = new_chat(manager, manager.windows[0])
+    chat.remember.set(False)
+    choose(chat, 0)
+    chat.view.editor.insert('1.0', 'Do not save my draft in a named arrangement')
+    manager.save_activity_layout('Private review')
+    manager.close_window(chat)
+    manager.restore_activity_layout(manager.preview_activity_layout('Private review'))
+    restored = manager.windows[-1]
+    assert restored.id == chat.id and not restored.remember.get()
+    assert restored.view.selection_key == SESSIONS[0].key
+    assert restored.view.editor.get('1.0', 'end-1c') == ''
+
+
+def test_named_layout_failed_restore_rolls_back_and_keeps_quest_tab(manager_factory, monkeypatch):
+    from wow_helper import workspace
+    manager = manager_factory(service=CreatingService)
+    quest = manager.new_window(kind='quests')
+    _, child = open_synthetic_quest_chat(quest.view)
+    child.editor.insert('1.0', 'Keep quest draft')
+    card = manager.pin_advice({'text':'Saved advice'}, 'Example goal', 'Example step')
+    manager.save_activity_layout('Review')
+    manager.close_window(card)
+    quest.root.geometry('740x800+50+50'); quest.root.update()
+    quest.view.book.select(child.root)
+    previous = quest.capture_bounds()
+    with monkeypatch.context() as patch:
+        patch.setattr(workspace, 'display_workareas', lambda _: [(0, 0, 1280, 720)])
+        patch.setattr(manager, 'save_layout', lambda: False)
+        with pytest.raises(ChatError, match='previous windows and drafts are kept'):
+            manager.restore_activity_layout(manager.preview_activity_layout('Review'))
+    assert len(manager.windows) == 2
+    assert quest.capture_bounds() == previous
+    assert quest.view.active_quest_chat() is child
+    assert child.editor.get('1.0', 'end-1c') == 'Keep quest draft'
+
+
+def test_named_layout_monitor_recovery_and_changed_saved_preview(manager_factory, monkeypatch):
+    from wow_helper import workspace
+    manager = manager_factory()
+    card = manager.pin_advice({'text':'Saved advice'}, 'Example goal', 'Example step')
+    manager.save_activity_layout('Review')
+    saved = manager.saved_layouts.get('Review')
+    for record in saved['windows']:
+        record['bounds'].update(x=-3000, y=-2000)
+    manager.saved_layouts.save('Review', saved['windows'], replace=True)
+    plan = manager.preview_activity_layout('Review')
+    saved['windows'][0]['topmost'] = False
+    manager.saved_layouts.save('Review', saved['windows'], replace=True)
+    with pytest.raises(ChatError, match='changed'):
+        manager.restore_activity_layout(plan)
+    monkeypatch.setattr(workspace, 'display_workareas', lambda _: [(0, 0, 1920, 1080)])
+    manager.restore_activity_layout(manager.preview_activity_layout('Review'))
+    for window in manager.windows:
+        assert window.capture_bounds()['x'] >= 0 and window.capture_bounds()['y'] >= 0
+    assert card.capture_bounds()['width'] == 380
+    assert not manager.windows[0].topmost.get()
+
+
+@pytest.mark.parametrize('theme', ['classic', 'modern'])
+def test_named_layout_dialog_save_preview_restore_and_minimum_controls(manager_factory, theme):
+    manager = manager_factory()
+    manager.preview_interface({'theme': theme})
+    manager.show_activity_layouts(manager.windows[0])
+    dialog = manager._layouts_dialog
+    dialog.name.set('Leveling')
+    dialog.save_button.invoke()
+    assert dialog.selected.get() == 'Leveling'
+    assert str(dialog.restore_button.cget('state')) == 'disabled'
+    dialog.preview_button.invoke()
+    assert 'Reposition: Agent chat' in dialog.details.get('1.0', 'end-1c')
+    dialog.root.geometry('480x540+30+30'); dialog.root.update()
+    for control in (dialog.save_button, dialog.selector, dialog.preview_button, dialog.replace_button, dialog.restore_button):
+        assert control.winfo_ismapped()
+        assert control.winfo_rooty() + control.winfo_height() <= dialog.root.winfo_rooty() + dialog.root.winfo_height()
+    dialog.restore_button.invoke()
+    assert dialog.message.get().startswith('Restored 1 windows.')
+    dialog.name_entry.focus_force(); dialog.root.update()
+    dialog.name_entry.event_generate('<Escape>'); manager.root.update()
+    assert manager._layouts_dialog is None
+    manager.preview_interface(None)

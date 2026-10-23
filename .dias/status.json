@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T03:58:26.176Z",
+  "assessedAt": "2026-10-23T04:34:06.721Z",
   "confidence": "authoritative",
-  "currentMilestone": "Pinned advice delivered; Dias integration planned",
-  "remainingSummary": "Pinned advice delivered. Dias integration next needs a synthetic companion-display trial; saved activity layouts remain next in the helper upgrade sequence.",
+  "currentMilestone": "Saved activity layouts delivered",
+  "remainingSummary": "Personal goals and wishlist are next in the helper sequence. Dias integration remains a separate workstream with a synthetic companion-display trial to implement.",
   "nextChipId": null,
   "source": {
-    "label": "Pinned advice verification and merged Dias integration plan",
+    "label": "Saved activity layouts verification and helper upgrade sequence",
     "updatedAt": "2026-10-23"
   }
 }
