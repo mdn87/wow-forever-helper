@@ -5,16 +5,16 @@
   "assessmentState": "unassessed",
   "assessmentScope": "current-milestone",
   "percentComplete": null,
-  "milestonePhase": "closeout",
+  "milestonePhase": "build-and-validate",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T03:20:25.360Z",
+  "assessedAt": "2026-10-23T03:39:36.700Z",
   "confidence": "authoritative",
-  "currentMilestone": "Linked journal and Resume session",
-  "remainingSummary": "Linked journal delivered with synthetic checks. Compact pinned advice is the next planned feature. Fresh live-provider follow-up remains unverified.",
-  "nextChipId": null,
+  "currentMilestone": "Compact pinned advice",
+  "remainingSummary": "Build and verify frozen advice cards, compact and expanded views, source navigation, and restart without automatic requests.",
+  "nextChipId": "compact-pinned-advice",
   "source": {
-    "label": "Linked journal implementation and Windows verification",
+    "label": "Upgrade plan and handoff review",
     "updatedAt": "2026-10-23"
   }
 }

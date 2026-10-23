@@ -242,6 +242,33 @@
           "message": "Feature commit 75d8570 merged in PR 16. Windows and Linux CI passed. Next candidate: compact pinned advice; live follow-up remains unverified."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "compact-pinned-advice",
+      "projectId": "wow-forever-helper",
+      "title": "Keep selected advice in a compact Play view",
+      "summary": "Pin reviewed advice or a quest step, preserve its source, and expand it without losing chat drafts or sending requests.",
+      "stage": "planned",
+      "sequence": 7,
+      "prereqs": [
+        "linked-journal-resume",
+        "persistent-companion-windows"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-23T03:39:36.700Z",
+        "updatedAt": "2026-10-23T03:39:36.700Z"
+      },
+      "evidence": [
+        {
+          "entryId": "compact-pinned-created",
+          "at": "2026-10-23T03:39:36.700Z",
+          "kind": "created",
+          "message": "The upgrade plan and handoff select compact pinned advice next, using saved source links to keep the next step visible while playing."
+        }
+      ]
     }
   ]
 }
