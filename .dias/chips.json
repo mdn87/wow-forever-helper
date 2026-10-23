@@ -372,6 +372,111 @@
           "message": "Windows CI exposed rollback resizing on a small desktop. Exact prior geometry is now preserved; the regression and full 346-test suite pass locally."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "search-command-menu",
+      "projectId": "wow-forever-helper",
+      "title": "Search saved content and companion actions",
+      "summary": "Find notes, next steps, quests, conversations, layouts, and settings with a keyboard command menu.",
+      "stage": "planned",
+      "sequence": 10,
+      "prereqs": [
+        "linked-journal-resume",
+        "saved-activity-layouts"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-23T04:49:16.298Z",
+        "updatedAt": "2026-10-23T04:49:16.298Z"
+      },
+      "evidence": [
+        {
+          "entryId": "search-command-menu-created",
+          "at": "2026-10-23T04:49:16.298Z",
+          "kind": "created",
+          "message": "Operator selected this feature for implementation, in the order search, build tutor, dungeon routes, and quest chains."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "build-tutor-notebook",
+      "projectId": "wow-forever-helper",
+      "title": "Explain builds and save experiment questions",
+      "summary": "Import bounded supported profiles, discuss role and preferences, and retain comparison questions and report provenance.",
+      "stage": "planned",
+      "sequence": 11,
+      "prereqs": [
+        "linked-journal-resume"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-23T04:49:16.298Z",
+        "updatedAt": "2026-10-23T04:49:16.298Z"
+      },
+      "evidence": [
+        {
+          "entryId": "build-tutor-notebook-created",
+          "at": "2026-10-23T04:49:16.298Z",
+          "kind": "created",
+          "message": "Operator selected this feature for implementation, in the order search, build tutor, dungeon routes, and quest chains."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "dungeon-route-walkthrough",
+      "projectId": "wow-forever-helper",
+      "title": "Prepare and review dungeon routes",
+      "summary": "Discuss a selected route image or text with dungeon, edition, and role, then return to the same conversation.",
+      "stage": "planned",
+      "sequence": 12,
+      "prereqs": [
+        "linked-journal-resume"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-23T04:49:16.298Z",
+        "updatedAt": "2026-10-23T04:49:16.298Z"
+      },
+      "evidence": [
+        {
+          "entryId": "dungeon-route-walkthrough-created",
+          "at": "2026-10-23T04:49:16.298Z",
+          "kind": "created",
+          "message": "Operator selected this feature for implementation, in the order search, build tutor, dungeon routes, and quest chains."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "quest-chains-prerequisites",
+      "projectId": "wow-forever-helper",
+      "title": "Research quest chains and prerequisites",
+      "summary": "Research a selected chain with sources, show observed completion separately, and discuss it in the quest conversation.",
+      "stage": "planned",
+      "sequence": 13,
+      "prereqs": [
+        "linked-journal-resume"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-23T04:49:16.298Z",
+        "updatedAt": "2026-10-23T04:49:16.298Z"
+      },
+      "evidence": [
+        {
+          "entryId": "quest-chains-prerequisites-created",
+          "at": "2026-10-23T04:49:16.298Z",
+          "kind": "created",
+          "message": "Operator selected this feature for implementation, in the order search, build tutor, dungeon routes, and quest chains."
+        }
+      ]
     }
   ]
 }
