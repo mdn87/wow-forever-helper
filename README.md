@@ -54,7 +54,7 @@ The quest companion's parser, advice order, and CLI are tested against synthetic
 
 **Linked journal and Resume session** now saves reviewed chat replies with their original evidence and optional next steps. Use **Save selected reply to Journal…** in the chat menu, then **Resume session** in Journal to reopen the conversation without sending anything. Follow-ups require preview and explicit Send. See [saving and resuming advice](docs/CHAT.md#save-advice-and-resume-its-conversation).
 
-The [upgrade implementation plan](docs/UPGRADE_IMPLEMENTATION_PLAN.md) tracks delivered F01 and the remaining build sequence, with compact pinned advice next. The original addon research and interface ideas remain in [Future upgrades](docs/FUTURE_UPGRADES.md), with the checked [Fable review](docs/FUTURE_UPGRADES_REVIEW.md) alongside them. The remaining upgrades are planned.
+The [upgrade implementation plan](docs/UPGRADE_IMPLEMENTATION_PLAN.md) tracks delivered F01 and the remaining build sequence, with compact pinned advice next. The [Dias integration proposal](docs/DIAS_INTEGRATION_PLAN.md) starts with a temporary quest-and-advice view on the companion touch display and separates healer preparation from live boss-timer research. The original addon research and interface ideas remain in [Future upgrades](docs/FUTURE_UPGRADES.md), with the checked [Fable review](docs/FUTURE_UPGRADES_REVIEW.md) alongside them. The remaining upgrades are planned.
 
 Run tests with `python -m pytest -q -p no:cacheprovider`. CI runs on Windows and Linux; neither job sends live keys.
 
