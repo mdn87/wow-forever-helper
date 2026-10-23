@@ -63,6 +63,18 @@ def test_report_warns_about_stale_data_and_hidden_quests():
     assert fresh["warnings"] == [] and fresh["quest_count"] == 6
 
 
+@pytest.mark.parametrize('completed,coverage,count', [(None, 'unavailable', None),
+                         (set(), 'available', 0), (set(range(1, 10002)), 'truncated', 10000)],
+                         ids=['missing', 'empty', 'bounded'])
+def test_completed_ids_have_explicit_coverage(completed, coverage, count):
+    snap = snapshot(); snap.completed = completed
+    result = quests.report(snap, 1000, now=1030)
+    assert result['completion_coverage'] == coverage
+    assert (len(result['completed_ids']) if result['completed_ids'] is not None else None) == count
+    if completed:
+        assert result['completed_count'] == 10001 and result['completed_ids'] == list(range(1, 10001))
+
+
 def test_text_output_reads_as_a_short_list():
     text = quests.as_text(quests.report(snapshot(), mtime=1000, now=1030))
     lines = text.splitlines()

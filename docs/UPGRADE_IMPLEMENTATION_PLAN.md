@@ -1,12 +1,12 @@
 # Companion upgrade implementation plan
 
-Status: F01–F03, F13, F16, and F17 delivered; F06 selected next. Updated: 2026-10-23. Original baseline: `c5fa294`.
+Status: F01–F03, F06, F13, F16, and F17 delivered. Updated: 2026-10-23. Original baseline: `c5fa294`.
 
 This is the build sequence for the ideas in [Future upgrades](FUTURE_UPGRADES.md), incorporating the checked [Fable review](FUTURE_UPGRADES_REVIEW.md). It supersedes the competing priority lists in that research document. All ten addon ideas and the earlier interface ideas are retained. Current behavior remains documented in [Chat](CHAT.md), [Quests](QUESTS.md), and [Assistive input](ASSISTIVE_INPUT.md).
 
 The product outcome is a continuing conversation that can use selected game evidence, explain choices, remember what the player decided, and revisit the result. Each feature below must complete a useful part of that workflow. Addon inspiration does not imply a dependency on that addon or verified Forever compatibility.
 
-**Operator-selected sequence: F13, F16, F17, then F06. Next: F06, Quest chains and prerequisites.** F01–F03, F13, F16, and F17 are implemented as recorded below. F04 remains first in the remaining default backlog. Complete, verify, and land one feature before moving to the next. The numbered order is the default priority; the Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
+**Operator-selected sequence F13, F16, F17, and F06 is delivered.** F01–F03 are also implemented as recorded below. F04 remains first in the remaining default backlog. Complete, verify, and land one feature before moving to the next. The numbered order is the default priority; the Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
 
 ## Build sequence
 
@@ -17,7 +17,7 @@ The product outcome is a continuing conversation that can use selected game evid
 | [F03](#f03-saved-activity-layouts) | Save and restore named arrangements of companion windows. | Existing window manager | Saved activity layouts | Delivered |
 | [F04](#f04-personal-goals-and-wishlist) | Track selected goals and their researched next steps. | F01 | Addon 4: ALL THE THINGS | Queued |
 | [F05](#f05-repeatable-activity-checklists) | Today and This week lists with manual completion and explicit repeat rules. | F04 | Addon 5: SavedInstances | Queued |
-| [F06](#f06-quest-chains-and-prerequisites) | Research one selected chain and continue discussing it in Quest chat. | F01 | Addon 1: BtWQuests | Queued |
+| [F06](#f06-quest-chains-and-prerequisites) | Research one selected chain and continue discussing it in Quest chat. | F01 | Addon 1: BtWQuests | Delivered: selected-chain research, not an addon database |
 | [F07](#f07-explainable-gear-comparisons) | Compare one explicit candidate with an equipped item. | F01 | Addon 2: Pawn; Raidbots comparison pattern | Queued |
 | [F08](#f08-addon-troubleshooting) | Review an error import and keep diagnosis and retries in one conversation. | F01; builds the shared import layer | Addon 6: BugSack | Queued |
 | [F09](#f09-session-economy-analysis) | Import a supported Journalator CSV and discuss deterministic totals. | F08 import layer, F01 | Addon 7: Journalator | Queued; export schema unverified |
@@ -245,7 +245,7 @@ Before landing a feature:
 
 ## Delivery record
 
-F01–F03, F13, F16, and F17 are delivered. The operator selected F06 next. Checks below describe only the delivered scope.
+F01–F03, F06, F13, F16, and F17 are delivered. F04 remains next in the default backlog. Checks below describe only the delivered scope.
 
 | Feature | Delivered scope / commit | Verification | Remaining work |
 | --- | --- | --- | --- |
@@ -257,7 +257,9 @@ F01–F03, F13, F16, and F17 are delivered. The operator selected F06 next. Chec
 
 | F16 | `8141c6a` / PR 22. Static Retail profile import, manual notes, reviewed requests, and linked experiment notes. | Windows: 378 passed, 2 existing skips; final retention regression and 20 related checks passed. Both themes inspected at 440 × 480. | Simulation accuracy, live provider responses for this flow, and full item inspection unverified. |
 
-| F17 | Manual image/text route preparation and later review in one conversation, linked notes, and safe imports. | Windows: 391 passed, 2 existing skips. Both themes inspected at 440 × 480; restart, both provider selections, and missing images covered. | MDT decoding and actual dungeon mechanics remain unverified; no live tracking or route execution. |
+| F17 | `6d30fb0` / PR 23. Manual image/text route preparation and later review in one conversation, linked notes, and safe imports. | Windows: 391 passed, 2 existing skips. Both themes inspected at 440 × 480; restart, both provider selections, and missing images covered. | MDT decoding and actual dungeon mechanics remain unverified; no live tracking or route execution. |
+
+| F06 | `f74dd17`. Selected-chain research, sourced relationships, snapshot observations, and explicit Quest chat updates. | Windows: 410 passed, 2 existing skips. Both themes inspected at 440 × 480. Live synthetic chain schema passed for Codex and Claude. | Actual quest-chain accuracy needs edition-specific evidence; no addon database is bundled. |
 
 Add one row as each feature begins; keep the build-sequence state in sync. A feature is complete only when its selected deliverable and acceptance checks are satisfied, with any broader integration limitation stated explicitly.
 

@@ -235,6 +235,9 @@ def report(snapshot, mtime, *, flavor=None, now=None):
                        "zone": snapshot.zone, "subzone": snapshot.subzone},
             "quest_count": len(snapshot.quests), "plan": plan(snapshot, flavor),
             "completed_count": len(snapshot.completed) if snapshot.completed is not None else None,
+            "completed_ids": sorted(snapshot.completed)[:10000] if snapshot.completed is not None else None,
+            "completion_coverage": ("unavailable" if snapshot.completed is None else
+                                    "truncated" if len(snapshot.completed) > 10000 else "available"),
             "available": nearby, "warnings": warnings}
 
 

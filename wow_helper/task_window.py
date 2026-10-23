@@ -52,6 +52,11 @@ class TaskWindow(ChatWindow):
         from .notebook_ui import notebook_drafts
         self.notebook_drafts = notebook_drafts(raw.get("notebooks"))
         self._notebooks = {}
+        self._chain_dialog = None
+        self.chain_keys = {k: v for k, v in raw.get('chain_keys', {}).items()
+                           if isinstance(k, str) and isinstance(v, str) and re.fullmatch('[0-9a-f]{64}', k)
+                           and re.fullmatch('[0-9a-f]{64}', v)} if isinstance(raw.get('chain_keys'), dict) else {}
+        self.chain_keys = dict(list(self.chain_keys.items())[-32:])
         self.journal_id = str(uuid.UUID(raw.get("journal_id", window_id))) if self._valid_id(raw.get("journal_id", window_id)) else str(uuid.uuid4())
         self.image_name = raw.get("image") if isinstance(raw.get("image"), str) else None
         self.last_setup = raw.get("last_setup") if isinstance(raw.get("last_setup"), str) else ""
@@ -140,6 +145,7 @@ class TaskWindow(ChatWindow):
         if self.kind == "quests":
             self.quest_chat_button = self._button(actions, "Quest chat", self.open_quest_chat)
             self.actions_menu.add_command(label="Pin selected quest step to Play…", command=self.pin_quest_step)
+            self.actions_menu.add_command(label="Research selected quest chain…", command=self.show_quest_chain)
         self.ask_button = self._button(actions, "Ask agent", lambda: self.prepare_request(review=False))
         self.setup_button = self._button(actions, "Setup", self.show_setup)
         footer = tk.Label(self.panel, textvariable=self.activity_notice, bg=palette(self.root).PANEL, fg=palette(self.root).ACCENT,
@@ -254,6 +260,7 @@ class TaskWindow(ChatWindow):
             data["activity"]["journal_name"] = self.journal_name.get()[:80]
             data["activity"]["pending_note"] = self.pending_note
         if self.kind == "quests" and hasattr(self, "quest_tree"):
+            data['activity']['chain_keys'] = self.chain_keys
             data["activity"].update(opened_quests=self.quest_tree.open_ids(), guide_keys=self.guide_keys)
             # Separate bounded files keep multi-tab histories out of the layout's size limit.
             data["activity"]["quest_chats"] = list(self.quest_chats)
@@ -834,8 +841,22 @@ class TaskWindow(ChatWindow):
         else:
             self._notebooks['route'] = RouteNotebook(self)
 
+    def show_quest_chain(self):
+        from .chain_ui import ChainDialog
+        if self._chain_dialog:
+            self._chain_dialog.root.lift()
+            return
+        key = self.quest_tree.selected()
+        if key is None:
+            self.activity_notice.set('Select a quest before researching its prerequisites and next quests.')
+            return
+        edition = next(k for k, v in FLAVORS.items() if v == self.quest_tree.edition)
+        self._chain_dialog = ChainDialog(self, self.quest_tree.quests[key], edition)
+
     def close(self):
         self._view_ready = False
+        if self._chain_dialog:
+            self._chain_dialog.close()
         for dialog in list(self._notebooks.values()):
             dialog.close()
         for view in self.quest_chats.values():

@@ -111,3 +111,26 @@ def test_tiers_adjust_effort_time_and_search_scope(guides):
     assert guides.agents.calls[0][3]["timeout"] == 180
     gear = module.research_prompt("gear", {}, "Classic Forever beta", "complicated")
     assert "exact boss" in gear and "Item level alone" in gear
+
+
+@pytest.mark.parametrize('provider', ['codex', 'claude'])
+def test_chain_research_uses_its_schema_cache_and_explicit_failure_retry(guides, provider):
+    from test_quest_chain import CHAIN
+    from wow_helper.quest_chain import CHAIN_SCHEMA
+    context = {'quest': {'id': 102, 'title': 'Example quest'}, 'snapshot_at': 1000}
+    key = guides.request('chain', context, CHAIN['edition'], 'complicated', provider)
+    session, job, prompt, options = guides.agents.calls[0]
+    assert options['schema'] == CHAIN_SCHEMA and 'prerequisites' in prompt
+    guides.agents.results[session, job] = {'status': 'completed', 'structured': CHAIN}
+    guides.poll()
+    result = guides.get(key)
+    assert result['context'] == context and result['guide']['nodes'][0]['id'] == 101
+    assert guides.request('chain', context, CHAIN['edition'], 'complicated', provider) == key
+    assert len(guides.agents.calls) == 1
+    guides.request('chain', context, CHAIN['edition'], 'complicated', provider, retry=True)
+    session, job, *_ = guides.agents.calls[1]
+    guides.agents.results[session, job] = {'status': 'completed', 'structured': {**CHAIN, 'edition': 'Retail'}}
+    guides.poll()
+    assert guides.get(key)['status'] == 'failed'
+    guides.poll()
+    assert len(guides.agents.calls) == 2
