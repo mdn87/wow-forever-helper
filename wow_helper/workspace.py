@@ -14,6 +14,7 @@ from .window_access import start_restart
 from .interface import InterfaceDialog, WindowOpacity, interface_settings
 from .pinned_advice import AdviceCard, PLAY_MINIMUM, pinned_selection, validate_pin
 from .activity_layouts import SavedLayouts, layout_record
+from .wow_displays import DISPLAY_TYPES, ActivityDeck, QuestLogDisplay, display_state, show_display_setup
 
 LAYOUT_PATH = CHAT_STATE / "windows.json"
 
@@ -28,6 +29,8 @@ class CompanionWindow:
         self.number = record["number"]
         self.kind = record.get("kind", "chooser")
         self.view = None
+        self.display = None
+        self.display_area = tuple(record["display_area"]) if isinstance(record.get("display_area"), list) else None
         self.card = None
         self.pin = validate_pin(record.get("pin")) if self.kind == "play" else None
         self.mode = "desk" if record.get("mode") == "desk" else "play"
@@ -68,6 +71,7 @@ class CompanionWindow:
             self.options_menu.entryconfigure("end", label="Pinned advice is always saved", state="disabled")
         self.options_menu.add_command(label="Interface & transparency…", command=lambda: manager.show_interface(self))
         self.options_menu.add_command(label="Activity layouts…", command=lambda: manager.show_activity_layouts(self))
+        self.options_menu.add_command(label="WoW companion displays…", command=lambda: show_display_setup(manager, self.root))
         self.options_menu.add_command(label="Chat appearance…", command=lambda: self.view.show_appearance(),
                                       state="disabled")
         self.appearance_menu_index = self.options_menu.index("end")
@@ -91,12 +95,17 @@ class CompanionWindow:
         if self.kind == "play":
             self.card = AdviceCard(self)
             self.manager.changed(self)
+        elif self.kind in DISPLAY_TYPES:
+            self.open_display(self.kind, record.get("display"))
         elif self.kind in TYPES:
             self.open_kind(self.kind, record.get("chat"))
         else:
             self.kind = "chooser"
             self.show_chooser()
-        self.root.deiconify()
+        hidden = self.display and (record.get("display_hidden") or
+                                  self.display_area is not None and self.display_area not in manager.areas)
+        if not hidden:
+            self.root.deiconify()
         self.chrome.apply_native()
         self.opacity = WindowOpacity(self.root, lambda: manager.display_settings)
 
@@ -133,11 +142,18 @@ class CompanionWindow:
             tk.Label(chooser, text=description, bg=palette(self.root).PANEL, fg=palette(self.root).MUTED, font=("Segoe UI", 9),
                      wraplength=340, justify="left", anchor="w").pack(fill="x", pady=(3, 6))
         self.chat_button = self.type_buttons["chat"]
+        ttk.Button(chooser, text="Set up two WoW displays…",
+                   command=lambda: show_display_setup(self.manager, self.root)).pack(fill="x", pady=(4, 0))
         ttk.Button(chooser, text="Open saved preset…", command=self.open_preset).pack(fill="x", pady=(8, 0))
         self.manager.changed(self)
 
     def open_chat(self, state=None):
         self.open_kind("chat", state)
+
+    def open_display(self, kind, state=None):
+        self.kind = kind
+        self.display = (ActivityDeck if kind == "activities" else QuestLogDisplay)(self, state)
+        self.manager.changed(self)
 
     def open_kind(self, kind, state=None):
         if self.view is not None or self.closed:
@@ -214,6 +230,10 @@ class CompanionWindow:
 
     def snapshot(self):
         extra = {"pin": self.pin, "mode": self.mode, "mode_bounds": self.mode_bounds} if self.pin else {}
+        if self.display:
+            extra.update(display=self.display.snapshot(self.remember.get()),
+                         display_area=list(self.display_area) if self.display_area else None,
+                         display_hidden=self.root.state() == "withdrawn")
         return {**extra,"id": self.id, "layout_key": self.layout_key, "number": self.number, "kind": self.kind,
                 "bounds": self.capture_bounds(), "topmost": self.topmost.get(),
                 "remember": self.remember.get(),
@@ -232,6 +252,8 @@ class CompanionWindow:
         self.opacity.close()
         if self.view:
             self.view.close()
+        if self.display:
+            self.display.close()
         self.root.destroy()
 
 
@@ -251,6 +273,7 @@ class WindowManager:
         self._save_after = None
         self.access = None
         self._access_after = None
+        self._display_after = None
         self._restart_process = None
         self._interface_dialog = None
         self._layouts_dialog = None
@@ -268,7 +291,7 @@ class WindowManager:
             records = records[:MAX_WINDOWS] if isinstance(records, list) else []
             used_ids, used_numbers = set(), set()
             for raw in records:
-                if not isinstance(raw, dict) or raw.get("kind") not in (*TYPES, "chooser", "play"):
+                if not isinstance(raw, dict) or raw.get("kind") not in (*TYPES, *DISPLAY_TYPES, "chooser", "play"):
                     continue
                 record = dict(raw)
                 try:
@@ -290,6 +313,7 @@ class WindowManager:
             self.loading = False
             self.refresh_menus()
             self.schedule_save()
+            self._display_after = self.root.after(1000, self._check_display_connections)
         except Exception:
             for window in self.windows:
                 window.dispose()
@@ -314,6 +338,77 @@ class WindowManager:
         else:
             self._layouts_dialog.root.deiconify()
             self._layouts_dialog.root.lift()
+
+    def open_wow_displays(self, quest_area, activity_area):
+        areas = display_workareas(self.root)
+        quest_area, activity_area = tuple(quest_area), tuple(activity_area)
+        if quest_area == activity_area or quest_area not in areas or activity_area not in areas:
+            raise ChatError("Choose two different connected screens. Reopen setup if the displays changed.")
+        existing = {w.kind: w for w in self.windows if w.kind in DISPLAY_TYPES}
+        if len(self.windows) + 2 - len(existing) > MAX_WINDOWS:
+            raise ChatError("Eight windows would be exceeded. Close a window before opening both displays.")
+        self.areas = areas
+        previous = [(w, w.capture_bounds(), w.display_area, w.root.state()) for w in existing.values()]
+        created, pair = [], []
+        self.loading = True
+        try:
+            for kind, area in (("questlog", quest_area), ("activities", activity_area)):
+                window = existing.get(kind)
+                if window is None:
+                    record = dict(id=str(uuid.uuid4()), number=self.next_number, kind=kind,
+                                  display_area=list(area), bounds=dict(x=area[0], y=area[1],
+                                  width=area[2] - area[0] - 24, height=area[3] - area[1] - 48))
+                    self.next_number += 1
+                    window = self._add(record)
+                    created.append(window)
+                window.display_area = area
+                window.bounds = window_bounds(dict(x=area[0], y=area[1], width=area[2] - area[0] - 24,
+                                                    height=area[3] - area[1] - 48), areas, window.minimum)
+                window._place()
+                window.root.deiconify()
+                window.root.lift()
+                pair.append(window)
+            self.root.update_idletasks()
+            if not self.save_layout():
+                raise ChatError("The display arrangement could not be saved. Your previous windows are kept.")
+        except Exception:
+            for window in created:
+                self.windows.remove(window)
+                window.dispose()
+            for window, bounds, area, state in previous:
+                window.bounds, window.display_area = bounds, area
+                window._place()
+                if state == "withdrawn":
+                    window.root.withdraw()
+            raise
+        finally:
+            self.loading = False
+            self.refresh_menus()
+        return tuple(pair)
+
+    def return_to_dias(self):
+        displays = [w for w in self.windows if w.display]
+        visible = [w for w in displays if w.root.state() != "withdrawn"]
+        if not self.can_reopen and not any(w not in displays for w in self.windows):
+            self.new_window()
+        for window in displays:
+            window.root.withdraw()
+        if not self.save_layout():
+            for window in visible:
+                window.root.deiconify()
+
+    def _check_display_connections(self):
+        self._display_after = None
+        if self.closed:
+            return
+        displays = [w for w in self.windows if w.display and w.display_area is not None]
+        if displays:
+            areas = display_workareas(self.root)
+            for window in displays:
+                if window.display_area not in areas and window.root.state() != "withdrawn":
+                    window.root.withdraw()
+                    self.schedule_save()
+        self._display_after = self.root.after(1000, self._check_display_connections)
 
     def save_activity_layout(self, name, *, replace=False):
         if self.closed:
@@ -342,6 +437,9 @@ class WindowManager:
                 "create": create, "keep": available, "skipped": skipped}
 
     def _apply_activity_settings(self, window, record, *, tab=None, recover=True):
+        if window.display:
+            area = record.get("display_area")
+            window.display_area = tuple(area) if area else None
         if window.card:
             window.mode = record["mode"]
             window.mode_bounds = deepcopy(record["mode_bounds"])
@@ -380,7 +478,10 @@ class WindowManager:
         try:
             for window, record in plan["reuse"]:
                 self._apply_activity_settings(window, record)
-                window.root.deiconify()
+                if window.display_area is not None and window.display_area not in self.areas:
+                    window.root.withdraw()
+                else:
+                    window.root.deiconify()
             for raw in plan["create"]:
                 record = deepcopy(raw)
                 record["layout_key"] = record["id"]
@@ -425,6 +526,12 @@ class WindowManager:
         data = read_json(self.layout_path)
         if data.get("version") == 1:
             for record in data.get("windows", []) if isinstance(data.get("windows"), list) else []:
+                if isinstance(record, dict) and record.get("kind") in tuple(DISPLAY_TYPES):
+                    display_state(record["kind"], record.get("display"))
+                    area = record.get("display_area")
+                    if area is not None and (not isinstance(area, list) or len(area) != 4 or
+                                             any(type(v) is not int for v in area)):
+                        raise ChatError("Saved companion display position is invalid. The existing layout is kept.")
                 if isinstance(record, dict) and record.get("kind") == "play":
                     # Refuse damaged cards before any restore or automatic save.
                     try:
@@ -476,15 +583,18 @@ class WindowManager:
         metadata(source=source)
         key = (source["provider"], source["session_id"])
         for window in self.windows:
-            view = window.view
-            if view is None:
-                continue
-            for candidate in [view, *view.quest_chats.values()]:
-                if candidate.selection_key == key:
-                    if view.book:
-                        view.book.select(candidate.root)
-                    self.reveal(window)
-                    return candidate
+            views = [(None, window.view)] if window.view else []
+            if isinstance(window.display, ActivityDeck):
+                views += list(window.display.views.items())
+            for activity, view in views:
+                for candidate in [view, *view.quest_chats.values()]:
+                    if candidate.selection_key == key:
+                        if activity:
+                            window.display.open_activity(activity)
+                        if view.book:
+                            view.book.select(candidate.root)
+                        self.reveal(window)
+                        return candidate
         if len(self.windows) >= MAX_WINDOWS:
             raise ChatError("Eight windows are open. Close one before opening this conversation; notes and drafts are kept.")
         if self.closed:
@@ -500,6 +610,8 @@ class WindowManager:
         previous = window.caption
         if window.card:
             window.caption = "Pinned advice · " + ("Play" if window.mode == "play" else "Desk")
+        elif window.kind in DISPLAY_TYPES:
+            window.caption = DISPLAY_TYPES[window.kind]
         elif window.view:
             suffix = window.view.session_title[:50].replace("\n", " ") or "Choose a session"
             if window.view.selection_key and not window.view.selected:
@@ -589,6 +701,9 @@ class WindowManager:
         if self.closed or window not in self.windows:
             return
         self.areas = display_workareas(self.root)
+        if window.display_area is not None and window.display_area not in self.areas:
+            window.set_notice("The selected display is missing. Choose screens again in WoW companion displays.")
+            return
         bounds = window_bounds(window.capture_bounds(), self.areas, window.minimum)
         window.root.deiconify()
         window.bounds = bounds
@@ -645,7 +760,7 @@ class WindowManager:
             data = {"version": 1, "interface": dict(self.interface),
                     "windows": [window.snapshot() for window in self.windows]}
             write_json(self.layout_path, data)
-        except OSError:
+        except (OSError, ChatError):
             for window in self.windows:
                 window.set_notice("Could not save windows. Keep the companion open and try again.")
             return False
@@ -667,6 +782,9 @@ class WindowManager:
         if not self.save_layout():
             return
         self.closed = True
+        if self._display_after is not None:
+            self.root.after_cancel(self._display_after)
+            self._display_after = None
         if self._access_after is not None:
             self.root.after_cancel(self._access_after)
             self._access_after = None

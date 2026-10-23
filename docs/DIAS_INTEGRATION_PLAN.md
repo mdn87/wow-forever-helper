@@ -1,8 +1,14 @@
 # WoW Helper on Dias
 
-Status: proposal, 2026-10-22. This document plans an integration; it does not add a display mode, a telemetry channel, or live combat advice.
+Status: two helper display views implemented, 2026-10-23. Native Dias integration remains proposed. DBM is deferred by operator direction.
 
-## Recommendation
+## Current direction
+
+Use two selected screens: **Quest log** on one and **Activity cards** on the other. The cards open Quest help, Gear check, Screen adviser, or Journal / Resume in place. Each workflow keeps independent state; Activity cards and Resume switch between the grid and the last workflow. Return to Dias hides the pair while preserving work. See [current controls and verification limits](CHAT.md#quest-and-activity-displays).
+
+This replaces the original single companion-screen trial below. The delivered component is ordinary helper windows, with explicit screen selection and local persistence. It does not add a native Dias route, display-ownership protocol, live telemetry, or healer automation. Synthetic tests and app captures verify navigation and saved states; live touch and coexistence with Dias remain to be checked. The native adapter and other exploratory ideas below are future proposals, not requirements for this increment.
+
+## Earlier integration proposal
 
 Start with a temporary **WoW mode on the Dias companion touch display**: a quest overview beside one selected objective and its pinned advice, with a persistent **Return to Dias** control. Keep the main Dias navigator available. Prove that the two desktop apps can share the companion screen before building a native Dias game view.
 
@@ -103,7 +109,7 @@ Label information by what it actually is: guide-based expectation, manually star
 
 This is a useful standalone increment. Live health triage, automatic targeting/casting, and exact future damage calculations are not prerequisites for it.
 
-## Deadly Boss Mods: forecast mechanics before damage
+## Deferred: Deadly Boss Mods
 
 DBM exposes callbacks inside WoW for timer creation, updates, stops, pauses, and resumes. Its documented `DBM_TimerBegin` supplies timer identity, duration, spell information, variance information, and whether the bar is enabled; `DBM_TimerStart` is deprecated. Use stable IDs for matching and localized labels only for display. Respect disabled bars. See the [DBM callback reference](https://github.com/DeadlyBossMods/DeadlyBossMods/wiki/%5BInfo%5D-DBM-Events) and the [inspected core implementation](https://github.com/DeadlyBossMods/DeadlyBossMods/blob/9f8d53ca24c573bb797a8a4b8d3fe73c2364219d/DBM-Core/DBM-Core.lua).
 
@@ -130,10 +136,10 @@ If those checks pass, the first live output should be “raid-wide mechanic expe
 
 Steps 4 and 5 are optional follow-on work. Step 1 can begin with synthetic advice while compact pinned advice is being completed. Successful screen sharing need not wait for a native adapter; native integration need not wait for DBM.
 
-**Next proposed implementation chip:** “Try the WoW companion on the Dias touch display.” Build on persistent companion windows; use compact pinned advice when available. Scope it to explicit display selection, synthetic quest/advice content, return behavior, and focus/monitor verification. Record and validate that chip before starting implementation. No prototype or integration has been built by this planning step.
+**Current implementation chip:** “Use separate quest and resumable activity displays.” The earlier single-screen trial was replaced by the operator's two-screen direction. Next integration verification should check the delivered pair alongside Dias on the actual touch displays. DBM stays deferred; do not start its feasibility experiment as a continuation of this work.
 
 ## Verification and research boundaries
 
 This plan was checked against the helper's quest parser, addon export, journal behavior, and upgrade plan; and against Dias's chip-board package, native platform documentation, companion results contract, and shell window behavior. Dias was inspected at revision `66067e1`. DBM core was inspected at revision `9f8d53ca24c573bb797a8a4b8d3fe73c2364219d`; its callback documentation can change independently.
 
-The display handoff, live DBM transport, edition-specific DBM support, and healer usefulness have not been tested here. They are explicit implementation/experiment gates, not claimed capabilities. This plan changes documentation and the development board only.
+The original planning session changed documentation and the development board only. The subsequent two-display increment is described above and in Chat. Native display handoff, live DBM transport, edition-specific DBM support, and healer usefulness remain unverified.
