@@ -71,6 +71,22 @@ def test_active_workflow_returns_after_restart_and_retention_off_scrubs_drafts(m
     assert "draft" not in record["display"]["states"]["character"]
 
 
+def test_unopened_activity_notebook_drafts_respect_retention_off(manager_factory, monkeypatch):
+    manager = manager_factory()
+    _, cards = pair(manager, monkeypatch)
+    view = cards.display.open_activity('character')
+    view.notebook_drafts['build'] = {'profile': 'Synthetic private draft'}
+    cards.display.show_cards()
+    manager.close()
+    restored = manager_factory()
+    cards = next(w for w in restored.windows if w.kind == 'activities')
+    assert not cards.display.views
+    cards.remember.set(False)
+    assert restored.save_layout()
+    state = cards.display.snapshot(False)['states']['character']['activity']
+    assert 'notebooks' not in state
+
+
 def test_missing_monitor_stays_hidden_even_on_reveal(manager_factory, monkeypatch):
     manager = manager_factory()
     quest, cards = pair(manager, monkeypatch)

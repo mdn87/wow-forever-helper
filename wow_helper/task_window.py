@@ -49,6 +49,9 @@ class TaskWindow(ChatWindow):
         self.profile = profile_settings(kind, state.get("profile"))
         raw = state.get("activity")
         raw = raw if isinstance(raw, dict) else {}
+        from .notebook_ui import notebook_drafts
+        self.notebook_drafts = notebook_drafts(raw.get("notebooks"))
+        self._notebooks = {}
         self.journal_id = str(uuid.UUID(raw.get("journal_id", window_id))) if self._valid_id(raw.get("journal_id", window_id)) else str(uuid.uuid4())
         self.image_name = raw.get("image") if isinstance(raw.get("image"), str) else None
         self.last_setup = raw.get("last_setup") if isinstance(raw.get("last_setup"), str) else ""
@@ -93,6 +96,7 @@ class TaskWindow(ChatWindow):
         self.actions_menu.add_command(label="Prepare opening request…", command=self.prepare_request)
         self.actions_menu.add_command(label="Save window preset…", command=self.save_preset)
         self.actions_menu.add_command(label="Load window preset…", command=self.load_preset)
+        self.actions_menu.add_command(label="Build tutor and experiments…", command=self.show_build_tutor)
         if self.book is not None:
             self._build_panel(raw)
             if kind == "quests":
@@ -240,6 +244,8 @@ class TaskWindow(ChatWindow):
         data["profile"] = self.profile
         data["activity"] = {"journal_id": self.journal_id, "image": self.image_name,
                             "last_setup": self.last_setup}
+        if remember:
+            data["activity"]["notebooks"] = self.notebook_drafts
         if self.book:
             data["activity"]["tab"] = self.book.index("current")
         if self.kind == "journal":
@@ -813,8 +819,17 @@ class TaskWindow(ChatWindow):
             except (OSError, ChatError) as error:
                 self.status.set(str(error) if isinstance(error, ChatError) else "The preset could not be read.")
 
+    def show_build_tutor(self):
+        from .notebook_ui import DiscussionNotebook
+        if 'build' in self._notebooks:
+            self._notebooks['build'].root.lift()
+        else:
+            self._notebooks['build'] = DiscussionNotebook(self)
+
     def close(self):
         self._view_ready = False
+        for dialog in list(self._notebooks.values()):
+            dialog.close()
         for view in self.quest_chats.values():
             view.close()
         if hasattr(self, "quest_tree"):

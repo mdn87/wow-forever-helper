@@ -10,9 +10,9 @@
   "displayPriority": 100,
   "assessedAt": "2026-10-23T05:02:51.825Z",
   "confidence": "authoritative",
-  "currentMilestone": "Build tutor and experiment notebook",
-  "remainingSummary": "Search delivered; build tutor, route walkthrough, and quest chains remain. Separate companion display work is recorded on the board.",
-  "nextChipId": "build-tutor-notebook",
+  "currentMilestone": "Dungeon route walkthrough",
+  "remainingSummary": "Search and build notebook delivered. Route walkthrough and selected quest-chain research remain.",
+  "nextChipId": "dungeon-route-walkthrough",
   "source": {
     "label": "Saved activity layouts verification and helper upgrade sequence",
     "updatedAt": "2026-10-23"
