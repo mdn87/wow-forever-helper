@@ -344,7 +344,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-23T04:20:12.328Z",
-        "updatedAt": "2026-10-23T04:34:06.721Z"
+        "updatedAt": "2026-10-23T04:38:51.195Z"
       },
       "evidence": [
         {
@@ -364,6 +364,12 @@
           "at": "2026-10-23T04:34:06.721Z",
           "kind": "stage-change",
           "message": "Named layouts delivered with safe previews and draft-preserving restore. Windows suite: 346 passed, 2 existing skips; both themes visually checked."
+        },
+        {
+          "entryId": "saved-layouts-rollback-fixed",
+          "at": "2026-10-23T04:38:51.195Z",
+          "kind": "note",
+          "message": "Windows CI exposed rollback resizing on a small desktop. Exact prior geometry is now preserved; the regression and full 346-test suite pass locally."
         }
       ]
     }

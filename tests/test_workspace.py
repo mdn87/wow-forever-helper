@@ -1994,6 +1994,7 @@ def test_named_layout_recreated_window_keeps_retention_off(manager_factory):
 
 
 def test_named_layout_failed_restore_rolls_back_and_keeps_quest_tab(manager_factory, monkeypatch):
+    from wow_helper import workspace
     manager = manager_factory(service=CreatingService)
     quest = manager.new_window(kind='quests')
     _, child = open_synthetic_quest_chat(quest.view)
@@ -2005,6 +2006,7 @@ def test_named_layout_failed_restore_rolls_back_and_keeps_quest_tab(manager_fact
     quest.view.book.select(child.root)
     previous = quest.capture_bounds()
     with monkeypatch.context() as patch:
+        patch.setattr(workspace, 'display_workareas', lambda _: [(0, 0, 1280, 720)])
         patch.setattr(manager, 'save_layout', lambda: False)
         with pytest.raises(ChatError, match='previous windows and drafts are kept'):
             manager.restore_activity_layout(manager.preview_activity_layout('Review'))

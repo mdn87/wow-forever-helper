@@ -341,7 +341,7 @@ class WindowManager:
         return {"saved": saved, "topology": self._layout_topology(), "reuse": reuse,
                 "create": create, "keep": available, "skipped": skipped}
 
-    def _apply_activity_settings(self, window, record, *, tab=None):
+    def _apply_activity_settings(self, window, record, *, tab=None, recover=True):
         if window.card:
             window.mode = record["mode"]
             window.mode_bounds = deepcopy(record["mode_bounds"])
@@ -360,7 +360,10 @@ class WindowManager:
                         getattr(view, key).set(chat["activity"][key])
         window.topmost.set(record["topmost"])
         window.root.attributes("-topmost", record["topmost"])
-        window.bounds = window_bounds(record["bounds"], self.areas, window.minimum)
+        # Recovery belongs to an accepted restore. Rollback must put the exact
+        # previous arrangement back, including a manually oversized window.
+        window.bounds = (window_bounds(record["bounds"], self.areas, window.minimum)
+                         if recover else dict(record["bounds"]))
         window._place()
         self.changed(window)
 
@@ -394,7 +397,7 @@ class WindowManager:
                 self.windows.remove(window)
                 window.dispose()
             for window, record, tab, state in previous:
-                self._apply_activity_settings(window, record, tab=tab)
+                self._apply_activity_settings(window, record, tab=tab, recover=False)
                 if state == "withdrawn":
                     window.root.withdraw()
             self.root.update_idletasks()
