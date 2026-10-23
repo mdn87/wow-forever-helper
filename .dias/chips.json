@@ -334,7 +334,7 @@
       "projectId": "wow-forever-helper",
       "title": "Save and restore named activity layouts",
       "summary": "Save arrangements such as Leveling and Review, restore compatible windows, and keep current conversations and drafts safe.",
-      "stage": "planned",
+      "stage": "done",
       "sequence": 9,
       "prereqs": [
         "persistent-companion-windows",
@@ -344,7 +344,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-23T04:20:12.328Z",
-        "updatedAt": "2026-10-23T04:20:12.328Z"
+        "updatedAt": "2026-10-23T04:34:06.721Z"
       },
       "evidence": [
         {
@@ -352,6 +352,18 @@
           "at": "2026-10-23T04:20:12.328Z",
           "kind": "created",
           "message": "Continue the helper upgrade sequence with named layouts, leaving the separate Dias integration workstream intact."
+        },
+        {
+          "entryId": "saved-layouts-active",
+          "at": "2026-10-23T04:21:52.803Z",
+          "kind": "stage-change",
+          "message": "Dias parsers accepted the plan and isolated baseline checks passed. Building named storage, safe restore previews, and draft-preserving window reuse."
+        },
+        {
+          "entryId": "saved-layouts-done",
+          "at": "2026-10-23T04:34:06.721Z",
+          "kind": "stage-change",
+          "message": "Named layouts delivered with safe previews and draft-preserving restore. Windows suite: 346 passed, 2 existing skips; both themes visually checked."
         }
       ]
     }

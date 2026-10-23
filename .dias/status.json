@@ -5,16 +5,16 @@
   "assessmentState": "unassessed",
   "assessmentScope": "current-milestone",
   "percentComplete": null,
-  "milestonePhase": "build-and-validate",
+  "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T04:20:12.328Z",
+  "assessedAt": "2026-10-23T04:34:06.721Z",
   "confidence": "authoritative",
-  "currentMilestone": "Saved activity layouts",
-  "remainingSummary": "Build named arrangements with safe window reuse, a capacity preview, monitor recovery, and restoration without requests. Dias integration remains separate.",
-  "nextChipId": "saved-activity-layouts",
+  "currentMilestone": "Saved activity layouts delivered",
+  "remainingSummary": "Personal goals and wishlist are next in the helper sequence. Dias integration remains a separate workstream with a synthetic companion-display trial to implement.",
+  "nextChipId": null,
   "source": {
-    "label": "Helper upgrade sequence and current handoff",
+    "label": "Saved activity layouts verification and helper upgrade sequence",
     "updatedAt": "2026-10-23"
   }
 }

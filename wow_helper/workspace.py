@@ -1,6 +1,7 @@
 """Persistent, independent companion windows managed by the desktop window manager."""
 
 from pathlib import Path
+from copy import deepcopy
 import uuid
 
 from .chat import CHAT_STATE, ChatError, ChatService, read_json, write_json
@@ -12,6 +13,7 @@ from .window_frame import WindowFrame
 from .window_access import start_restart
 from .interface import InterfaceDialog, WindowOpacity, interface_settings
 from .pinned_advice import AdviceCard, PLAY_MINIMUM, pinned_selection, validate_pin
+from .activity_layouts import SavedLayouts, layout_record
 
 LAYOUT_PATH = CHAT_STATE / "windows.json"
 
@@ -22,6 +24,7 @@ class CompanionWindow:
 
         self.manager = manager
         self.id = record["id"]
+        self.layout_key = record.get("layout_key", self.id)
         self.number = record["number"]
         self.kind = record.get("kind", "chooser")
         self.view = None
@@ -64,6 +67,7 @@ class CompanionWindow:
         if self.kind == "play":
             self.options_menu.entryconfigure("end", label="Pinned advice is always saved", state="disabled")
         self.options_menu.add_command(label="Interface & transparency…", command=lambda: manager.show_interface(self))
+        self.options_menu.add_command(label="Activity layouts…", command=lambda: manager.show_activity_layouts(self))
         self.options_menu.add_command(label="Chat appearance…", command=lambda: self.view.show_appearance(),
                                       state="disabled")
         self.appearance_menu_index = self.options_menu.index("end")
@@ -210,7 +214,7 @@ class CompanionWindow:
 
     def snapshot(self):
         extra = {"pin": self.pin, "mode": self.mode, "mode_bounds": self.mode_bounds} if self.pin else {}
-        return {**extra,"id": self.id, "number": self.number, "kind": self.kind,
+        return {**extra,"id": self.id, "layout_key": self.layout_key, "number": self.number, "kind": self.kind,
                 "bounds": self.capture_bounds(), "topmost": self.topmost.get(),
                 "remember": self.remember.get(),
                 "chat": self.view.snapshot(self.remember.get()) if self.view else {}}
@@ -221,6 +225,8 @@ class CompanionWindow:
         self.closed = True
         if self.manager._interface_dialog and self.manager._interface_dialog.parent is self.root:
             self.manager._interface_dialog.close()
+        if self.manager._layouts_dialog and self.manager._layouts_dialog.parent is self.root:
+            self.manager._layouts_dialog.close()
         if self.card:
             self.card.close()
         self.opacity.close()
@@ -236,6 +242,7 @@ class WindowManager:
         self.tk, self.root = tk, root
         self.service_factory = service_factory
         self.layout_path = Path(layout_path) if layout_path is not None else None
+        self.saved_layouts = SavedLayouts(self.layout_path.with_name("activity-layouts.json") if self.layout_path else None)
         self.activity_factory = activity_factory or (lambda: ActivityService(self.layout_path.parent if self.layout_path else CHAT_STATE))
         self.lock = LayoutLock(self.layout_path)
         self.windows = []
@@ -246,6 +253,7 @@ class WindowManager:
         self._access_after = None
         self._restart_process = None
         self._interface_dialog = None
+        self._layouts_dialog = None
         self._interface_preview = None
         self.interface = interface_settings(None)
         self.next_number = 1
@@ -298,6 +306,103 @@ class WindowManager:
         else:
             self._interface_dialog.root.deiconify()
             self._interface_dialog.root.lift()
+
+    def show_activity_layouts(self, window):
+        from .layout_dialog import LayoutDialog
+        if self._layouts_dialog is None:
+            self._layouts_dialog = LayoutDialog(self, window.root)
+        else:
+            self._layouts_dialog.root.deiconify()
+            self._layouts_dialog.root.lift()
+
+    def save_activity_layout(self, name, *, replace=False):
+        if self.closed:
+            raise ChatError("The companion is closing. Reopen it to save an arrangement.")
+        return self.saved_layouts.save(name, [layout_record(w) for w in self.windows], replace=replace)
+
+    def _layout_topology(self):
+        return deepcopy([(w.id, w.layout_key, w.kind, w.pin) for w in self.windows])
+
+    def preview_activity_layout(self, name):
+        saved = self.saved_layouts.get(name)
+        reuse, create, skipped = [], [], []
+        available = list(self.windows)
+        for record in saved["windows"]:
+            compatible = [w for w in available if record["id"] in (w.id, w.layout_key)
+                          and w.kind == record["kind"] and w.pin == record.get("pin")]
+            window = next((w for w in compatible if w.id == record["id"]), next(iter(compatible), None))
+            if window:
+                reuse.append((window, record))
+                available.remove(window)
+            elif len(self.windows) + len(create) < MAX_WINDOWS:
+                create.append(record)
+            else:
+                skipped.append(record)
+        return {"saved": saved, "topology": self._layout_topology(), "reuse": reuse,
+                "create": create, "keep": available, "skipped": skipped}
+
+    def _apply_activity_settings(self, window, record, *, tab=None):
+        if window.card:
+            window.mode = record["mode"]
+            window.mode_bounds = deepcopy(record["mode_bounds"])
+            window.root.minsize(*window.minimum)
+            window.chrome.minimum = window.minimum
+            window.card.render()
+        if window.view:
+            view = window.view
+            chat = record["chat"]
+            view.set_appearance(chat["appearance"])
+            if view.book:
+                view.book.select(chat["activity"].get("tab", 0) if tab is None else tab)
+            if window.kind == "character":
+                for key in ("gear_goal", "gear_slot"):
+                    if key in chat["activity"]:
+                        getattr(view, key).set(chat["activity"][key])
+        window.topmost.set(record["topmost"])
+        window.root.attributes("-topmost", record["topmost"])
+        window.bounds = window_bounds(record["bounds"], self.areas, window.minimum)
+        window._place()
+        self.changed(window)
+
+    def restore_activity_layout(self, plan, *, allow_partial=False):
+        if self.closed or plan["topology"] != self._layout_topology() or self.saved_layouts.get(plan["saved"]["name"]) != plan["saved"]:
+            raise ChatError("The windows or saved layout changed. Preview the arrangement again before restoring.")
+        if plan["skipped"] and not allow_partial:
+            raise ChatError("Eight windows would be exceeded. Preview and choose Restore available, or close a window first.")
+        self.areas = display_workareas(self.root)
+        previous = [(w, layout_record(w), w.view.book.select() if w.view and w.view.book else None,
+                     w.root.state()) for w, _ in plan["reuse"]]
+        added = []
+        self.loading = True
+        try:
+            for window, record in plan["reuse"]:
+                self._apply_activity_settings(window, record)
+                window.root.deiconify()
+            for raw in plan["create"]:
+                record = deepcopy(raw)
+                record["layout_key"] = record["id"]
+                if any(w.id == record["id"] for w in self.windows):
+                    record["id"] = str(uuid.uuid4())
+                record["number"] = self.next_number
+                self.next_number += 1
+                added.append(self._add(record))
+            self.root.update_idletasks()
+            if not self.save_layout():
+                raise ChatError("The arrangement could not be saved. Your previous windows and drafts are kept.")
+        except Exception:
+            for window in added:
+                self.windows.remove(window)
+                window.dispose()
+            for window, record, tab, state in previous:
+                self._apply_activity_settings(window, record, tab=tab)
+                if state == "withdrawn":
+                    window.root.withdraw()
+            self.root.update_idletasks()
+            raise
+        finally:
+            self.loading = False
+            self.refresh_menus()
+        return len(plan["reuse"]) + len(added)
 
     def preview_interface(self, settings):
         self._interface_preview = interface_settings(settings) if settings is not None else None
