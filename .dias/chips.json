@@ -379,7 +379,7 @@
       "projectId": "wow-forever-helper",
       "title": "Search saved content and companion actions",
       "summary": "Find notes, next steps, quests, conversations, layouts, and settings with a keyboard command menu.",
-      "stage": "planned",
+      "stage": "done",
       "sequence": 10,
       "prereqs": [
         "linked-journal-resume",
@@ -389,7 +389,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-23T04:49:16.298Z",
-        "updatedAt": "2026-10-23T04:49:16.298Z"
+        "updatedAt": "2026-10-23T05:02:51.825Z"
       },
       "evidence": [
         {
@@ -397,6 +397,12 @@
           "at": "2026-10-23T04:49:16.298Z",
           "kind": "created",
           "message": "Operator selected this feature for implementation, in the order search, build tutor, dungeon routes, and quest chains."
+        },
+        {
+          "entryId": "search-command-menu-done",
+          "at": "2026-10-23T05:02:51.825Z",
+          "kind": "stage-change",
+          "message": "Keyboard search delivered with bounded local indexing and draft-safe navigation. Windows: 355 passed, 2 existing skips; both themes visually checked."
         }
       ]
     },

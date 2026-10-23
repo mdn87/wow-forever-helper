@@ -2060,3 +2060,124 @@ def test_named_layout_dialog_save_preview_restore_and_minimum_controls(manager_f
     dialog.name_entry.event_generate('<Escape>'); manager.root.update()
     assert manager._layouts_dialog is None
     manager.preview_interface(None)
+
+
+def test_search_unicode_notes_and_navigation_preserve_drafts(manager_factory):
+    manager = manager_factory(service=CreatingService)
+    window = manager.windows[0]
+    choose(window, 0)
+    window.view.editor.insert('1.0', 'Keep my draft')
+    journal_id = str(uuid.uuid4())
+    window.view.activity.add_note(journal_id, 'Expedition', 'Explore the café route',
+        source={'provider': 'codex', 'session_id': SESSIONS[0].id},
+        next_time={'text': 'Check the northern camp', 'state': 'open'})
+    manager.show_search(window)
+    dialog = manager._search_dialog
+    dialog.query.set('CAFE\u0301')
+    assert len(dialog.matches) == 1 and dialog.matches[0]['kind'] == 'note'
+    assert 'northern camp' in dialog.preview.get('1.0', 'end-1c')
+    dialog.activate()
+    assert window.view.editor.get('1.0', 'end-1c') == 'Keep my draft'
+    assert not window.view.service.sent and not window.view.service.created
+
+
+def test_search_quest_and_layout_navigation_does_not_research_or_restore(manager_factory):
+    manager = manager_factory(service=CreatingService)
+    quest = manager.new_window(kind='quests')
+    settle(quest.view)
+    manager.save_activity_layout('Synthetic Leveling')
+    calls = list(quest.view.activity.calls)
+    manager.show_search(quest)
+    dialog = manager._search_dialog
+    row = next(r for r in dialog.rows if r['kind'] == 'quest')
+    dialog.open_result(row)
+    assert quest.view.quest_tree.selected() == row['target'][1]
+    assert quest.view.activity.calls == calls and not quest.view.quest_chats
+    manager.show_search(quest)
+    dialog = manager._search_dialog
+    dialog.open_result(next(r for r in dialog.rows if r['kind'] == 'layout'))
+    assert manager._layouts_dialog.selected.get() == 'Synthetic Leveling'
+    assert len(manager.windows) == 2 and not quest.view.service.sent
+
+
+def test_search_refresh_missing_source_and_keyboard(manager_factory):
+    manager = manager_factory()
+    window = manager.windows[0]
+    window.view.editor.insert('1.0', 'Keep this entire line')
+    window.view.editor.mark_set('insert', '1.0')
+    window.view.editor.focus_force(); window.root.update()
+    window.view.editor.event_generate('<Control-k>'); window.root.update()
+    dialog = manager._search_dialog
+    assert window.view.editor.get('1.0', 'end-1c') == 'Keep this entire line'
+    journal_id = str(uuid.uuid4())
+    window.view.activity.add_note(journal_id, 'Offline notes', 'Synthetic missing source')
+    dialog.refresh()
+    dialog.query.set('missing source')
+    assert len(dialog.matches) == 1
+    assert str(dialog.open_button.cget('state')) == 'disabled'
+    assert 'Synthetic missing source' in dialog.preview.get('1.0', 'end-1c')
+    dialog.query.set('')
+    dialog.entry.focus_force(); dialog.root.update()
+    before = dialog.results.selection()
+    dialog.entry.event_generate('<Down>'); dialog.root.update()
+    assert dialog.results.selection() != before
+    dialog.entry.event_generate('<Escape>'); manager.root.update()
+    assert manager._search_dialog is None
+
+
+def test_search_commands_are_quiet_and_stale_targets_keep_palette(manager_factory):
+    manager = manager_factory(service=CreatingService)
+    manager.show_search(manager.windows[0])
+    dialog = manager._search_dialog
+    dialog.open_result(next(r for r in dialog.rows if r['kind'] == 'command' and r['target'] == 'quests'))
+    quest = manager.windows[-1]
+    settle(quest.view)
+    assert not quest.view.activity.calls and not quest.view.service.created and not quest.view.service.sent
+    manager.show_search(manager.windows[0])
+    dialog = manager._search_dialog
+    row = next(r for r in dialog.rows if r['kind'] == 'window' and r['target'] == quest.id)
+    manager.close_window(quest)
+    with pytest.raises(ChatError, match='closed'):
+        dialog.open_result(row)
+    assert manager._search_dialog is dialog
+    with pytest.raises(ChatError, match='unavailable'):
+        dialog.open_result({'kind': 'arbitrary', 'target': 'execute'})
+
+
+def test_search_restart_duplicate_labels_and_bad_journal(manager_factory, tmp_path):
+    path = tmp_path / 'windows.json'
+    manager = manager_factory(path)
+    window = manager.windows[0]
+    for _ in range(2):
+        window.view.activity.add_note(str(uuid.uuid4()), 'Same name', 'Same synthetic note')
+    bad = window.view.activity.storage / 'journals' / (str(uuid.uuid4()) + '.json')
+    bad.write_text('{bad', encoding='utf-8')
+    manager.close()
+    manager = manager_factory(path)
+    manager.show_search(manager.windows[0])
+    dialog = manager._search_dialog
+    dialog.query.set('Same synthetic note')
+    assert len(dialog.matches) == 2
+    assert dialog.matches[0]['target'] != dialog.matches[1]['target']
+    assert 'unreadable' in dialog.notice.get()
+    assert bad.read_text() == '{bad'
+
+
+@pytest.mark.parametrize('theme', ['classic', 'modern'])
+def test_search_minimum_controls_and_quest_editor_shortcut(manager_factory, theme):
+    manager = manager_factory(service=CreatingService)
+    quest = manager.new_window(kind='quests')
+    _, child = open_synthetic_quest_chat(quest.view)
+    child.editor.insert('1.0', 'Preserve quest follow-up')
+    child.editor.mark_set('insert', '1.0')
+    manager.preview_interface({'theme': theme})
+    child.editor.focus_force(); quest.root.update()
+    child.editor.event_generate('<Control-k>'); quest.root.update()
+    dialog = manager._search_dialog
+    assert child.editor.get('1.0', 'end-1c') == 'Preserve quest follow-up'
+    dialog.chrome.place('480x540+30+30'); dialog.root.update()
+    for control in (dialog.entry, dialog.results, dialog.preview, dialog.open_button):
+        assert control.winfo_ismapped()
+        assert control.winfo_rooty() + control.winfo_height() <= dialog.root.winfo_rooty() + dialog.root.winfo_height()
+    dialog.close()
+    manager.preview_interface(None)

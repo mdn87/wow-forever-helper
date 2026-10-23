@@ -8,11 +8,11 @@
   "milestonePhase": "build-and-validate",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T04:49:27.413Z",
+  "assessedAt": "2026-10-23T05:02:51.825Z",
   "confidence": "authoritative",
   "currentMilestone": "Search, build tutor, routes, and quest chains",
-  "remainingSummary": "Implement the four selected features in order, preserving current conversations and drafts. Dias integration remains separate.",
-  "nextChipId": "search-command-menu",
+  "remainingSummary": "Search is delivered. Build tutor, dungeon routes, and quest chains remain in the selected sequence. Dias integration remains separate.",
+  "nextChipId": "build-tutor-notebook",
   "source": {
     "label": "Saved activity layouts verification and helper upgrade sequence",
     "updatedAt": "2026-10-23"

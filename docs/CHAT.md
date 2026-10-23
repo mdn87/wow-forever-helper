@@ -233,3 +233,14 @@ Reopened windows use their saved session reference, setup, retention preference,
 Named layouts live in ignored `.runtime/chat/activity-layouts.json` and may contain private session references, advice, and local setup details. Explicit saves remain available when chat retention is off; drafts are never copied into this file. A failed save preserves the previous named arrangement. If saving a restored workspace fails, the prior windows and presentation are restored with drafts intact. Damaged or unsupported named-layout files are kept rather than overwritten.
 
 Synthetic Windows checks on 2026-10-23 cover storage limits, concurrent and failed saves, damaged files, draft preservation, capacity previews, changed window types, restart, retention off, monitor recovery, rollback, and restore without new requests. The dialog was visually inspected in Classic and Modern Synth at 480 × 540 on a hidden test desktop. No new live-provider or in-game check was performed.
+
+
+## Search and command menu
+
+Press **Ctrl+K** inside a companion window or choose **Settings → Search companion…**. Type words to filter saved Journal notes and Next time items, currently loaded quests, known conversation labels, open windows, pinned advice, named layouts, and registered companion settings. Search normalizes Unicode and ignores letter case. Result context includes short local identities to distinguish repeated labels.
+
+Use Up/Down and Enter, double-click a result, or choose **Open selected**. Escape closes the menu. Notes are readable in the preview even when their source is missing; **Open conversation** resumes a linked source without sending. Quest navigation selects the already loaded quest without expanding it for research. Layout results open the restore preview and require a separate Restore action. New activity windows opened through search wait for explicit report refresh.
+
+**Refresh index** picks up new saved notes and changed windows. Reopening search rebuilds the index, including after restart. Search reads only bounded app-owned journals and layouts plus already known in-memory quest/session metadata; it never crawls provider transcripts or game folders. It indexes up to 100 journals, eight megabytes of journal files, and 1,000 results, reserving space for commands. Unreadable or omitted records are explained and kept. Dedicated wishlist and activity-history records remain future F04/F12 work; current Next time items are searchable now.
+
+Search and navigation preserve current drafts and do not send requests, capture images, start research, focus WoW, or send game keys. Ctrl+K is intercepted before text-editing bindings so it cannot delete the rest of a draft line. Synthetic checks cover keyboard navigation, Unicode, repeated labels, missing sources, index refresh, restart, size limits, and both themes at 480 × 540.
