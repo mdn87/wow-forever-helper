@@ -379,7 +379,7 @@
       "projectId": "wow-forever-helper",
       "title": "Use separate quest and resumable activity displays",
       "summary": "Show saved quests on one companion screen and tappable workflow cards on another; preserve each activity and toggle back without losing progress.",
-      "stage": "planned",
+      "stage": "active",
       "sequence": 10,
       "prereqs": [
         "plan-dias-wow-integration",
@@ -390,7 +390,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-23T04:46:12.921Z",
-        "updatedAt": "2026-10-23T04:46:12.921Z"
+        "updatedAt": "2026-10-23T04:47:56.443Z"
       },
       "evidence": [
         {
@@ -398,6 +398,12 @@
           "at": "2026-10-23T04:46:12.921Z",
           "kind": "created",
           "message": "Operator deferred DBM and chose two displays: a quest log and expandable activity cards with saved state and a return-to-cards toggle."
+        },
+        {
+          "entryId": "quest-activity-displays-active",
+          "at": "2026-10-23T04:47:56.443Z",
+          "kind": "stage-change",
+          "message": "Dias parsers accepted the plan. Building separate saved quest and activity-card views with independent workflow state and explicit display selection."
         }
       ]
     }
