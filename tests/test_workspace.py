@@ -2492,6 +2492,12 @@ def test_goal_reply_updates_existing_suggestions_preserving_decision_and_source(
     dialog = view._journal_dialog
     dialog.target.current(next(i for i, (jid, _) in enumerate(dialog.journals) if jid == view.journal_id))
     dialog.save_goal(); editor = dialog.goal_dialog
+    editor.chrome.place('440x540+40+40'); editor.root.update()
+    assert editor.root.minsize() == (440, 540)
+    for control in editor.book.nametowidget(editor.book.tabs()[0]).winfo_children():
+        assert control.winfo_ismapped()
+        assert control.winfo_height() >= control.winfo_reqheight()
+        assert control.winfo_rooty() + control.winfo_height() <= editor.actions.winfo_rooty()
     editor.target.current(1); editor.choose_target()
     assert editor.editors['decision'].get('1.0', 'end-1c') == 'Solo only'
     editor.save(); editor.save()

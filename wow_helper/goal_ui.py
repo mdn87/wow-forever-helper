@@ -21,6 +21,10 @@ class GoalDialog(JournalDialog):
         self.note_id = entry['id'] if entry else str(uuid.uuid4())
         self.fields, self.editors = {}, {}
         super().__init__(owner.view, 'Personal goal')
+        if selection:
+            # The reply destination picker adds two controls above the goal fields.
+            self.chrome.minimum = (440, 540)
+            self.root.minsize(*self.chrome.minimum)
         self.root.protocol('WM_DELETE_WINDOW', self.close)
         self.notice.set('Save a goal and your chosen next step. Suggestions remain separate from your decisions. '
                         'Ownership and progress are manual; saving sends nothing.')
