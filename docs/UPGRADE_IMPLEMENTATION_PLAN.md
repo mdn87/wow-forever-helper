@@ -1,12 +1,12 @@
 # Companion upgrade implementation plan
 
-Status: F01–F04, F06, F13, F16, and F17 delivered. Updated: 2026-10-23. Original baseline: `c5fa294`.
+Status: F01–F04, F06, F12, F13, F16, and F17 delivered. Updated: 2026-10-23. Original baseline: `c5fa294`.
 
 This is the build sequence for the ideas in [Future upgrades](FUTURE_UPGRADES.md), incorporating the checked [Fable review](FUTURE_UPGRADES_REVIEW.md). It supersedes the competing priority lists in that research document. All ten addon ideas and the earlier interface ideas are retained. Current behavior remains documented in [Chat](CHAT.md), [Quests](QUESTS.md), and [Assistive input](ASSISTIVE_INPUT.md).
 
 The product outcome is a continuing conversation that can use selected game evidence, explain choices, remember what the player decided, and revisit the result. Each feature below must complete a useful part of that workflow. Addon inspiration does not imply a dependency on that addon or verified Forever compatibility.
 
-**Operator-selected sequence F13, F16, F17, and F06 is delivered.** F01–F03 are also implemented as recorded below. F04 personal goals and wishlist is also delivered. F05 repeatable activity checklists remains first in the default backlog. Complete, verify, and land one feature before moving to the next. The numbered order is the default priority; the Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
+**Operator-selected sequence F13, F16, F17, and F06 is delivered.** F01–F03 are also implemented as recorded below. F04 personal goals and wishlist is also delivered. F12 activity history with persistent manual state and action history is also delivered. Other ideas remain parked until selected; F05 is still first in the historical default order. Complete, verify, and land one feature before moving to the next. The Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
 
 ## Build sequence
 
@@ -23,7 +23,7 @@ The product outcome is a continuing conversation that can use selected game evid
 | [F09](#f09-session-economy-analysis) | Import a supported Journalator CSV and discuss deterministic totals. | F08 import layer, F01 | Addon 7: Journalator | Queued; export schema unverified |
 | [F10](#f10-screenshot-markup) | Crop, annotate, and mask a selected image before sending it. | Existing Screen adviser | Screenshot markup | Queued |
 | [F11](#f11-session-bookmarks) | Save a manual timestamped note with optional reviewed image and context. | F01; F10 for edited images | Session bookmarks | Queued |
-| [F12](#f12-activity-list) | Collect request outcomes and open the relevant conversation. | Existing response tracking | Activity list | Queued |
+| [F12](#f12-activity-list) | Collect request outcomes and open the relevant conversation. | Existing response tracking | Activity list | Delivered: quiet outcomes, persistent manual state, reviewed retries |
 | [F13](#f13-search-and-command-menu) | Find saved content and companion actions with Ctrl+K. | F01; expands with future F04/F12 records | Search and command menu | Delivered |
 | [F14](#f14-inventory-preparation) | Export bag contents and explain supplies or changes between selected snapshots. | F08 evidence/import conventions; addon field validation | Addon 3: Baganator | Queued; client fields unverified |
 | [F15](#f15-post-fight-coaching) | Review one supported encounter summary and compare a later attempt. | F08 import layer, F01 | Addon 8: Details! | Queued; transport and fields unverified |
@@ -174,6 +174,8 @@ Validate all metadata and count it toward the existing two-megabyte journal limi
 
 **Accept:** progress cannot appear as completion; repeated polls and restart do not create duplicate notices; dismissed events stay dismissed; unavailable sources have a useful fallback. Opening an item neither retries nor resends its request. Retry remains explicit.
 
+**Selected scope:** persistent manual state with history (the fourth shared pattern from the follow-up review). Store bounded read, dismiss, restore, and retry-request actions alongside outcome references. Add a quiet Settings list and search results. Retry opens a review step and requires explicit Send retry; conversation drafts are preserved. No automatic notifications or request replay.
+
 ## F13. Search and command menu
 
 **Deliver:** Ctrl+K inside the companion finds notes, goals, quests, conversations, layouts, and companion settings/actions, with enough context to distinguish results.
@@ -247,7 +249,7 @@ Before landing a feature:
 
 ## Delivery record
 
-F01–F04, F06, F13, F16, and F17 are delivered. F05 remains next in the default backlog. Checks below describe only the delivered scope.
+F01–F04, F06, F12, F13, F16, and F17 are delivered. Other ideas remain parked until selected. Checks below describe only the delivered scope.
 
 | Feature | Delivered scope / commit | Verification | Remaining work |
 | --- | --- | --- | --- |
@@ -256,7 +258,8 @@ F01–F04, F06, F13, F16, and F17 are delivered. F05 remains next in the default
 | F03 | Named arrangements with save/replace, restore previews, compatible-window reuse, card modes, and rollback on failed workspace saves. Feature commit `804cfa7`. | Windows: 346 passed, 2 existing keypad-event skips. Eighteen new checks cover storage, limits, drafts, retention, restart, monitor recovery, rollback, and no new requests. Classic/Modern dialogs inspected at 480 × 540 on a hidden desktop. | Existing provider transport reused; no new live-provider or in-game check. Dias integration remains a separate workstream. |
 
 | F04 | Personal goals and wishlist; reviewed research in the chosen session, saved suggestions, decisions and manual progress, Journal links and search. | Windows full suite: 429 passed, 2 existing keypad-event skips. Both themes inspected at 440 × 480 with enlarged text. | Actual acquisition routes, ownership and game outcomes are unverified. Recurrence remains F05. |
-| F13 | `d216458` / PR 20. Ctrl+K searches bounded app-owned notes, next steps, quests, known sessions, windows, cards, layouts, and registered actions. | Windows: 363 passed, 2 existing keypad-event skips after merging the two-display feature. Both themes inspected at 480 × 540; keyboard draft preservation, Unicode, missing sources, limits, and restart covered. | Wishlist search is delivered with F04 below; activity-history records remain future work. Navigation reuses existing transport without requests. |
+| F12 | Quiet outcome list, bounded read/dismiss/restore/retry history, source navigation, search, and explicit retry review preserving drafts. | Windows Python 3.11 full suite: 447 passed, 2 existing keypad-event skips. Final targeted checks: 16 passed, including added research retry coverage. Both themes inspected at 480 × 480; retry review at 480 × 420 with 18-point text. | Outcomes are recorded as observed, not reconstructed from all provider history. Pending tracking follows chat retention. No new live-provider or in-game check. |
+| F13 | `d216458` / PR 20. Ctrl+K searches bounded app-owned notes, next steps, quests, known sessions, windows, cards, layouts, and registered actions. | Windows: 363 passed, 2 existing keypad-event skips after merging the two-display feature. Both themes inspected at 480 × 540; keyboard draft preservation, Unicode, missing sources, limits, and restart covered. | Wishlist search is delivered with F04; activity-history records are included in F12. Navigation reuses existing transport without requests. |
 
 | F16 | `8141c6a` / PR 22. Static Retail profile import, manual notes, reviewed requests, and linked experiment notes. | Windows: 378 passed, 2 existing skips; final retention regression and 20 related checks passed. Both themes inspected at 440 × 480. | Simulation accuracy, live provider responses for this flow, and full item inspection unverified. |
 

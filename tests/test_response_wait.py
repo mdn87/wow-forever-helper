@@ -46,6 +46,14 @@ def test_wait_restore_keeps_elapsed_time_and_rejects_malformed_state():
         assert ResponseWait.restore(raw) is None
 
 
+def test_attached_acknowledgement_is_not_a_reply_or_completion():
+    wait = ResponseWait(REQUEST, "Next?")
+    messages = [Message("user", "user", "Next?")]
+    assert wait.observe(messages, "acknowledged") is None
+    messages.append(Message("reply", "assistant", "Synthetic answer"))
+    assert wait.observe(messages, "acknowledged") == "received"
+
+
 def test_managed_request_receipts_detect_failure_and_interruption(tmp_path, monkeypatch):
     from wow_helper import chat
     session = Session("codex", str(uuid.UUID(int=1)), "Synthetic", "ExampleProject", "running", managed=True)

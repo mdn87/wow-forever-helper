@@ -75,6 +75,7 @@ class CompanionWindow:
             self.options_menu.entryconfigure("end", label="Pinned advice is always saved", state="disabled")
         self.options_menu.add_command(label="Interface & transparency…", command=lambda: manager.show_interface(self))
         self.options_menu.add_command(label="Activity layouts…", command=lambda: manager.show_activity_layouts(self))
+        self.options_menu.add_command(label="Activity history…", command=lambda: manager.show_activity_history(self))
         self.options_menu.add_command(label="Search companion…  Ctrl+K", command=lambda: manager.show_search(self))
 
         self.options_menu.add_command(label="WoW companion displays…", command=lambda: show_display_setup(manager, self.root))
@@ -265,6 +266,8 @@ class CompanionWindow:
             self.manager._layouts_dialog.close()
         if self.manager._search_dialog and self.manager._search_dialog.parent is self.root:
             self.manager._search_dialog.close()
+        if self.manager._activity_dialog and self.manager._activity_dialog.parent is self.root:
+            self.manager._activity_dialog.close()
         if self.card:
             self.card.close()
         self.opacity.close()
@@ -284,6 +287,8 @@ class WindowManager:
         self.layout_path = Path(layout_path) if layout_path is not None else None
         self.saved_layouts = SavedLayouts(self.layout_path.with_name("activity-layouts.json") if self.layout_path else None)
         self.activity_factory = activity_factory or (lambda: ActivityService(self.layout_path.parent if self.layout_path else CHAT_STATE))
+        from .activity_history import ActivityHistory
+        self.activity_history = ActivityHistory(self.activity_factory().storage)
         self.lock = LayoutLock(self.layout_path)
         self.windows = []
         self.closed = False
@@ -296,6 +301,7 @@ class WindowManager:
         self._interface_dialog = None
         self._layouts_dialog = None
         self._search_dialog = None
+        self._activity_dialog = None
         self._interface_preview = None
         self.interface = interface_settings(None)
         self.next_number = 1
@@ -367,6 +373,23 @@ class WindowManager:
             self._search_dialog.root.deiconify()
             self._search_dialog.root.lift()
         return "break"
+
+    def show_activity_history(self, window, event_id=None):
+        from .activity_ui import ActivityDialog
+        if self._activity_dialog is None:
+            self._activity_dialog = ActivityDialog(self, window)
+        else:
+            self._activity_dialog.refresh()
+            self._activity_dialog.root.deiconify()
+            self._activity_dialog.root.lift()
+        if event_id:
+            dialog = self._activity_dialog
+            dialog.show_dismissed.set(True)
+            dialog.refresh()
+            if event_id in dialog.rows:
+                dialog.results.selection_set(event_id)
+                dialog.results.see(event_id)
+                dialog.selected()
 
     def open_search_window(self, kind):
         if self.closed or len(self.windows) >= MAX_WINDOWS:

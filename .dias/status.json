@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-24T02:00:09+00:00",
+  "assessedAt": "2026-10-24T03:27:59.933594+00:00",
   "confidence": "authoritative",
-  "currentMilestone": "Personal goals and wishlist delivered",
-  "remainingSummary": "F04 implemented and locally verified. F05 repeatable checklists is next in the default backlog; no new feature is active.",
+  "currentMilestone": "Activity history and persistent manual state delivered",
+  "remainingSummary": "F12 implemented and locally verified, including source navigation, remembered dismissals and explicit retry review. Other feature ideas remain parked until selected.",
   "nextChipId": null,
   "source": {
-    "label": "Personal goals and wishlist implementation and verification",
+    "label": "Activity history implementation and verification",
     "updatedAt": "2026-10-23"
   }
 }

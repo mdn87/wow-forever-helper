@@ -11,6 +11,7 @@ import uuid
 
 from .agent_sessions import AgentSessions, TERMINAL
 from .chat import ChatError, read_json, write_json
+from .activity_history import ActivityHistory
 
 TIERS = {"obvious": ("low", 90, 1), "easy": ("medium", 180, 3), "complicated": ("high", 360, 5)}
 SCHEMA = {"type": "object", "additionalProperties": False,
@@ -103,6 +104,7 @@ class Guidance:
     """One research turn at a time, with at most eight waiting requests per app."""
     def __init__(self, storage):
         self.storage = Path(storage) / "guides"
+        self.activity_history = ActivityHistory(storage)
         self.agents = AgentSessions(Path(storage) / "research-agents")
         self.waiting = deque()
         # Observe an already dispatched turn after a UI restart, but never
@@ -134,9 +136,7 @@ class Guidance:
             if len(self.waiting) >= 8:
                 raise ChatError("Eight guides are already waiting. Expand this quest again after one finishes.")
             record = {"key": key, "kind": kind, "tier": tier, "provider": provider, "status": "queued",
-                      "created_at": time.time()}
-            if kind == "chain":
-                record.update(edition=edition, context=context)
+                      "created_at": time.time(), "attempt": str(uuid.uuid4()), "edition": edition, "context": context}
             write_json(self.path(key), record)
             self.waiting.append((key, research_prompt(kind, context, edition, tier)))
             self.poll()
@@ -166,7 +166,28 @@ class Guidance:
                 elif time.time() - result.get("heartbeat", record.get("created_at", 0)) > 30:
                     record.update(status="failed", error="Research appears interrupted. Check the original session before using Retry guide.")
                     write_json(self.path(key), record)
+            self._record_activity(record)
             return record
+
+    def _record_activity(self, record):
+        if record.get("status") not in TERMINAL or not record.get("attempt"):
+            return
+        source = {"type": "research", "key": record["key"], "attempt": record["attempt"]}
+        outcome = "research" if record["status"] == "completed" else record["status"]
+        context = record.get("context", {})
+        subject = context.get("quest", {}).get("title") or context.get("slot") or record.get("kind", "Guide").title()
+        self.activity_history.record(source, outcome, str(subject) + " · " + record.get("edition", "Research"),
+                                     record["created_at"])
+
+    def retry(self, key, attempt):
+        """Explicitly retry exactly the reviewed failed attempt with its saved evidence."""
+        with self.lock:
+            record = self.get(key)
+            if (record.get("attempt") != attempt or record.get("status") not in {"failed", "cancelled", "interrupted"}
+                    or not isinstance(record.get("context"), dict)):
+                raise ChatError("This research has changed or cannot be retried. Open its latest report first.")
+            return self.request(record["kind"], record["context"], record["edition"], record["tier"],
+                                record["provider"], retry=True)
 
     def poll(self):
         with self.lock:
@@ -191,6 +212,7 @@ class Guidance:
                     record.update(status="failed", error=str(error) if isinstance(error, ChatError)
                                   else "The research request could not be saved.")
                 write_json(self.path(key), record)
+                self._record_activity(record)
 
 
 _services = {}

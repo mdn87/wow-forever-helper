@@ -412,7 +412,7 @@ class TaskWindow(ChatWindow):
         if self._guide_queue and not self.busy:
             key, quest, retry = self._guide_queue.popleft()
             self._request_quest(key, quest, retry)
-        if self.auto_refresh % 10 == 0 and not self.busy and (self.guide_keys or self.gear_key):
+        if self.auto_refresh % 10 == 0 and not self.busy and (self.guide_keys or self.gear_key or self._guidance.active or self._guidance.waiting):
             keys, gear = dict(self.guide_keys), self.gear_key
             def read():
                 self._guidance.poll()
