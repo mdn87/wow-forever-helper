@@ -1,5 +1,15 @@
 # Interactive agent chat
 
+## Optional usage study
+
+**Settings → Usage study…** starts a local study lasting 1–30 days, shows its counts, or stops recording early. Recording is off until explicitly started and stops at the period's end, even if the companion remains open. Starting while a study is active preserves its existing dates and counts. Up to twelve completed or stopped studies are retained locally.
+
+The study counts named feature openings, accepted chat sends and research requests, observed request outcomes, saved Journal notes and goals, goal updates, screen capture requests, pinned advice saves, and Activity history actions. It also counts app starts separately. Counts are grouped by feature, action, and UTC date. Restoring windows and background polls do not count as feature use, and repeated outcome observations or dismissals do not inflate totals. Data stays in ignored local runtime storage; there is no analytics upload. No message text, screenshots, player/account identities, file paths, session identifiers, or game content enter the study.
+
+These counts can show which measured features are revisited and where failures or retries accumulate. They cannot measure attention, time spent, gameplay, satisfaction, or whether an answer helped. Outcomes observed during a study can belong to requests begun earlier, so these totals alone do not establish failure rates. A feature with no recorded actions may simply have had no relevant opportunity during the trial. Reviewing the study does not automatically change the product or start another study.
+
+The same controls are available as `python -m wow_helper usage-study start --days 7`, `python -m wow_helper usage-study report`, and `python -m wow_helper usage-study stop`. Report is read-only. A running companion must load the updated code before its actions can be counted. Synthetic checks use separate storage and are not included in a personal study. Verification: Windows Python 3.11 full suite passed with 454 tests and two existing keypad-event skips. Both themes were inspected at 480 × 420 on an isolated desktop. Actual testing-period usage has not yet been evaluated.
+
 ## Activity history
 
 Open **Settings → Activity history…**, or find it with **Ctrl+K**, to see request outcomes observed by the companion. **Reply received** means a reply is visible in an attached conversation; **Reply complete** requires a managed turn's completion receipt. Progress messages, delivery receipts, and Claude acknowledgements alone never count as completed replies. Research completion, failure, cancellation, and interrupted chat requests have separate labels. The list stays quiet: it does not show toasts or bring a window forward automatically.

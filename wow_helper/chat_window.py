@@ -558,6 +558,9 @@ class ChatWindow:
             return False
         previous_ids = frozenset(self.observed.get(session.key, set()))
         if self._submit("send", lambda: self.service.send(session, body, request_id), (session.key, body, previous_ids)):
+            from .usage_study import record
+            record(getattr(getattr(self, "activity", None), "storage", getattr(self.service, "state", None)),
+                   getattr(self, "kind", "quests" if hasattr(self, "context") else "chat"), "send")
             self.inflight = (session.key, body, previous_ids)
             self.sending_wait = ResponseWait(request_id, body, previous_ids=previous_ids)
             self.response_waits.setdefault(session.key, []).append(self.sending_wait)

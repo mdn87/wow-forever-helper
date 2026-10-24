@@ -177,6 +177,8 @@ class JournalService:
             data["name"] = name.strip() or "My journal"
             data["entries"].append({"id": note_id, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **fields})
             self._write(path, data)
+            from .usage_study import record
+            record(self.storage, "goals" if goal is not None else "journal", "save")
             return data
 
     def update_goal(self, journal_id, note_id, goal, next_time, *, expected):
@@ -192,6 +194,8 @@ class JournalService:
             entry.pop('next_time', None)
             entry.update(step)
             self._write(path, data)
+            from .usage_study import record
+            record(self.storage, "goals", "update")
             return data
 
     def set_next_time(self, journal_id, note_id, state):

@@ -139,6 +139,8 @@ class Guidance:
                       "created_at": time.time(), "attempt": str(uuid.uuid4()), "edition": edition, "context": context}
             write_json(self.path(key), record)
             self.waiting.append((key, research_prompt(kind, context, edition, tier)))
+            from .usage_study import record as record_usage
+            record_usage(self.storage.parent, "research", "send")
             self.poll()
         return key
 

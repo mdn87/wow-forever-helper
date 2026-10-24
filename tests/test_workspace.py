@@ -341,6 +341,34 @@ def test_activity_research_report_and_retry_use_reviewed_attempt(manager_factory
     assert len(guides.agents.calls) == 2
 
 
+def test_usage_study_controls_counts_and_excludes_restored_windows(manager_factory):
+    from wow_helper.usage_study import UsageStudy
+    manager = manager_factory()
+    window = manager.windows[0]
+    study = UsageStudy(manager.activity_factory().storage)
+    study.start(7)
+    manager.close()
+    manager = manager_factory()
+    window = manager.windows[0]
+    assert study.report()["totals"] == {"companion": {"start": 1}}
+    manager.show_usage_study(window)
+    dialog = manager._usage_dialog
+    dialog.root.geometry("480x420")
+    manager.root.update()
+    assert str(dialog.stop_button.cget("state")) == "normal"
+    manager.show_activity_history(window)
+    manager._activity_dialog.close()
+    assert study.report()["totals"] == {"companion": {"start": 1}, "activity_history": {"open": 1}}
+    window.view._select_session(SESSIONS[0]); settle(window.view)
+    window.view.send_message("Synthetic message never included in metrics"); settle(window.view)
+    assert study.report()["totals"]["chat"]["send"] == 1
+    assert "Synthetic" not in study.path.read_text()
+    dialog.stop()
+    manager.show_activity_history(window)
+    assert study.report()["totals"]["activity_history"]["open"] == 1
+    assert "Status: stopped" in dialog.report_text.get("1.0", "end-1c")
+
+
 @pytest.mark.parametrize('provider', ['codex', 'claude'])
 def test_route_preparation_and_review_reuse_conversation_after_restart(manager_factory, provider):
     manager = manager_factory()

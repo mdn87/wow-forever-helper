@@ -109,6 +109,8 @@ class ActivityDeck:
     def open_activity(self, kind):
         if self.closed or kind not in ACTIVITIES:
             return None
+        if not self.manager.loading:
+            self.manager.record_usage(kind, "open")
         if kind not in self.views:
             state = deepcopy(self.state["states"].get(kind, {}))
             # Card navigation restores work; it never starts report preparation.

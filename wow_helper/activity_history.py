@@ -135,6 +135,10 @@ class ActivityHistory:
             ids = {e["id"] for e in data["events"]}
             data["actions"] = [a for a in data["actions"] if a["event"] in ids]
             self.save(data)
+            if self.path:
+                from .usage_study import record
+                record(self.path.parent, "research" if source["type"] == "research" else "chat",
+                       "completed" if outcome == "research" else outcome)
         return key
 
     def act(self, key, action):
@@ -155,6 +159,9 @@ class ActivityHistory:
                 event["dismissed"] = value
             data["actions"] = (data["actions"] + [{"event": key, "action": action, "at": time.time()}])[-MAX_ACTIONS:]
             self.save(data)
+            if self.path:
+                from .usage_study import record
+                record(self.path.parent, "activity_history", action)
 
     def entries(self, dismissed=False):
         return [e for e in reversed(self.load()["events"]) if dismissed or not e["dismissed"]]

@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-24T03:27:59.933594+00:00",
+  "assessedAt": "2026-10-24T03:49:48.460566+00:00",
   "confidence": "authoritative",
-  "currentMilestone": "Activity history and persistent manual state delivered",
-  "remainingSummary": "F12 implemented and locally verified, including source navigation, remembered dismissals and explicit retry review. Other feature ideas remain parked until selected.",
+  "currentMilestone": "Optional local usage study delivered",
+  "remainingSummary": "Usage-study controls and bounded action counts are implemented and locally verified. Other feature ideas remain parked pending testing feedback.",
   "nextChipId": null,
   "source": {
-    "label": "Activity history implementation and verification",
+    "label": "Local usage study implementation and verification",
     "updatedAt": "2026-10-23"
   }
 }
