@@ -103,6 +103,7 @@ class TaskWindow(ChatWindow):
         self.actions_menu.add_command(label="Load window preset…", command=self.load_preset)
         self.actions_menu.add_command(label="Build tutor and experiments…", command=self.show_build_tutor)
         self.actions_menu.add_command(label="Dungeon route walkthrough…", command=self.show_route_notebook)
+        self.actions_menu.add_command(label="Goals and wishlist…", command=self.show_goals)
         if self.book is not None:
             self._build_panel(raw)
             if kind == "quests":
@@ -545,13 +546,14 @@ class TaskWindow(ChatWindow):
             self.show_journal(result)
 
     def show_journal(self, data):
+        from .journal_ui import note_summary
         self.journal_name.set(data["name"])
         def date(raw):
             try:
                 return datetime.fromisoformat(raw).astimezone().strftime("%b %d, %H:%M")
             except ValueError:
                 return "Saved note"
-        replace_text(self.report_text, "\n\n".join(date(e["at"]) + "\n" + e["text"] for e in data["entries"])
+        replace_text(self.report_text, "\n\n".join(date(e["at"]) + "\n" + (note_summary(e) if e.get('goal') else e['text']) for e in data["entries"])
                      or "Add your first note below. Notes remain on this machine when this window closes.")
         self.report_text.see("end")
         self.activity_notice.set(f"{len(data['entries'])} notes · Saved locally · Ask agent prepares a summary request.")
@@ -663,6 +665,22 @@ class TaskWindow(ChatWindow):
             return
         try:
             self._resume_dialog = ResumeDialog(self)
+        except ChatError as error:
+            self.activity_notice.set(str(error))
+
+    def show_goals(self, journal_id=None, note_id=None):
+        from .journal_ui import ResumeDialog
+        if self._resume_dialog:
+            if journal_id and self._resume_dialog.journal_id != journal_id:
+                raise ChatError('Close the current Journal review before opening another journal’s goals. Your draft is kept.')
+            self._resume_dialog.goals_only = True
+            self._resume_dialog.reload(note_id)
+            self._resume_dialog.root.lift()
+            return
+        try:
+            self._resume_dialog = ResumeDialog(self, goals_only=True, journal_id=journal_id)
+            if note_id:
+                self._resume_dialog.reload(note_id)
         except ChatError as error:
             self.activity_notice.set(str(error))
 

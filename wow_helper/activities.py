@@ -150,7 +150,9 @@ def packet_preview(packet):
     for item in packet["context_files"]:
         lines += ["", "CONTEXT · " + item["name"], item["text"]]
     if "journal" in packet:
-        lines += ["", "JOURNAL"] + [e["at"] + "\n" + e["text"] for e in packet["journal"]["entries"]]
+        from .journal_ui import note_summary
+        lines += ["", "JOURNAL"] + [e["at"] + "\n" + (note_summary(e) if e.get('goal') else e['text'])
+                                      for e in packet["journal"]["entries"]]
     if "image" in packet:
         lines += ["", "IMAGE", "The previewed image will be made available to the selected agent."]
     return "\n".join(lines)

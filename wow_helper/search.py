@@ -13,6 +13,7 @@ MAX_INDEX_BYTES = 8_000_000
 SETTINGS_ACTIONS = (("interface", "Interface and transparency"), ("layouts", "Activity layouts"),
                     ("appearance", "Chat appearance"), ("setup", "Window setup"),
                     ("build", "Build tutor and experiments"), ("route", "Dungeon route walkthrough"),
+                    ("goals", "Personal goals and wishlist"),
                     ("chain", "Selected quest chain and prerequisites"))
 
 
@@ -76,11 +77,13 @@ def search_index(manager):
                 if len(rows) >= MAX_RESULTS:
                     notices.append("Some notes are omitted at the search result limit.")
                     break
-                title = entry.get("next_time", {}).get("text") or entry["text"].splitlines()[0][:100]
+                title = entry.get('goal', {}).get('title') or entry.get("next_time", {}).get("text") or entry["text"].splitlines()[0][:100]
                 detail = f"{data['name']} · {entry['id'][:8]} · {entry['at']}"
                 if entry.get("next_time"):
                     detail += " · Next time: " + entry["next_time"]["state"]
-                add("note", title, detail, (path.stem, entry["id"]), note_summary(entry))
+                if entry.get('goal'):
+                    detail += ' · Manual goal: ' + entry['goal']['state']
+                add("goal" if entry.get('goal') else "note", title, detail, (path.stem, entry["id"]), note_summary(entry))
         except (ChatError, OSError):
             notices.append("An unreadable journal was kept and omitted.")
     try:
@@ -201,6 +204,8 @@ class SearchDialog:
                 label = "Open conversation" if enabled else "Source unavailable"
             except ChatError as error:
                 text, enabled = str(error), False
+        elif row and row['kind'] == 'goal':
+            label = 'Open goal'
         replace_text(self.preview, text)
         self.open_button.configure(text=label, state="normal" if enabled else "disabled")
 
@@ -216,7 +221,14 @@ class SearchDialog:
     def open_result(self, row):
         kind, target = row["kind"], row["target"]
         manager = self.manager
-        if kind == "note":
+        if kind == 'goal':
+            if not self.note(row).get('goal'):
+                raise ChatError('That goal is no longer available. Refresh the index.')
+            view = self.window.view or getattr(self.window.display, 'views', {}).get(getattr(self.window.display, 'active', None))
+            if view is None:
+                view = manager.open_search_window('journal').view
+            view.show_goals(*target)
+        elif kind == "note":
             source = self.note(row).get("source")
             if not source:
                 raise ChatError("This saved note has no source conversation. Its text remains readable here.")
@@ -255,11 +267,11 @@ class SearchDialog:
                 manager.show_activity_layouts(self.window)
             elif target in {"appearance", "setup"} and view:
                 (view.show_appearance if target == "appearance" else view.show_setup)()
-            elif target in {"build", "route", "chain"} and view:
+            elif target in {"build", "route", "chain", "goals"} and view:
                 if target == "chain" and (view.kind != "quests" or view.quest_tree.selected() is None):
                     raise ChatError("Select a quest in a Quest guide window before opening its chain.")
                 {"build": view.show_build_tutor, "route": view.show_route_notebook,
-                 "chain": view.show_quest_chain}[target]()
+                 "chain": view.show_quest_chain, "goals": view.show_goals}[target]()
             else:
                 raise ChatError("Open a chat or activity window to use that setting.")
         else:

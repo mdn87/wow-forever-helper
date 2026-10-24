@@ -112,7 +112,7 @@ class JournalService:
             bounded_text(data.get("name"), 80)
             seen = set()
             for index, entry in enumerate(data["entries"]):
-                if not isinstance(entry, dict) or set(entry) - {"id", "at", "text", "source", "evidence", "next_time"}:
+                if not isinstance(entry, dict) or set(entry) - {"id", "at", "text", "source", "evidence", "next_time", "goal"}:
                     raise ValueError
                 bounded_text(entry.get("text"), 8000)
                 bounded_text(entry.get("at"), 100)
@@ -126,6 +126,9 @@ class JournalService:
                     raise ValueError
                 seen.add(entry["id"])
                 metadata(entry.get("source"), entry.get("evidence"), entry.get("next_time"))
+                if "goal" in entry:
+                    from .goals import validate_goal
+                    validate_goal(entry["goal"])
             if sum(len(e["text"]) for e in data["entries"]) > 500_000:
                 raise ValueError
             return data
@@ -154,7 +157,7 @@ class JournalService:
             raise ChatError("This journal is full. Create a new journal; existing notes are kept.")
         write_json(path, data)
 
-    def add(self, journal_id, name, text, note_id=None, *, source=None, evidence=None, next_time=None):
+    def add(self, journal_id, name, text, note_id=None, *, source=None, evidence=None, next_time=None, goal=None):
         try:
             bounded_text(text, 8000)
             bounded_text(name, 80, empty=True)
@@ -162,6 +165,9 @@ class JournalService:
             raise ChatError("Write a note between 1 and 8,000 characters and a name up to 80 characters.") from None
         note_id = identifier(note_id) if note_id is not None else str(uuid.uuid4())
         fields = {"text": text.strip(), **metadata(source, evidence, next_time)}
+        if goal is not None:
+            from .goals import validate_goal
+            fields['goal'] = validate_goal(goal)
         with self.locked(journal_id) as (path, data):
             previous = next((e for e in data["entries"] if e["id"] == note_id), None)
             if previous:
@@ -170,6 +176,21 @@ class JournalService:
                 return data
             data["name"] = name.strip() or "My journal"
             data["entries"].append({"id": note_id, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **fields})
+            self._write(path, data)
+            return data
+
+    def update_goal(self, journal_id, note_id, goal, next_time, *, expected):
+        """Edit only manual goal fields; retain the original note and source evidence."""
+        from .goals import validate_goal
+        goal = validate_goal(goal)
+        step = metadata(next_time=next_time)
+        with self.locked(journal_id) as (path, data):
+            entry = next((e for e in data['entries'] if e['id'] == note_id), None)
+            if entry is None or entry != expected:
+                raise ChatError('This note changed in another window. Your draft is kept; reopen it before saving.')
+            entry['goal'] = goal
+            entry.pop('next_time', None)
+            entry.update(step)
             self._write(path, data)
             return data
 

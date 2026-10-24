@@ -2427,3 +2427,132 @@ def test_search_minimum_controls_and_quest_editor_shortcut(manager_factory, them
         assert control.winfo_rooty() + control.winfo_height() <= dialog.root.winfo_rooty() + dialog.root.winfo_height()
     dialog.close()
     manager.preview_interface(None)
+
+
+@pytest.mark.parametrize('provider_index', [0, 1])
+def test_goal_create_research_once_restore_and_search_without_sending(manager_factory, provider_index):
+    from wow_helper.search import search_index
+    manager = manager_factory()
+    window = manager.windows[0]
+    choose(window, provider_index)
+    view = window.view
+    view.editor.insert('1.0', 'Keep my chat draft')
+    view.show_goals()
+    goals = view._resume_dialog
+    goals.edit_goal(new=True)
+    editor = goals.goal_dialog
+    editor.fields['title'].set('Synthetic mount goal')
+    editor.fields['kind'].set('Mount')
+    editor.fields['next_step'].set('Check prerequisites')
+    editor.editors['constraints'].insert('1.0', 'Solo, thirty minutes')
+    editor.save(); editor.save()
+    saved = view.activity.journal(view.journal_id)['entries']
+    assert len(saved) == 1 and saved[0]['goal']['state'] == 'Planned'
+    assert saved[0]['source']['provider'] == SESSIONS[provider_index].provider
+    assert not view.service.sent
+    editor.close()
+    goals.prepare_followup()
+    review = goals.followup
+    assert review.packet['window'] == 'Personal goal research'
+    assert 'prerequisites, possible routes, tradeoffs' in review.packet['instructions']
+    assert 'Solo, thirty minutes' in review.preview.get('1.0', 'end-1c')
+    assert 'Ownership and completion are not independently verified' in review.preview.get('1.0', 'end-1c')
+    review.send(); review.send(); settle(view)
+    assert len(view.service.sent) == 1
+    assert view.editor.get('1.0', 'end-1c') == 'Keep my chat draft'
+    rows, _ = search_index(manager)
+    row = next(r for r in rows if r['kind'] == 'goal')
+    assert row['title'] == 'Synthetic mount goal'
+    assert 'solo' in row['search']
+    journal_id = view.journal_id
+    window.remember.set(False)
+    manager.save_layout(); path = manager.layout_path; manager.close()
+    restored = manager_factory(path)
+    assert restored.activity_factory().journal(journal_id)['entries'] == saved
+    assert not any(w.view.service.sent for w in restored.windows)
+    restored.show_search(restored.windows[0])
+    restored._search_dialog.open_result(row)
+    goal_view = restored.windows[0].view._resume_dialog
+    assert goal_view.entry()['goal']['title'] == 'Synthetic mount goal'
+    assert not any(w.view.service.sent for w in restored.windows)
+
+
+def test_goal_reply_updates_existing_suggestions_preserving_decision_and_source(manager_factory):
+    manager = manager_factory()
+    window = manager.windows[0]; choose(window, 0)
+    view = window.view
+    view.show_goals(); goals = view._resume_dialog; goals.edit_goal(new=True)
+    editor = goals.goal_dialog
+    editor.fields['title'].set('Synthetic recipe')
+    editor.editors['decision'].insert('1.0', 'Solo only')
+    editor.save(); editor.close(); goals.close()
+    original = view.activity.journal(view.journal_id)['entries'][0]
+    choose(window, 1)
+    view.save_to_journal()
+    dialog = view._journal_dialog
+    dialog.target.current(next(i for i, (jid, _) in enumerate(dialog.journals) if jid == view.journal_id))
+    dialog.save_goal(); editor = dialog.goal_dialog
+    editor.chrome.place('440x540+40+40'); editor.root.update()
+    assert editor.root.minsize() == (440, 540)
+    for control in editor.book.nametowidget(editor.book.tabs()[0]).winfo_children():
+        assert control.winfo_ismapped()
+        assert control.winfo_height() >= control.winfo_reqheight()
+        assert control.winfo_rooty() + control.winfo_height() <= editor.actions.winfo_rooty()
+    editor.target.current(1); editor.choose_target()
+    assert editor.editors['decision'].get('1.0', 'end-1c') == 'Solo only'
+    editor.save(); editor.save()
+    entries = view.activity.journal(view.journal_id)['entries']
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry['source'] == original['source']
+    assert entry['goal']['review']['source']['provider'] == 'claude'
+    assert entry['goal']['suggestions'] == SESSIONS[1].title
+    assert entry['goal']['decision'] == 'Solo only' and entry['goal']['state'] == 'Planned'
+    assert not view.service.sent
+
+
+@pytest.mark.parametrize('theme', ['classic', 'modern'])
+def test_goal_minimum_ui_and_failed_save_preserve_draft(manager_factory, monkeypatch, theme):
+    manager = manager_factory(); manager.preview_interface({'theme': theme})
+    view = manager.windows[0].view
+    view.set_appearance({**view.appearance, 'font_size': 18})
+    view.show_goals(); goals = view._resume_dialog; goals.edit_goal(new=True)
+    dialog = goals.goal_dialog
+    dialog.chrome.place('440x480+40+40')
+    dialog.fields['title'].set('Synthetic goal')
+    dialog.editors['constraints'].insert('1.0', 'Keep my preferences')
+    def fail(*_):
+        raise OSError('Synthetic write failure')
+    monkeypatch.setattr('wow_helper.journal.write_json', fail)
+    dialog.save()
+    assert 'draft' in dialog.notice.get()
+    assert dialog.fields['title'].get() == 'Synthetic goal'
+    assert dialog.editors['constraints'].get('1.0', 'end-1c') == 'Keep my preferences'
+    for tab in dialog.book.tabs():
+        dialog.book.select(tab); dialog.root.update()
+        active_editors = [widget for widget in dialog.editors.values() if str(widget.master.master) == tab]
+        for widget in [*dialog.actions.winfo_children(), *active_editors]:
+            assert widget.winfo_ismapped()
+            assert widget.winfo_rooty() + widget.winfo_height() <= dialog.root.winfo_rooty() + dialog.root.winfo_height()
+    assert not view.service.sent
+    manager.preview_interface(None)
+
+
+def test_goal_source_change_blocks_research_and_missing_source_stays_readable(manager_factory):
+    manager = manager_factory(); window = manager.windows[0]; choose(window, 0)
+    view = window.view
+    view.show_goals(); goals = view._resume_dialog; goals.edit_goal(new=True)
+    editor = goals.goal_dialog; editor.fields['title'].set('Synthetic goal'); editor.save(); editor.close()
+    goals.prepare_followup(); review = goals.followup
+    choose(window, 1); choose(window, 0)
+    review.send()
+    assert review.packet is None and not view.service.sent
+    review.close()
+    from wow_helper.journal import JournalService
+    entry = goals.entry()
+    # A new source-less goal remains usable, including through search.
+    JournalService(view.activity.storage).add(view.journal_id, 'Goals', 'Offline goal', goal=entry['goal'])
+    goals.reload(); assert goals.entry().get('source') is None
+    assert goals.continue_conversation() is None
+    assert 'no original conversation' in goals.notice.get()
+    assert 'Synthetic goal' in goals.preview.get('1.0', 'end-1c')

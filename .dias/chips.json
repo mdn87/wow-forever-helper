@@ -559,6 +559,38 @@
           "message": "Two displays and resumable cards merged in PR 21. Windows CI: 354 passed, 2 skipped. Linux: 220 passed, 136 skipped. Synthetic views checked; live touch unverified."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "personal-goals",
+      "projectId": "wow-forever-helper",
+      "title": "Plan and track personal goals",
+      "summary": "Save selected goals, research how to accomplish them in the chosen conversation, and keep reviewed suggestions separate from manual decisions and progress.",
+      "stage": "done",
+      "sequence": 15,
+      "prereqs": [
+        "linked-journal-resume"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-24T01:52:46+00:00",
+        "updatedAt": "2026-10-24T02:00:09+00:00"
+      },
+      "evidence": [
+        {
+          "entryId": "personal-goals-active",
+          "at": "2026-10-24T01:52:46+00:00",
+          "kind": "stage-change",
+          "message": "Operator selected F04 including analysis of how to accomplish goals. Implementing Journal goal records, explicit research, reviewed suggestions and search."
+        },
+        {
+          "entryId": "personal-goals-done",
+          "at": "2026-10-24T02:00:09+00:00",
+          "kind": "stage-change",
+          "message": "Goals, reviewed research, manual progress and search verified. Windows: 429 passed, 2 skips. Both themes inspected; actual game outcomes unverified."
+        }
+      ]
     }
   ]
 }

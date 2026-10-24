@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-23T05:44:41+00:00",
+  "assessedAt": "2026-10-24T02:00:09+00:00",
   "confidence": "authoritative",
-  "currentMilestone": "Four selected companion upgrades delivered",
-  "remainingSummary": "F13, F16, F17, and F06 delivered. Personal goals and wishlist is next in the default backlog; other unselected upgrades remain planned.",
+  "currentMilestone": "Personal goals and wishlist delivered",
+  "remainingSummary": "F04 implemented and locally verified. F05 repeatable checklists is next in the default backlog; no new feature is active.",
   "nextChipId": null,
   "source": {
-    "label": "Saved activity layouts verification and helper upgrade sequence",
+    "label": "Personal goals and wishlist implementation and verification",
     "updatedAt": "2026-10-23"
   }
 }
