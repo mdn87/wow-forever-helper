@@ -76,6 +76,7 @@ class CompanionWindow:
         self.options_menu.add_command(label="Interface & transparency…", command=lambda: manager.show_interface(self))
         self.options_menu.add_command(label="Activity layouts…", command=lambda: manager.show_activity_layouts(self))
         self.options_menu.add_command(label="Activity history…", command=lambda: manager.show_activity_history(self))
+        self.options_menu.add_command(label="Usage study…", command=lambda: manager.show_usage_study(self))
         self.options_menu.add_command(label="Search companion…  Ctrl+K", command=lambda: manager.show_search(self))
 
         self.options_menu.add_command(label="WoW companion displays…", command=lambda: show_display_setup(manager, self.root))
@@ -177,6 +178,8 @@ class CompanionWindow:
         for child in self.body.winfo_children():
             child.destroy()
         self.kind = kind
+        if not self.manager.loading:
+            self.manager.record_usage(kind, "open")
         self.view = TaskWindow(self.body, self.manager.service_factory(), embedded=True, kind=kind,
                                activity=self.manager.activity_factory(), window_id=self.id,
                                service_factory=self.manager.service_factory,
@@ -268,6 +271,8 @@ class CompanionWindow:
             self.manager._search_dialog.close()
         if self.manager._activity_dialog and self.manager._activity_dialog.parent is self.root:
             self.manager._activity_dialog.close()
+        if self.manager._usage_dialog and self.manager._usage_dialog.parent is self.root:
+            self.manager._usage_dialog.close()
         if self.card:
             self.card.close()
         self.opacity.close()
@@ -302,6 +307,7 @@ class WindowManager:
         self._layouts_dialog = None
         self._search_dialog = None
         self._activity_dialog = None
+        self._usage_dialog = None
         self._interface_preview = None
         self.interface = interface_settings(None)
         self.next_number = 1
@@ -336,6 +342,7 @@ class WindowManager:
             if not self.windows:
                 self.new_window(kind="chat")
             self.loading = False
+            self.record_usage("companion", "start")
             self.refresh_menus()
             self.schedule_save()
             self._display_after = self.root.after(1000, self._check_display_connections)
@@ -357,6 +364,7 @@ class WindowManager:
             self._interface_dialog.root.lift()
 
     def show_activity_layouts(self, window):
+        self.record_usage("layouts", "open")
         from .layout_dialog import LayoutDialog
         if self._layouts_dialog is None:
             self._layouts_dialog = LayoutDialog(self, window.root)
@@ -365,6 +373,7 @@ class WindowManager:
             self._layouts_dialog.root.lift()
 
     def show_search(self, window):
+        self.record_usage("search", "open")
         from .search import SearchDialog
         if self._search_dialog is None:
             self._search_dialog = SearchDialog(self, window)
@@ -375,6 +384,7 @@ class WindowManager:
         return "break"
 
     def show_activity_history(self, window, event_id=None):
+        self.record_usage("activity_history", "open")
         from .activity_ui import ActivityDialog
         if self._activity_dialog is None:
             self._activity_dialog = ActivityDialog(self, window)
@@ -390,6 +400,18 @@ class WindowManager:
                 dialog.results.selection_set(event_id)
                 dialog.results.see(event_id)
                 dialog.selected()
+
+    def record_usage(self, feature, action):
+        from .usage_study import record
+        record(self.activity_factory().storage, feature, action)
+
+    def show_usage_study(self, window):
+        from .usage_ui import UsageDialog
+        if self._usage_dialog is None:
+            self._usage_dialog = UsageDialog(self, window)
+        else:
+            self._usage_dialog.refresh()
+            self._usage_dialog.root.lift()
 
     def open_search_window(self, kind):
         if self.closed or len(self.windows) >= MAX_WINDOWS:
@@ -635,6 +657,7 @@ class WindowManager:
             window.dispose()
             self.refresh_menus()
             raise ChatError("Could not save the pinned card. Your review is kept; try again after saving works.")
+        self.record_usage("pinned", "save")
         return window
 
     def resume_conversation(self, source):

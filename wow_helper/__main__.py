@@ -14,6 +14,9 @@ SETTINGS = Path(__file__).resolve().parents[1] / ".runtime" / "companion.json"
 def main(argv=None):
     parser = argparse.ArgumentParser(description="WoW Forever Helper: one human request, one mapped key chord; plus a read-only quest companion.")
     commands = parser.add_subparsers(dest="command", required=True)
+    usage = commands.add_parser("usage-study", help="Start, stop or report local companion action counts")
+    usage.add_argument("action", choices=["start", "stop", "report"])
+    usage.add_argument("--days", type=int, default=7, help="Testing period, 1 to 30 days; defaults to 7")
     chat = commands.add_parser("chat", help="Open or reveal persistent companion windows")
     chat.add_argument("--restart", action="store_true", help="Save and restart the running companion to load updates (Windows)")
     chat.add_argument("--hotkey", choices=["H", "F10"], default="H",
@@ -56,6 +59,17 @@ def main(argv=None):
     addon.add_argument("--wow-root", help="WoW install folder; remembered")
     addon.add_argument("--flavor", help="Only this game folder, for example _classic_beta_")
     args = parser.parse_args(argv)
+    if args.command == "usage-study":
+        from .usage_study import UsageStudy
+        from .chat import ChatError
+        try:
+            study = UsageStudy()
+            result = study.start(args.days) if args.action == "start" else getattr(study, args.action)()
+            print(json.dumps(result))
+            return 0
+        except (ChatError, OSError) as error:
+            print(json.dumps({"status": "error", "message": str(error) if isinstance(error, ChatError) else "Usage study storage is unavailable."}))
+            return 2
     if args.command in {"chat", "chat-poll", "chat-ack"}:
         from .chat import ChatError, acknowledge_claude, poll_claude
         try:

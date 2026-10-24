@@ -669,6 +669,7 @@ class TaskWindow(ChatWindow):
             self.activity_notice.set(str(error))
 
     def show_goals(self, journal_id=None, note_id=None):
+        self.record_usage("goals", "open")
         from .journal_ui import ResumeDialog
         if self._resume_dialog:
             if journal_id and self._resume_dialog.journal_id != journal_id:
@@ -688,6 +689,7 @@ class TaskWindow(ChatWindow):
         from .screen_capture import capture_game
         flavor = self.profile["flavor"]
         if self._submit("activity", lambda: capture_game(self.activity.storage, flavor), on_result=self._image_result):
+            self.record_usage("screen", "capture")
             self.activity_notice.set("Capturing the selected edition's game window…")
 
     def open_image(self):
@@ -846,6 +848,7 @@ class TaskWindow(ChatWindow):
                 self.status.set(str(error) if isinstance(error, ChatError) else "The preset could not be read.")
 
     def show_build_tutor(self):
+        self.record_usage("build", "open")
         from .notebook_ui import DiscussionNotebook
         if 'build' in self._notebooks:
             self._notebooks['build'].root.lift()
@@ -853,6 +856,7 @@ class TaskWindow(ChatWindow):
             self._notebooks['build'] = DiscussionNotebook(self)
 
     def show_route_notebook(self):
+        self.record_usage("route", "open")
         from .route_notebook import RouteNotebook
         if 'route' in self._notebooks:
             self._notebooks['route'].root.lift()
@@ -868,8 +872,13 @@ class TaskWindow(ChatWindow):
         if key is None:
             self.activity_notice.set('Select a quest before researching its prerequisites and next quests.')
             return
+        self.record_usage("chain", "open")
         edition = next(k for k, v in FLAVORS.items() if v == self.quest_tree.edition)
         self._chain_dialog = ChainDialog(self, self.quest_tree.quests[key], edition)
+
+    def record_usage(self, feature, action):
+        from .usage_study import record
+        record(self.activity.storage, feature, action)
 
     def close(self):
         self._view_ready = False
