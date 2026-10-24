@@ -277,6 +277,9 @@ class ChatService:
         receipts.mkdir(parents=True, exist_ok=True)
         receipt = receipts / (request_id + ".json")
         data = {"provider": session.provider, "session": session_id, "status": "sending"}
+        if session.provider == "codex":
+            # The attached provider has no companion-owned request body elsewhere.
+            data["body"] = body
         try:
             # Exclusive creation makes retries across processes and restarts refuse.
             with receipt.open("x", encoding="utf-8") as stream:
@@ -300,6 +303,29 @@ class ChatService:
             raise
         write_json(receipt, {**data, "status": status})
         return status
+
+    def retry_body(self, session, request_id):
+        """Read a bounded original request for review; never deliver it here."""
+        session_id, request_id = identifier(session.id), identifier(request_id)
+        if session.managed:
+            path = self.agents.folder(session_id) / "requests" / (request_id + ".json")
+        elif session.provider == "claude":
+            path = self.state / "claude" / session_id / "inbox" / (request_id + ".json")
+        else:
+            path = self.state / "outbox" / (request_id + ".json")
+        try:
+            with path.open("rb") as stream:
+                raw = stream.read(200_001)
+            if len(raw) > 200_000:
+                return ""
+            data = json.loads(raw)
+            if not session.managed and session.provider == "codex" and (
+                    data.get("provider") != session.provider or data.get("session") != session.id):
+                return ""
+            body = data.get("body", data.get("text", ""))
+            return body if isinstance(body, str) and len(body) <= MAX_MESSAGE and "\0" not in body else ""
+        except (OSError, ValueError, AttributeError):
+            return ""
 
 
 @contextmanager

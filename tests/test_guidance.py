@@ -62,6 +62,29 @@ def test_failed_or_stale_requests_require_explicit_retry(guides):
     assert len(guides.agents.calls) == 2
 
 
+def test_activity_records_one_outcome_per_attempt_and_explicit_retry(guides, tmp_path):
+    from wow_helper.activity_history import ActivityHistory
+    key = request(guides)
+    assert ActivityHistory(tmp_path).entries() == []
+    session, job, *_ = guides.agents.calls[0]
+    guides.agents.results[session, job] = {"status": "failed", "error": "Synthetic failure"}
+    first = guides.get(key)
+    for _ in range(3):
+        guides.get(key)
+    store = ActivityHistory(tmp_path)
+    assert len(store.entries()) == 1
+    store.act(store.entries()[0]["id"], "dismiss")
+    guides.retry(key, first["attempt"])
+    assert len(guides.agents.calls) == 2
+    with pytest.raises(ChatError, match="changed"):
+        guides.retry(key, first["attempt"])
+    guides.agents.finish(1)
+    guides.get(key)
+    assert [e["outcome"] for e in store.entries()] == ["research"]
+    assert len(store.entries(True)) == 2
+    assert store.entries()[0]["source"]["attempt"] != first["attempt"]
+
+
 def test_restore_observes_active_research_but_never_replays_waiting_requests(guides, tmp_path):
     active, waiting = request(guides), request(guides, 1)
     restored = module.Guidance(tmp_path)

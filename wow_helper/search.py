@@ -14,6 +14,7 @@ SETTINGS_ACTIONS = (("interface", "Interface and transparency"), ("layouts", "Ac
                     ("appearance", "Chat appearance"), ("setup", "Window setup"),
                     ("build", "Build tutor and experiments"), ("route", "Dungeon route walkthrough"),
                     ("goals", "Personal goals and wishlist"),
+                    ("history", "Activity history"),
                     ("chain", "Selected quest chain and prerequisites"))
 
 
@@ -91,6 +92,13 @@ def search_index(manager):
             add("layout", layout["name"], f"Saved layout · {len(layout['windows'])} windows", layout["name"])
     except ChatError:
         notices.append("Saved layouts could not be indexed; the file is kept.")
+    if hasattr(manager, "activity_history"):
+        from .activity_history import LABELS
+        try:
+            for event in manager.activity_history.entries():
+                add("activity", LABELS[event["outcome"]], event["title"], event["id"])
+        except ChatError:
+            notices.append("Activity history could not be indexed; its file is kept.")
     for kind, (title, _) in TYPES.items():
         add("command", "Open " + title, "New companion window; no opening request", kind)
     for action, title in SETTINGS_ACTIONS:
@@ -221,7 +229,9 @@ class SearchDialog:
     def open_result(self, row):
         kind, target = row["kind"], row["target"]
         manager = self.manager
-        if kind == 'goal':
+        if kind == "activity":
+            manager.show_activity_history(self.window, target)
+        elif kind == 'goal':
             if not self.note(row).get('goal'):
                 raise ChatError('That goal is no longer available. Refresh the index.')
             view = self.window.view or getattr(self.window.display, 'views', {}).get(getattr(self.window.display, 'active', None))
@@ -265,6 +275,8 @@ class SearchDialog:
                 manager.show_interface(self.window)
             elif target == "layouts":
                 manager.show_activity_layouts(self.window)
+            elif target == "history":
+                manager.show_activity_history(self.window)
             elif target in {"appearance", "setup"} and view:
                 (view.show_appearance if target == "appearance" else view.show_setup)()
             elif target in {"build", "route", "chain", "goals"} and view:

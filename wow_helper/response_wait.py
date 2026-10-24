@@ -45,8 +45,10 @@ class ResponseWait:
 
     def observe(self, messages, status=None, claimed=()):
         """Managed turns have a completion receipt; attached CLIs expose replies only."""
-        if status is not None:
-            return status if status in {"completed", "acknowledged", "failed", "cancelled", "interrupted"} else None
+        if status is not None and status != "acknowledged":
+            return status if status in {"completed", "failed", "cancelled", "interrupted"} else None
+        # An attached Claude acknowledgement confirms handling, not a visible
+        # answer or a managed turn's completion. Still require the matching reply.
         # Another queued request may finish and disappear before the next poll.
         # Remember its receipt so identical messages cannot later claim it again.
         self.previous_ids |= frozenset(claimed) - {self.user_id}

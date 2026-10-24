@@ -182,6 +182,165 @@ def manager_factory(tmp_path, desktop):
     parent.update()
 
 
+@pytest.mark.parametrize("theme", ["classic", "modern"])
+def test_activity_history_open_dismiss_restore_search_and_drafts(manager_factory, theme):
+    from wow_helper.theme import apply_theme
+    from wow_helper.response_wait import ResponseWait
+    from wow_helper.search import search_index
+    manager = manager_factory()
+    window, view = manager.windows[0], manager.windows[0].view
+    apply_theme(manager.root, theme)
+    view._select_session(SESSIONS[0]); settle(view)
+    view.editor.insert("1.0", "Keep my unsent draft")
+    request = str(uuid.UUID(int=400))
+    wait = ResponseWait(request, "Synthetic request")
+    view.response_waits[SESSIONS[0].key] = [wait]
+    messages = [Message("synthetic-user", "user", "Synthetic request"),
+                Message("synthetic-answer", "assistant", "Synthetic answer")]
+    view._observe_responses(SESSIONS[0].key, messages, {request: "running"})
+    assert manager.activity_history.entries() == []
+    view._observe_responses(SESSIONS[0].key, messages, {request: "completed"})
+    view.response_waits[SESSIONS[0].key] = [wait]
+    view._observe_responses(SESSIONS[0].key, messages, {request: "completed"})
+    assert len(manager.activity_history.entries()) == 1
+    event = manager.activity_history.entries()[0]
+    assert any(r["kind"] == "activity" and r["target"] == event["id"] for r in search_index(manager)[0])
+    manager.show_activity_history(window, event["id"])
+    dialog = manager._activity_dialog
+    dialog.root.geometry("480x480"); manager.root.update()
+    dialog.open_source()
+    assert view.service.sent == []
+    assert view.editor.get("1.0", "end-1c") == "Keep my unsent draft"
+    assert manager.activity_history.entries()[0]["read"]
+    for button in (dialog.open_button, dialog.dismiss_button, dialog.retry_button):
+        assert button.winfo_ismapped()
+        assert button.winfo_rootx() + button.winfo_width() <= dialog.root.winfo_rootx() + dialog.root.winfo_width()
+    dialog.dismiss()
+    assert manager.activity_history.entries() == []
+    assert not any(r["kind"] == "activity" for r in search_index(manager)[0])
+    dialog.close()
+    manager.show_activity_history(window, event["id"])
+    dialog = manager._activity_dialog
+    assert dialog.selection()["dismissed"]
+    dialog.dismiss()
+    assert len(manager.activity_history.entries()) == 1
+
+
+def test_activity_retry_requires_review_and_keeps_draft(manager_factory):
+    manager = manager_factory()
+    view = manager.windows[0].view
+    view._select_session(SESSIONS[0]); settle(view)
+    view.editor.insert("1.0", "Keep conversation draft")
+    source = {"type": "chat", "provider": SESSIONS[0].provider,
+              "session_id": SESSIONS[0].id, "request_id": str(uuid.UUID(int=401))}
+    event = manager.activity_history.record(source, "failed", "Synthetic request", time.time())
+    manager.show_activity_history(manager.windows[0], event)
+    dialog = manager._activity_dialog
+    dialog.open_source()
+    dialog.review_retry()
+    review = dialog.child
+    assert view.service.sent == []
+    review.send()
+    assert "Enter and review" in review.notice.get()
+    review.text.insert("1.0", "Explicit retry request")
+    review.send(); settle(view)
+    assert view.service.sent == [(SESSIONS[0].key, "Explicit retry request")]
+    assert view.editor.get("1.0", "end-1c") == "Keep conversation draft"
+    assert [a["action"] for a in manager.activity_history.load()["actions"]] == ["read", "retry"]
+
+
+def test_activity_unavailable_report_has_fallback_without_research(manager_factory):
+    manager = manager_factory()
+    source = {"type": "research", "key": "a" * 64, "attempt": str(uuid.UUID(int=402))}
+    event = manager.activity_history.record(source, "failed", "Synthetic missing report", time.time())
+    manager.show_activity_history(manager.windows[0], event)
+    dialog = manager._activity_dialog
+    dialog.open_source()
+    assert "unavailable" in dialog.notice.get()
+    assert "Nothing was retried" in dialog.notice.get()
+    dialog.review_retry()
+    assert dialog.child is None
+    assert manager.windows[0].view.service.sent == []
+
+
+def test_activity_polls_outstanding_requests_after_switching_session(manager_factory):
+    from wow_helper.response_wait import ResponseWait
+    class Replies(Service):
+        def history(self, session):
+            return [Message("synthetic-user", "user", "Synthetic question"),
+                    Message("synthetic-reply", "assistant", "Synthetic answer")]
+    manager = manager_factory(service=Replies)
+    view = manager.windows[0].view
+    view._select_session(SESSIONS[1]); settle(view)
+    view.response_waits[SESSIONS[0].key] = [ResponseWait(str(uuid.UUID(int=403)), "Synthetic question")]
+    for _ in range(2):
+        view._history(pending=True); settle(view)
+    assert view.selection_key == SESSIONS[1].key
+    assert manager.activity_history.entries()[0]["source"]["session_id"] == SESSIONS[0].id
+    assert manager.activity_history.entries()[0]["outcome"] == "received"
+
+
+def test_activity_save_failure_keeps_wait_for_later_receipt(manager_factory, monkeypatch):
+    from wow_helper.response_wait import ResponseWait
+    manager = manager_factory()
+    view = manager.windows[0].view
+    wait = ResponseWait(str(uuid.UUID(int=404)), "Synthetic question")
+    view.response_waits[SESSIONS[0].key] = [wait]
+    original = view.activity_history.record
+    def fail(*_):
+        raise ChatError("Synthetic storage unavailable")
+    monkeypatch.setattr(view.activity_history, "record", fail)
+    view._observe_responses(SESSIONS[0].key, [], {wait.request_id: "completed"})
+    assert view.response_waits[SESSIONS[0].key] == [wait]
+    monkeypatch.setattr(view.activity_history, "record", original)
+    view._observe_responses(SESSIONS[0].key, [], {wait.request_id: "completed"})
+    assert not view.response_waits[SESSIONS[0].key]
+    assert len(manager.activity_history.entries()) == 1
+
+
+def test_activity_research_report_and_retry_use_reviewed_attempt(manager_factory):
+    from test_guidance import Agents
+    manager = manager_factory()
+    view = manager.windows[0].view
+    guides = view._guidance
+    guides.agents = Agents()
+    context = {"quest": {"id": 123, "title": "Synthetic quest"}}
+    key = guides.request("quest", context, "Classic Forever beta", "easy", "codex")
+    session, request, *_ = guides.agents.calls[0]
+    guides.agents.results[session, request] = {"status": "failed", "error": "Synthetic failure"}
+    original = guides.get(key)
+    event = manager.activity_history.entries()[0]
+    manager.show_activity_history(manager.windows[0], event["id"])
+    dialog = manager._activity_dialog
+    dialog.open_source()
+    assert "Synthetic failure" in dialog.child.text.get("1.0", "end-1c")
+    dialog.child.send()  # A report view has no retry authorization.
+    dialog.review_retry()
+    assert "Close the current activity review" in dialog.notice.get()
+    assert len(guides.agents.calls) == 1
+    dialog.child.close()
+    dialog.review_retry()
+    retry = dialog.child
+    assert "Synthetic quest" in retry.text.get("1.0", "end-1c")
+    settle(view)
+    retry.send(); retry.send(); settle(view)
+    assert len(guides.agents.calls) == 2
+    current = guides.get(key)
+    assert current["attempt"] != original["attempt"]
+    assert current["context"] == context
+    retry.close()
+    dialog.open_source()
+    assert dialog.child is None
+    assert "newer attempt" in dialog.notice.get()
+    guides.agents.finish(1)
+    guides.get(key)
+    latest = manager.activity_history.entries()[0]
+    manager.show_activity_history(manager.windows[0], latest["id"])
+    dialog.open_source()
+    assert "Synthetic walkthrough" in dialog.child.text.get("1.0", "end-1c")
+    assert len(guides.agents.calls) == 2
+
+
 @pytest.mark.parametrize('provider', ['codex', 'claude'])
 def test_route_preparation_and_review_reuse_conversation_after_restart(manager_factory, provider):
     manager = manager_factory()

@@ -8,6 +8,7 @@ from .chat import CHAT_STATE, ChatError, ChatService, MAX_MESSAGE, claude_connec
 from .appearance import AppearanceDialog, append_turn, appearance_settings, style_text
 from .window_state import history_state, restored_history, saved_selection
 from .response_wait import ResponseWait, elapsed
+from .activity_history import ActivityHistory
 from .theme import palette, apply_theme, display_font, settings_icon, menu as themed_menu
 
 BACKGROUND_JOBS = {"history", "guides"}
@@ -23,6 +24,9 @@ class ChatWindow:
 
         self.tk, self.root = tk, root
         self.service = service or ChatService()
+        self.activity_history = ActivityHistory(getattr(getattr(self, "activity", None), "storage",
+                                                       getattr(self.service, "state", None)))
+        self._activity_pending = {}
         self.on_change = on_change or (lambda: None)
         state = state if isinstance(state, dict) else {}
         self.default_provider = state.get("provider") if state.get("provider") in {"codex", "claude"} else "codex"
@@ -60,6 +64,7 @@ class ChatWindow:
         self.observed = {}
         self.confirmed = {}
         self.auto_refresh = 0
+        self._history_cursor = 0
         if self.desired_key:
             waits = state.get("response_waits")
             if isinstance(waits, list):
@@ -347,15 +352,40 @@ class ChatWindow:
         provider = "Codex" if session.provider == "codex" else "Claude Code"
         return f"{provider} · {session.project} · {session.status} · {session.id[:8]}"
 
-    def _history(self):
-        if self.selected:
-            session = self.selected
+    def _history(self, *, pending=False):
+        session = self.selected
+        if pending:
+            candidates = [s for s in self.sessions if self.response_waits.get(s.key)
+                          and (not session or s.key != session.key)]
+            if session:
+                candidates.insert(0, session)
+            if candidates:
+                session = candidates[self._history_cursor % len(candidates)]
+                self._history_cursor += 1
+        if session:
             waits = list(self.response_waits.get(session.key, []))
             def read():
                 statuses = {wait.request_id: self.service.response_status(session, wait.request_id)
                             for wait in waits} if hasattr(self.service, "response_status") else {}
                 return self.service.history(session), statuses
             self._submit("history", read, session.key)
+
+    def _record_activity(self, key, wait, outcome):
+        source = {"type": "chat", "provider": key[0], "session_id": key[1], "request_id": wait.request_id}
+        title = next((s.title for s in self.sessions if s.key == key), "Saved conversation")
+        self._activity_pending[wait.request_id] = (source, outcome, title, wait.started)
+        self._flush_activity()
+        return wait.request_id not in self._activity_pending
+
+    def _flush_activity(self):
+        for request, args in list(self._activity_pending.items()):
+            try:
+                self.activity_history.record(*args)
+            except ChatError as error:
+                self.status.set(str(error))
+                break
+            else:
+                self._activity_pending.pop(request, None)
 
     def _observe_responses(self, key, messages, statuses):
         waits = self.response_waits.get(key, [])
@@ -369,6 +399,9 @@ class ChatWindow:
                 claimed.add(wait.user_id)
             changed |= before != (wait.user_id, wait.previous_ids) or bool(finished)
             if finished:
+                if not self._record_activity(key, wait, finished):
+                    remaining.append(wait)
+                    continue
                 if key == self.selection_key:
                     label = {"completed": "Response complete", "received": "Response received",
                              "acknowledged": "Response acknowledged",
@@ -583,6 +616,7 @@ class ChatWindow:
                 context = self.inflight or context
                 self.inflight = None
                 if error and self.sending_wait:
+                    self._record_activity(context[0], self.sending_wait, "failed")
                     waits = self.response_waits.get(context[0], [])
                     if self.sending_wait in waits:
                         waits.remove(self.sending_wait)
@@ -654,7 +688,8 @@ class ChatWindow:
                 self.on_change()
         self.auto_refresh += 1
         if not self.busy and self.auto_refresh % 30 == 0:
-            self._history()
+            self._flush_activity()
+            self._history(pending=True)
         self.on_tick()
         self._update_response_timer()
         self._after_id = self.root.after(100, self._tick)

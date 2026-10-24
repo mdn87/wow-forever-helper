@@ -1,5 +1,15 @@
 # Interactive agent chat
 
+## Activity history
+
+Open **Settings → Activity history…**, or find it with **Ctrl+K**, to see request outcomes observed by the companion. **Reply received** means a reply is visible in an attached conversation; **Reply complete** requires a managed turn's completion receipt. Progress messages, delivery receipts, and Claude acknowledgements alone never count as completed replies. Research completion, failure, cancellation, and interrupted chat requests have separate labels. The list stays quiet: it does not show toasts or bring a window forward automatically.
+
+**Open source** reveals the original conversation or a saved research report without sending anything. Missing conversations keep the existing reconnect view. Missing or replaced research reports explain how to reach current research. **Dismiss** hides an entry; **Include dismissed** and **Restore** bring it back. Read state, dismissal, restoration, and explicit retry requests persist as bounded event history, independently of saved transcript retention. Repeated observations do not duplicate outcomes or undo dismissals. The latest 500 request outcomes and 1,000 manual actions are retained; old receipts do not recreate evicted entries. The history contains references and labels, not another transcript.
+
+For failed or interrupted work, **Review retry…** opens a separate review. Check the original source because delivery may have been uncertain. Chat retries reuse an existing request body when available; otherwise enter the request after reviewing the conversation. **Send retry** creates a new request in the original conversation and preserves its current draft. Research retries use the reviewed attempt's saved evidence and refuse if a newer attempt has replaced it. Opening, dismissing, restoring, or restarting never retries anything. A retry being requested does not establish delivery or completion.
+
+Activity history records outcomes as the running companion observes its requests; it does not scan all provider transcripts or reconstruct older activity. Pending response tracking after restart continues to follow the window's chat-retention setting. Previously observed activity stays saved even when that setting is off. These workflows are verified with synthetic receipts and research records; no new live-provider or game behavior is claimed.
+
 ## Quest and activity displays
 
 Open **Settings → WoW companion displays…** and select two different connected screens: one for **Quest log**, the other for **Activity cards**. No monitor is selected automatically. Opening the pair again reuses its windows and current work; both count toward the eight-window limit. The helper draws these ordinary desktop windows above the selected screens. It does not change Dias's host or project board.
