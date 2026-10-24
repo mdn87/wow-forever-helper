@@ -25,6 +25,9 @@ def note_summary(entry):
     if entry.get("next_time"):
         item = entry["next_time"]
         lines += ["", "NEXT TIME · " + item["state"], item["text"]]
+    if entry.get('goal'):
+        from .goals import goal_summary
+        lines += ['', goal_summary(entry['goal'])]
     lines += ["", "HISTORICAL EVIDENCE", evidence.get("text") or "Original context unavailable."]
     if evidence.get("image"):
         lines += ["", "Saved image reference retained locally. Follow-up sends text only."]
@@ -75,6 +78,7 @@ class JournalDialog:
 
 class SaveAdviceDialog(JournalDialog):
     def __init__(self, view, selection):
+        self.goal_dialog = None
         self.selection = deepcopy(selection)
         self.note_id, self.new_id = str(uuid.uuid4()), str(uuid.uuid4())
         self.saved = False
@@ -116,7 +120,27 @@ class SaveAdviceDialog(JournalDialog):
         details["evidence"]["text"] = "Reviewed on the Evidence excerpt tab."
         self.text(detail_page, note_summary(details))
         self.ttk.Button(self.actions, text="Save note", command=self.save).pack(side="right", padx=6)
+        self.ttk.Button(self.actions, text="Save as goal…", command=self.save_goal).pack(side="left")
         self.show()
+
+    def save_goal(self):
+        from .goal_ui import GoalDialog
+        if self.goal_dialog:
+            self.goal_dialog.root.lift()
+            return
+        journal_id, label = self.journals[self.target.current()]
+        selection = deepcopy(self.selection)
+        selection['text'] = self.body.get('1.0', 'end-1c')
+        selection['evidence']['text'] = self.evidence_text.get('1.0', 'end-1c')
+        if selection['evidence']['text'] != self.selection['evidence'].get('text', ''):
+            selection['evidence'].setdefault('gaps', []).append('Evidence excerpt edited during review; omitted material is not retained.')
+        if self.next_time.get().strip():
+            selection['next_time'] = {'text': self.next_time.get().strip(), 'state': 'open'}
+        try:
+            self.goal_dialog = GoalDialog(self, journal_id, self.name.get() if journal_id == self.new_id else label,
+                                          selection=selection)
+        except ChatError as error:
+            self.notice.set(str(error))
 
     def save(self):
         if self.saved:
@@ -139,37 +163,43 @@ class SaveAdviceDialog(JournalDialog):
         self.close()
 
     def close(self):
+        if self.goal_dialog:
+            self.goal_dialog.close()
         self.view._journal_dialog = None
         self.root.destroy()
 
 
 class ResumeDialog(JournalDialog):
-    def __init__(self, view):
-        self.journal_id = view.journal_id
+    def __init__(self, view, *, goals_only=False, journal_id=None):
+        self.journal_id = journal_id or view.journal_id
+        self.goals_only, self.goal_dialog = goals_only, None
         self.followup = None
-        super().__init__(view, "Resume session")
-        self.notice.set("Select saved advice or a next-time item. Continue conversation opens its source without sending anything.")
+        super().__init__(view, "Goals and wishlist" if goals_only else "Resume session")
+        self.notice.set("Select saved advice or a goal. Continue conversation opens its source without sending anything. "
+                        "Research prepares a request for review.")
         style = self.ttk.Style(self.root)
         colors = palette(self.root)
         style.configure("Journal.Treeview", background=colors.PANEL, fieldbackground=colors.PANEL, foreground=colors.TEXT)
         style.configure("Journal.Treeview.Heading", background=colors.TITLE, foreground=colors.TEXT)
         self.entries = self.ttk.Treeview(self.surface, columns=("next",), show="tree headings", height=5,
                                          selectmode="browse", style="Journal.Treeview")
-        self.entries.heading("#0", text="Saved advice")
+        self.entries.heading("#0", text="Goal" if goals_only else "Saved advice")
         self.entries.heading("next", text="Next time")
         self.entries.column("#0", width=230, minwidth=100)
         self.entries.column("next", width=220, minwidth=100)
         self.entries.pack(fill="x", padx=8)
         self.entries.bind("<<TreeviewSelect>>", self.selected)
         self.use_current = self.tk.BooleanVar(master=self.root, value=False)
-        self.ttk.Checkbutton(self.surface, text="For follow-up, use the Journal's selected chat instead",
+        self.ttk.Checkbutton(self.surface, text="Use this window's selected chat for research / follow-up",
                              variable=self.use_current).pack(anchor="w", padx=8)
         buttons = self.frame(self.surface, padding=8)
         buttons.pack(fill="x")
         self.ttk.Button(buttons, text="Continue conversation", command=self.continue_conversation).grid(row=0, column=0, sticky="ew")
-        self.ttk.Button(buttons, text="Follow-up…", command=self.prepare_followup).grid(row=0, column=1, sticky="ew", padx=5)
-        self.ttk.Button(buttons, text="Mark done / reopen", command=self.mark_done).grid(row=1, column=0, sticky="ew", pady=(5, 0))
+        self.ttk.Button(buttons, text="Research / follow-up…", command=self.prepare_followup).grid(row=0, column=1, sticky="ew", padx=5)
+        self.ttk.Button(buttons, text="Step done / reopen", command=self.mark_done).grid(row=1, column=0, sticky="ew", pady=(5, 0))
         self.ttk.Button(buttons, text="Pin to Play…", command=self.pin_selected).grid(row=1, column=1, sticky="ew", padx=5, pady=(5, 0))
+        self.ttk.Button(buttons, text="New goal…", command=lambda: self.edit_goal(new=True)).grid(row=2, column=0, sticky="ew", pady=(5, 0))
+        self.ttk.Button(buttons, text="Edit / make goal…", command=self.edit_goal).grid(row=2, column=1, sticky="ew", padx=5, pady=(5, 0))
         buttons.columnconfigure((0, 1), weight=1)
         self.preview = self.text(self.surface)
         self.reload()
@@ -180,13 +210,27 @@ class ResumeDialog(JournalDialog):
         for key in self.entries.get_children():
             self.entries.delete(key)
         for entry in reversed(self.data["entries"]):
+            if self.goals_only and not entry.get('goal'):
+                continue
             next_time = entry.get("next_time", {})
             label = (next_time.get("state", "") + " · " + next_time.get("text", "")).strip(" ·")
-            self.entries.insert("", "end", iid=entry["id"], text=entry["text"][:100].replace("\n", " "), values=(label,))
+            title = entry.get('goal', {}).get('title') or entry['text'][:100].replace('\n', ' ')
+            self.entries.insert("", "end", iid=entry["id"], text=title, values=(label,))
         choices = self.entries.get_children()
         if choices:
             self.entries.selection_set(selected if selected in choices else choices[0])
         self.selected()
+
+    def edit_goal(self, *, new=False):
+        from .goal_ui import GoalDialog
+        if self.goal_dialog:
+            self.goal_dialog.root.lift()
+            return
+        entry = None if new else self.entry()
+        if not new and not entry:
+            self.notice.set('Select a note or use New goal.')
+            return
+        self.goal_dialog = GoalDialog(self, self.journal_id, self.data['name'], entry=entry)
 
     def entry(self):
         chosen = self.entries.selection()
@@ -210,16 +254,19 @@ class ResumeDialog(JournalDialog):
             else:
                 body += "\n\nThe original message may no longer be available; this saved text remains readable."
             replace_text(self.preview, body)
+        else:
+            replace_text(self.preview, 'No saved goals in this journal yet. Choose New goal.' if self.goals_only else 'No saved advice yet.')
 
     def continue_conversation(self):
         entry = self.entry()
-        if not entry or not entry.get("source"):
+        source = (entry or {}).get('goal', {}).get('review', {}).get('source') or (entry or {}).get('source')
+        if not source:
             self.notice.set("This note has no original conversation. It remains readable here.")
             return None
         try:
             if self.view.resume_conversation is None:
                 raise ChatError("Open this journal in the companion workspace to resume a conversation.")
-            result = self.view.resume_conversation(entry["source"])
+            result = self.view.resume_conversation(source)
             self.notice.set("Opened the original conversation. No request sent. If unavailable, choose or create a chat explicitly.")
             return result
         except ChatError as error:
@@ -266,6 +313,8 @@ class ResumeDialog(JournalDialog):
         self.followup = FollowupDialog(self, target, entry)
 
     def close(self):
+        if self.goal_dialog:
+            self.goal_dialog.close()
         if self.followup:
             self.followup.close()
         self.view._resume_dialog = None
@@ -283,7 +332,9 @@ class FollowupDialog(JournalDialog):
         self.refresh_revision = 0
         super().__init__(owner.view, "Review journal follow-up")
         self.notice.set("Target: " + target.session_title + ". Review the exact text bundle below, then Send. No request has been sent.")
-        self.task = self.tk.StringVar(master=self.root, value=entry.get("next_time", {}).get("text") or "Help me continue from this saved advice.")
+        from .goals import RESEARCH_TASK
+        self.task = self.tk.StringVar(master=self.root, value=RESEARCH_TASK if entry.get('goal') else
+                                     entry.get("next_time", {}).get("text") or "Help me continue from this saved advice.")
         self.ttk.Entry(self.surface, textvariable=self.task).pack(fill="x", padx=8, pady=4)
         controls = self.frame(self.surface, padding=8)
         controls.pack(fill="x")
@@ -309,6 +360,9 @@ class FollowupDialog(JournalDialog):
 
     def refresh_report(self):
         evidence = self.entry.get("evidence", {})
+        if self.entry.get('goal') and self.entry['goal']['edition'] != evidence.get('edition'):
+            self.notice.set('The goal and historical evidence have different or unknown editions. No report was refreshed.')
+            return
         flavor = FLAVORS.get(evidence.get("edition"))
         try:
             original = json.loads(evidence.get("text", ""))
@@ -361,6 +415,10 @@ class FollowupDialog(JournalDialog):
                        "Never send game input or run gameplay automation.", "skills": [], "reports": {},
                        "context_files": [{"name": "Reviewed journal selection", "text": content}],
                        "prepared_at": time.time()}
+        if self.entry.get('goal'):
+            from .goals import RESEARCH_INSTRUCTIONS
+            self.packet.update(window='Personal goal research', edition=self.entry['goal']['edition'], instructions=RESEARCH_INSTRUCTIONS)
+            self.packet['instructions'] += ' Keep historical evidence separate from any separately read current report.'
         replace_text(self.preview, packet_preview(self.packet))
         self.notice.set("Prepared for " + self.target.session_title + ". Send submits exactly this text bundle; refresh alone sends nothing.")
 
