@@ -11,7 +11,7 @@ from .chat import CHAT_STATE, ChatError, write_json
 from .window_state import LayoutLock
 
 FEATURES = frozenset({"companion", "chat", "quests", "character", "screen", "journal",
-                      "goals", "build", "route", "chain", "search", "layouts", "pinned",
+                      "goals", "build", "route", "addon", "chain", "search", "layouts", "pinned",
                       "activity_history", "research"})
 ACTIONS = frozenset({"start", "open", "send", "save", "update", "capture", "received",
                      "completed", "failed", "cancelled", "interrupted", "read", "dismiss",

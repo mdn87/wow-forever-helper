@@ -2,12 +2,12 @@
 
 from copy import deepcopy
 import json
-from pathlib import Path
 import uuid
 
 from .activities import FLAVORS, packet_preview
 from .build_tutor import prepare_build
 from .chat import ChatError
+from .imports import read_text
 from .journal import metadata
 from .journal_ui import JournalDialog
 
@@ -17,7 +17,7 @@ def notebook_drafts(raw):
         return {}
     return {k: {f: v for f, v in form.items() if isinstance(f, str) and isinstance(v, str)
                 and len(f) <= 40 and len(v.encode('utf-8', errors='replace')) <= 64_000}
-            for k, form in raw.items() if k in {'build', 'route'} and isinstance(form, dict)
+            for k, form in raw.items() if k in {'build', 'route', 'addon'} and isinstance(form, dict)
             and len(form) <= 20}
 
 
@@ -117,16 +117,7 @@ class DiscussionNotebook(JournalDialog):
         if not path:
             return
         try:
-            with Path(path).open('rb') as stream:
-                raw = stream.read(limit + 1)
-            if len(raw) > limit:
-                raise ChatError(f'Choose a text file at most {limit:,} bytes.')
-            body = raw.decode('utf-8-sig')
-            if '\0' in body:
-                raise ValueError
-        except (OSError, UnicodeError, ValueError):
-            self.notice.set('That text file is unavailable or not readable UTF-8. Your draft is kept.')
-            return
+            body = read_text(path, limit)
         except ChatError as error:
             self.notice.set(str(error))
             return

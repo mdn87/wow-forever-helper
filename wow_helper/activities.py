@@ -21,7 +21,8 @@ FLAVORS = {"Classic Forever beta": "_classic_beta_", "Classic": "_classic_",
            "Classic Era": "_classic_era_", "Retail": "_retail_"}
 STEPS = {"quests": "Load quest report", "character": "Load character report"}
 SKILLS = {"wow-quest-guide": "Quest planning", "wow-character-status": "Character readiness",
-          "wow-screen-adviser": "Screen explanation", "wow-journal": "Journal summary"}
+          "wow-screen-adviser": "Screen explanation", "wow-journal": "Journal summary",
+          "wow-addon-troubleshooting": "Addon troubleshooting"}
 DEFAULT_SKILL = {"quests": "wow-quest-guide", "character": "wow-character-status",
                  "screen": "wow-screen-adviser", "journal": "wow-journal"}
 OPENING = {

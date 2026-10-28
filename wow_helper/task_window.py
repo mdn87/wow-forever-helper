@@ -103,6 +103,7 @@ class TaskWindow(ChatWindow):
         self.actions_menu.add_command(label="Load window preset…", command=self.load_preset)
         self.actions_menu.add_command(label="Build tutor and experiments…", command=self.show_build_tutor)
         self.actions_menu.add_command(label="Dungeon route walkthrough…", command=self.show_route_notebook)
+        self.actions_menu.add_command(label="Addon troubleshooting…", command=self.show_addon_troubleshooting)
         self.actions_menu.add_command(label="Goals and wishlist…", command=self.show_goals)
         if self.book is not None:
             self._build_panel(raw)
@@ -865,6 +866,14 @@ class TaskWindow(ChatWindow):
             self._notebooks['route'].root.lift()
         else:
             self._notebooks['route'] = RouteNotebook(self)
+
+    def show_addon_troubleshooting(self):
+        self.record_usage("addon", "open")
+        from .addon_troubleshoot import AddonNotebook
+        if 'addon' in self._notebooks:
+            self._notebooks['addon'].root.lift()
+        else:
+            self._notebooks['addon'] = AddonNotebook(self)
 
     def show_quest_chain(self):
         from .chain_ui import ChainDialog
