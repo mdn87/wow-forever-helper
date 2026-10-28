@@ -13,6 +13,7 @@ MAX_INDEX_BYTES = 8_000_000
 SETTINGS_ACTIONS = (("interface", "Interface and transparency"), ("layouts", "Activity layouts"),
                     ("appearance", "Chat appearance"), ("setup", "Window setup"),
                     ("build", "Build tutor and experiments"), ("route", "Dungeon route walkthrough"),
+                    ("addon", "Addon troubleshooting"),
                     ("goals", "Personal goals and wishlist"),
                     ("history", "Activity history"),
                     ("chain", "Selected quest chain and prerequisites"))
@@ -279,10 +280,11 @@ class SearchDialog:
                 manager.show_activity_history(self.window)
             elif target in {"appearance", "setup"} and view:
                 (view.show_appearance if target == "appearance" else view.show_setup)()
-            elif target in {"build", "route", "chain", "goals"} and view:
+            elif target in {"build", "route", "addon", "chain", "goals"} and view:
                 if target == "chain" and (view.kind != "quests" or view.quest_tree.selected() is None):
                     raise ChatError("Select a quest in a Quest guide window before opening its chain.")
                 {"build": view.show_build_tutor, "route": view.show_route_notebook,
+                 "addon": view.show_addon_troubleshooting,
                  "chain": view.show_quest_chain, "goals": view.show_goals}[target]()
             else:
                 raise ChatError("Open a chat or activity window to use that setting.")

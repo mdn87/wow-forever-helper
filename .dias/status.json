@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-28T05:11:10+00:00",
+  "assessedAt": "2026-10-28T05:52:33+00:00",
   "confidence": "authoritative",
-  "currentMilestone": "Optional local usage study delivered",
-  "remainingSummary": "Usage study delivered. The Quest log and Activity cards pair passed a live touch check beside Dias. Native Dias mode and other feature ideas remain parked pending testing feedback.",
+  "currentMilestone": "Addon troubleshooting (F08) delivered",
+  "remainingSummary": "F08 is implemented and verified with synthetic checks; real BugSack exports are unverified. The Dias display pair passed a live touch check. Native Dias mode and other ideas remain parked.",
   "nextChipId": null,
   "source": {
-    "label": "Live Dias display check and quest display tests",
+    "label": "F08 implementation and synthetic verification",
     "updatedAt": "2026-10-28"
   }
 }
