@@ -65,3 +65,6 @@ SavedVariables/
 # Autowork request staging and scratch worktrees
 .autowork/
 .worktrees/
+
+# Local audit receipts (may contain machine paths)
+.lugos-audit/
