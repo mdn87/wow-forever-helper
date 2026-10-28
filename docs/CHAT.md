@@ -32,7 +32,7 @@ Opening cards, switching activities, and restoring windows send no request, capt
 
 **Return to Dias** hides both display windows and saves their state. It leaves other helper windows and Dias running, and does not change game focus. Hidden displays stay hidden on restart. Reopen them through the setup menu or the existing companion reveal shortcut. If a selected monitor disappears, its window remains hidden until you select screens again rather than moving over the game screen. Saved activity layouts keep the display placement; they do not make extra copies of workflow drafts.
 
-DBM and live combat forecasting are deferred. Synthetic Windows checks cover persistence and navigation; live physical touch and topmost-window interaction with Dias still need verification. Tk interaction may take keyboard focus.
+DBM and live combat forecasting are deferred. Synthetic Windows checks cover persistence and navigation; a live check on the touch displays beside Dias covered taps, return, and reveal (see the [Dias plan](DIAS_INTEGRATION_PLAN.md#live-check-beside-dias-2026-10-28)); monitor disconnection was not exercised live. Tk interaction may take keyboard focus.
 
 ## Chat windows
 

@@ -1,12 +1,12 @@
 # WoW Helper on Dias
 
-Status: two helper display views implemented, 2026-10-23. Native Dias integration remains proposed. DBM is deferred by operator direction.
+Status: two helper display views implemented, 2026-10-23, and checked live beside Dias, 2026-10-28. Native Dias integration remains proposed. DBM is deferred by operator direction.
 
 ## Current direction
 
 Use two selected screens: **Quest log** on one and **Activity cards** on the other. The cards open Quest help, Gear check, Screen adviser, or Journal / Resume in place. Each workflow keeps independent state; Activity cards and Resume switch between the grid and the last workflow. Return to Dias hides the pair while preserving work. See [current controls and verification limits](CHAT.md#quest-and-activity-displays).
 
-This replaces the original single companion-screen trial below. The delivered component is ordinary helper windows, with explicit screen selection and local persistence. It does not add a native Dias route, display-ownership protocol, live telemetry, or healer automation. Synthetic tests and app captures verify navigation and saved states; live touch and coexistence with Dias remain to be checked. The native adapter and other exploratory ideas below are future proposals, not requirements for this increment.
+This replaces the original single companion-screen trial below. The delivered component is ordinary helper windows, with explicit screen selection and local persistence. It does not add a native Dias route, display-ownership protocol, live telemetry, or healer automation. Synthetic tests and app captures verify navigation and saved states. See the live check below for touch and coexistence with Dias. The native adapter and other exploratory ideas below are future proposals, not requirements for this increment.
 
 ## Earlier integration proposal
 
@@ -136,10 +136,18 @@ If those checks pass, the first live output should be “raid-wide mechanic expe
 
 Steps 4 and 5 are optional follow-on work. Step 1 can begin with synthetic advice while compact pinned advice is being completed. Successful screen sharing need not wait for a native adapter; native integration need not wait for DBM.
 
-**Current implementation chip:** “Use separate quest and resumable activity displays.” The earlier single-screen trial was replaced by the operator's two-screen direction. Next integration verification should check the delivered pair alongside Dias on the actual touch displays. DBM stays deferred; do not start its feasibility experiment as a continuation of this work.
+**Current implementation chip:** “Use separate quest and resumable activity displays.” The earlier single-screen trial was replaced by the operator's two-screen direction. DBM stays deferred; do not start its feasibility experiment as a continuation of this work.
 
 ## Verification and research boundaries
 
 This plan was checked against the helper's quest parser, addon export, journal behavior, and upgrade plan; and against Dias's chip-board package, native platform documentation, companion results contract, and shell window behavior. Dias was inspected at revision `66067e1`. DBM core was inspected at revision `9f8d53ca24c573bb797a8a4b8d3fe73c2364219d`; its callback documentation can change independently.
 
-The original planning session changed documentation and the development board only. The subsequent two-display increment is described above and in Chat. Native display handoff, live DBM transport, edition-specific DBM support, and healer usefulness remain unverified.
+The original planning session changed documentation and the development board only. The subsequent two-display increment is described above and in Chat. 
+
+## Live check beside Dias, 2026-10-28
+
+The pair was opened on the two 1280 × 800 touch displays while Dias's two topmost, nonactivating shell windows filled them. Window enumeration confirmed both helper windows above the Dias shells on their selected screens. The operator confirmed that taps registered on Read saved snapshot, a quest row, Quest help, Activity cards, and Resume; that sizes were usable; that Return to Dias hid both and left Dias responsive to touch; and that Ctrl+Alt+H restored both with their activity. Enumeration after the reveal showed both windows back on their screens above Dias.
+
+The trial found that the displays inherited the chat transparency setting and let Dias show through. They now stay opaque (PR 28), confirmed by reading each window's alpha after a restart. The windows leave an edge strip of Dias visible (about 8 px right, 32 px bottom); tapping it does not raise Dias. Monitor disconnection, DPI changes, and keyboard text entry were not exercised live.
+
+Native display handoff, live DBM transport, edition-specific DBM support, and healer usefulness remain unverified.
