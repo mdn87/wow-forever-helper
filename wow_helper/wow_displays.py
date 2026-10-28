@@ -10,7 +10,7 @@ import uuid
 from .activities import FLAVORS, profile_settings
 from .chat import ChatError
 from .task_window import TaskWindow, replace_text
-from .theme import palette, display_font
+from .theme import BusyBar, palette, display_font
 
 DISPLAY_TYPES = {"questlog": "Quest log", "activities": "Activity cards"}
 ACTIVITIES = {
@@ -76,6 +76,7 @@ class ActivityDeck:
         self.toggle = ttk.Button(bar, text="Activity cards", command=self.toggle_view, padding=12)
         self.toggle.pack(side="left")
         ttk.Button(bar, text="Return to Dias", command=self.manager.return_to_dias, padding=12).pack(side="right")
+        ttk.Button(bar, text="Swap screens", command=self.manager.swap_wow_displays, padding=12).pack(side="right", padx=8)
         self.title = self.tk.Label(self.root, text="Choose an activity", bg=colors.PANEL,
                                   fg=colors.TEXT, font=display_font(self.root, 20), anchor="w", padx=16)
         self.title.pack(fill="x")
@@ -217,6 +218,7 @@ class QuestLogDisplay:
         self.read_button = ttk.Button(bar, text="Read saved snapshot", command=self.refresh, padding=12)
         self.read_button.pack(side="left")
         ttk.Button(bar, text="Return to Dias", command=self.manager.return_to_dias, padding=12).pack(side="right")
+        ttk.Button(bar, text="Swap screens", command=self.manager.swap_wow_displays, padding=12).pack(side="right", padx=8)
         self.edition = self.tk.StringVar(value=next(k for k, v in FLAVORS.items() if v == self.flavor))
         self.picker = ttk.Combobox(self.root, textvariable=self.edition, values=list(FLAVORS), state="readonly")
         self.picker.pack(fill="x", padx=12, pady=5)
@@ -224,6 +226,7 @@ class QuestLogDisplay:
         self.age = self.tk.Label(self.root, bg=colors.PANEL, fg=colors.ACCENT,
                                  anchor="w", justify="left", padx=12, font=("Segoe UI", 12))
         self.age.pack(fill="x", pady=6)
+        self.busy_bar = BusyBar(self.root, fill="x", padx=12, pady=(0, 6), after=self.age)
         body = self.tk.Frame(self.root, bg=colors.PANEL)
         body.pack(fill="both", expand=True, padx=12)
         self.list = self.tk.Listbox(body, height=5, font=("Segoe UI", 17), activestyle="dotbox",
@@ -253,7 +256,7 @@ class QuestLogDisplay:
     def change_edition(self, _event=None):
         self.flavor = FLAVORS[self.edition.get()]
         self.rows, self.saved_at, self.selected = [], None, 0
-        self.summary = "Edition changed. Read its saved snapshot."
+        self.summary = "Edition changed. Tap Read saved snapshot to load it."
         self.render()
         self.manager.changed(self.window)
 
@@ -263,7 +266,8 @@ class QuestLogDisplay:
         self.busy = True
         self.read_flavor = self.flavor
         self.read_button.configure(state="disabled")
-        self.notice.configure(text="Reading saved snapshot…")
+        self.notice.configure(text=f"Reading the {self.edition.get()} saved snapshot…")
+        self.busy_bar.set(True)
         self.future = self.worker.submit(self.activity.reports, ["quests"], self.flavor)
 
     def tick(self):
@@ -278,6 +282,7 @@ class QuestLogDisplay:
                 self.notice.configure(text="Could not read the snapshot. Previous data is kept with its original age; try again.")
             finally:
                 self.future, self.busy = None, False
+                self.busy_bar.set(False)
                 self.read_button.configure(state="normal")
         if self.saved_at is None:
             text = "Snapshot time unknown · reload in WoW to save current data"

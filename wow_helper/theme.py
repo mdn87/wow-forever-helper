@@ -334,3 +334,21 @@ def menu(parent):
     return tk.Menu(parent, tearoff=False, bg=colors.PANEL, fg=colors.TEXT, activebackground=colors.HOVER,
                    activeforeground=colors.ACCENT, disabledforeground=colors.MUTED, selectcolor=colors.ACCENT,
                    font=("Segoe UI", 10), relief="flat", borderwidth=1)
+
+
+class BusyBar:
+    """An indeterminate bar shown only while slow local work runs, so a pending read looks pending."""
+
+    def __init__(self, parent, **pack):
+        from tkinter import ttk
+        self.bar = ttk.Progressbar(parent, mode="indeterminate")
+        self.pack, self.shown = pack, False
+
+    def set(self, busy):
+        if busy and not self.shown:
+            self.bar.pack(**self.pack)
+            self.bar.start(15)
+        elif not busy and self.shown:
+            self.bar.stop()
+            self.bar.pack_forget()
+        self.shown = busy

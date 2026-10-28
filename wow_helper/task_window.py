@@ -11,7 +11,7 @@ from .appearance import style_text
 from .chat import ChatError, ChatService, read_json, write_json
 from .chat_window import ChatWindow, BACKGROUND_JOBS
 from .guidance import guidance, quest_tier
-from .theme import palette
+from .theme import BusyBar, palette
 from .quest_chat import MAX_QUEST_CHATS, OPENING, QuestChat, quest_context, quest_identity
 from .window_frame import WindowFrame
 
@@ -152,6 +152,7 @@ class TaskWindow(ChatWindow):
         footer = tk.Label(self.panel, textvariable=self.activity_notice, bg=palette(self.root).PANEL, fg=palette(self.root).ACCENT,
                           anchor="w", justify="left", wraplength=370, padx=8, pady=5, font=("Segoe UI", 9))
         footer.pack(side="bottom", fill="x")
+        self.busy_bar = BusyBar(self.panel, side="bottom", fill="x", padx=8, after=footer)
         self.panel.bind("<Configure>", lambda e: footer.configure(wraplength=max(220, e.width - 24)), add="+")
         if self.kind == "journal":
             choices = tk.Frame(self.panel, bg=palette(self.root).PANEL, padx=8, pady=3)
@@ -236,6 +237,8 @@ class TaskWindow(ChatWindow):
             self.actions_menu.entryconfigure(self.setup_menu_index, state="disabled")
         for button in self.buttons:
             button.configure(state="disabled" if self.jobs - BACKGROUND_JOBS else "normal")
+        if hasattr(self, "busy_bar"):
+            self.busy_bar.set("activity" in self.jobs)
 
     def set_appearance(self, settings):
         super().set_appearance(settings)

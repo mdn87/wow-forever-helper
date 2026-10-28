@@ -1,6 +1,7 @@
 """Persistent, independent companion windows managed by the desktop window manager."""
 
 from pathlib import Path
+import os
 from copy import deepcopy
 import uuid
 
@@ -114,6 +115,8 @@ class CompanionWindow:
                                   self.display_area is not None and self.display_area not in manager.areas)
         if not hidden:
             self.root.deiconify()
+            if self.display:
+                self.fill_display()
         self.chrome.apply_native()
         # Display windows cover Dias's whole screen, so translucency would mix the two UIs.
         self.opacity = WindowOpacity(self.root, lambda: {**manager.display_settings, "opacity": 100}
@@ -230,6 +233,14 @@ class CompanionWindow:
             self.chrome.place(geometry)
         else:
             self.root.geometry(geometry)
+
+    def fill_display(self):
+        """Cover the whole selected screen; a margin would leave Dias showing at the edges."""
+        if self.root.state() == "zoomed":
+            self.root.state("normal")
+        self._place()
+        if os.name == "nt" and self.display:
+            self.root.state("zoomed")
 
     def _configure(self, event):
         if event.widget is not self.root or self.closed:
@@ -448,8 +459,8 @@ class WindowManager:
                 window.display_area = area
                 window.bounds = window_bounds(dict(x=area[0], y=area[1], width=area[2] - area[0] - 24,
                                                     height=area[3] - area[1] - 48), areas, window.minimum)
-                window._place()
                 window.root.deiconify()
+                window.fill_display()
                 window.root.lift()
                 pair.append(window)
             self.root.update_idletasks()
@@ -470,6 +481,18 @@ class WindowManager:
             self.refresh_menus()
         return tuple(pair)
 
+    def swap_wow_displays(self):
+        """Trade the quest log and activity cards between their two selected screens."""
+        quest = next((w for w in self.windows if w.kind == "questlog"), None)
+        cards = next((w for w in self.windows if w.kind == "activities"), None)
+        if not quest or not cards or not quest.display_area or not cards.display_area:
+            return
+        try:
+            self.open_wow_displays(cards.display_area, quest.display_area)
+        except ChatError as error:
+            quest.set_notice(str(error))
+            cards.set_notice(str(error))
+
     def return_to_dias(self):
         displays = [w for w in self.windows if w.display]
         visible = [w for w in displays if w.root.state() != "withdrawn"]
@@ -480,6 +503,7 @@ class WindowManager:
         if not self.save_layout():
             for window in visible:
                 window.root.deiconify()
+                window.fill_display()
 
     def _check_display_connections(self):
         self._display_after = None
@@ -566,6 +590,8 @@ class WindowManager:
                     window.root.withdraw()
                 else:
                     window.root.deiconify()
+                    if window.display:
+                        window.fill_display()
             for raw in plan["create"]:
                 record = deepcopy(raw)
                 record["layout_key"] = record["id"]
@@ -792,7 +818,10 @@ class WindowManager:
         bounds = window_bounds(window.capture_bounds(), self.areas, window.minimum)
         window.root.deiconify()
         window.bounds = bounds
-        window._place()
+        if window.display:
+            window.fill_display()
+        else:
+            window._place()
         window.root.lift()
 
     def arrange(self, source):

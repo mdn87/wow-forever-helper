@@ -1,6 +1,8 @@
 """Synthetic two-display workflows; no provider requests or game input."""
 
 import json
+import os
+import threading
 import time
 
 import pytest
@@ -301,3 +303,71 @@ def test_age_label_marks_stale_snapshots(manager_factory, monkeypatch):
     assert label(time.time() - 5 * 60, "not live") == "Saved 5 minutes ago · saved snapshot, not live"
     assert label(time.time() - 20 * 60, "stale") == "Saved 20 minutes ago · stale"
     assert label(None, "Snapshot time unknown").startswith("Snapshot time unknown")
+
+
+class HeldReports(StubReports):
+    """Blocks a synthetic read until released, so the loading state can be observed."""
+    def __init__(self, data):
+        super().__init__(data)
+        self.release = threading.Event()
+
+    def reports(self, steps, flavor):
+        self.release.wait(4)
+        return super().reports(steps, flavor)
+
+
+def test_quest_read_shows_loading_until_finished(manager_factory, monkeypatch):
+    manager = manager_factory()
+    view = pair(manager, monkeypatch)[0].display
+    view.activity = HeldReports(synthetic([{"action": "finish", "title": "Testchar Errand"}]))
+    view.refresh()
+    manager.root.update()
+    assert view.busy_bar.shown and view.busy_bar.bar.winfo_ismapped()
+    assert view.notice.cget("text").startswith("Reading the ")
+    view.activity.release.set()
+    deadline = time.monotonic() + 4
+    while view.busy and time.monotonic() < deadline:
+        manager.root.update()
+    manager.root.update()
+    assert not view.busy_bar.shown and not view.busy_bar.bar.winfo_ismapped()
+    assert view.rows
+
+
+def test_card_workflow_reload_shows_loading(manager_factory, monkeypatch):
+    manager = manager_factory()
+    deck = pair(manager, monkeypatch)[1].display
+    gear = deck.open_activity("character")
+    settle(gear)
+    release = threading.Event()
+    assert gear._submit("activity", lambda: release.wait(4) and {}, on_result=lambda *_: None)
+    manager.root.update()
+    assert gear.busy_bar.shown
+    release.set()
+    settle(gear)
+    manager.root.update()
+    assert not gear.busy_bar.shown
+
+
+def test_swap_trades_screens_and_keeps_windows(manager_factory, monkeypatch):
+    manager = manager_factory()
+    quest, cards = pair(manager, monkeypatch)
+    first, second = quest.display_area, cards.display_area
+    manager.swap_wow_displays()
+    assert (quest.display_area, cards.display_area) == (second, first)
+    assert [w.kind for w in manager.windows].count("questlog") == 1
+    monkeypatch.setattr("wow_helper.workspace.display_workareas", lambda _: [first])
+    manager.swap_wow_displays()
+    assert (quest.display_area, cards.display_area) == (second, first)
+    assert "Choose two different connected screens" in quest.notice.get()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows maximizes onto the selected monitor")
+def test_displays_fill_their_screen_after_open_and_reveal(manager_factory, monkeypatch):
+    manager = manager_factory()
+    quest, cards = pair(manager, monkeypatch)
+    manager.root.update()
+    assert quest.root.state() == cards.root.state() == "zoomed"
+    manager.return_to_dias()
+    manager.reveal(quest)
+    manager.root.update()
+    assert quest.root.state() == "zoomed"
