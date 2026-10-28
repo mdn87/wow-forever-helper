@@ -7,6 +7,7 @@ import pytest
 
 from test_workspace import manager_factory, settle
 from wow_helper.chat import ChatError
+from wow_helper.wow_displays import FLAVORS
 
 
 def pair(manager, monkeypatch):
@@ -197,3 +198,106 @@ def test_display_windows_stay_opaque_over_dias(manager_factory, monkeypatch):
     chat.root.focus_force()
     manager.root.update()
     assert quest.root.attributes("-alpha") == cards.root.attributes("-alpha") == 1
+
+
+class StubReports:
+    """Synthetic quest reports for the display's exit cases; never reads a real snapshot."""
+    def __init__(self, data=None, error=None):
+        self.data, self.error, self.calls = data, error, []
+
+    def reports(self, steps, flavor):
+        self.calls.append((steps, flavor))
+        if self.error:
+            raise self.error
+        return {"quests": {"snapshot_at": 2000, "data": self.data}}
+
+
+def read(manager, view):
+    view.refresh()
+    deadline = time.monotonic() + 4
+    while view.busy and time.monotonic() < deadline:
+        manager.root.update()
+    assert not view.busy
+
+
+def age_label(manager, view, expected):
+    """The age label refreshes on a 250 ms tick; wait for it instead of reading it early."""
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        manager.root.update()
+        if expected(view.age.cget("text")):
+            break
+        time.sleep(0.02)
+    return view.age.cget("text")
+
+
+def synthetic(plan, available=None, warnings=()):
+    return {"plan": plan, "available": available, "quest_count": len(plan), "warnings": list(warnings)}
+
+
+def test_failed_read_keeps_prior_quests_and_age(manager_factory, monkeypatch):
+    manager = manager_factory()
+    view = pair(manager, monkeypatch)[0].display
+    read(manager, view)
+    rows, saved_at = list(view.rows), view.saved_at
+    view.activity = StubReports(error=OSError("synthetic failure"))
+    read(manager, view)
+    assert view.rows == rows and view.saved_at == saved_at
+    assert "Previous data is kept" in view.notice.cget("text")
+    assert str(view.read_button.cget("state")) == "normal"
+
+
+def test_edition_change_clears_and_discards_late_reads(manager_factory, monkeypatch):
+    manager = manager_factory()
+    view = pair(manager, monkeypatch)[0].display
+    read(manager, view)
+    assert view.rows
+    view.edition.set(next(name for name in FLAVORS if name != view.edition.get()))
+    view.change_edition()
+    assert view.rows == [] and view.saved_at is None
+    assert age_label(manager, view, lambda text: "unknown" in text).startswith("Snapshot time unknown")
+    # A read started for one edition must not fill the list after switching to another.
+    old = view.flavor
+    view.refresh()
+    view.flavor = "_other_"
+    deadline = time.monotonic() + 4
+    while view.busy and time.monotonic() < deadline:
+        manager.root.update()
+    assert view.rows == [] and view.activity.calls[-1][1] == old
+
+
+def test_pickups_are_labelled_or_reported_unavailable(manager_factory, monkeypatch):
+    manager = manager_factory()
+    view = pair(manager, monkeypatch)[0].display
+    quest = {"action": "finish", "title": "Testchar Errand", "zone": "ExampleRealm Fields", "remaining": ["0/3 Synthetic"]}
+    view.activity = StubReports(synthetic([quest], available=[{"title": "Synthetic Offer"}]))
+    read(manager, view)
+    assert [r["title"] for r in view.rows] == ["Finish · Testchar Errand", "Pickup · Synthetic Offer"]
+    assert "current availability is unverified" in view.rows[1]["detail"]
+    assert "unavailable" not in view.summary
+    view.activity = StubReports(synthetic([quest], available=None))
+    read(manager, view)
+    assert [r["title"] for r in view.rows] == ["Finish · Testchar Errand"]
+    assert "Nearby pickups are unavailable for this snapshot." in view.summary
+
+
+def test_quests_without_ids_or_zones_still_render(manager_factory, monkeypatch):
+    manager = manager_factory()
+    view = pair(manager, monkeypatch)[0].display
+    view.activity = StubReports(synthetic([{"action": "turn in", "title": "Unnumbered Synthetic Task"}]))
+    read(manager, view)
+    assert view.rows[0]["title"] == "Turn In · Unnumbered Synthetic Task"
+    assert "Zone unknown" in view.detail.get("1.0", "end-1c")
+
+
+def test_age_label_marks_stale_snapshots(manager_factory, monkeypatch):
+    manager = manager_factory()
+    view = pair(manager, monkeypatch)[0].display
+
+    def label(saved_at, suffix):
+        view.saved_at = saved_at
+        return age_label(manager, view, lambda text: text.endswith(suffix) or text.startswith(suffix))
+
+    assert label(time.time() - 5 * 60, "not live") == "Saved 5 minutes ago · saved snapshot, not live"
+    assert label(time.time() - 20 * 60, "stale") == "Saved 20 minutes ago · stale"
+    assert label(None, "Snapshot time unknown").startswith("Snapshot time unknown")

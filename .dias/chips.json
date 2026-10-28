@@ -537,7 +537,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-23T04:46:12.921Z",
-        "updatedAt": "2026-10-23T05:08:41.509Z"
+        "updatedAt": "2026-10-28T05:11:10.000Z"
       },
       "evidence": [
         {
@@ -557,6 +557,12 @@
           "at": "2026-10-23T05:08:41.509Z",
           "kind": "stage-change",
           "message": "Two displays and resumable cards merged in PR 21. Windows CI: 354 passed, 2 skipped. Linux: 220 passed, 136 skipped. Synthetic views checked; live touch unverified."
+        },
+        {
+          "entryId": "quest-activity-displays-live-check",
+          "at": "2026-10-28T05:11:10.000Z",
+          "kind": "note",
+          "message": "Live check beside Dias on both touch displays: taps, Return to Dias, and reveal worked. Displays now stay opaque (PR 28). Exit-case tests added; monitor loss untested."
         }
       ]
     },

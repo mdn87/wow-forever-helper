@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-24T03:49:48.460566+00:00",
+  "assessedAt": "2026-10-28T05:11:10+00:00",
   "confidence": "authoritative",
   "currentMilestone": "Optional local usage study delivered",
-  "remainingSummary": "Usage-study controls and bounded action counts are implemented and locally verified. Other feature ideas remain parked pending testing feedback.",
+  "remainingSummary": "Usage study delivered. The Quest log and Activity cards pair passed a live touch check beside Dias. Native Dias mode and other feature ideas remain parked pending testing feedback.",
   "nextChipId": null,
   "source": {
-    "label": "Local usage study implementation and verification",
-    "updatedAt": "2026-10-23"
+    "label": "Live Dias display check and quest display tests",
+    "updatedAt": "2026-10-28"
   }
 }
