@@ -115,9 +115,11 @@ class CompanionWindow:
                                   self.display_area is not None and self.display_area not in manager.areas)
         if not hidden:
             self.root.deiconify()
-            if self.display:
-                self.fill_display()
         self.chrome.apply_native()
+        if not hidden and self.display:
+            # Maximize after the custom caption is applied; with the native caption
+            # Windows limits the window to the work area and Dias shows below it.
+            self.fill_display()
         # Display windows cover Dias's whole screen, so translucency would mix the two UIs.
         self.opacity = WindowOpacity(self.root, lambda: {**manager.display_settings, "opacity": 100}
                                      if self.display else manager.display_settings)
