@@ -115,7 +115,9 @@ class CompanionWindow:
         if not hidden:
             self.root.deiconify()
         self.chrome.apply_native()
-        self.opacity = WindowOpacity(self.root, lambda: manager.display_settings)
+        # Display windows cover Dias's whole screen, so translucency would mix the two UIs.
+        self.opacity = WindowOpacity(self.root, lambda: {**manager.display_settings, "opacity": 100}
+                                     if self.display else manager.display_settings)
 
     @property
     def minimum(self):

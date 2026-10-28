@@ -182,3 +182,18 @@ def test_pair_validates_capacity_and_distinct_monitors(manager_factory, monkeypa
     with pytest.raises(ChatError, match="Eight"):
         pair(manager, monkeypatch)
     assert len(manager.windows) == 7
+
+
+def test_display_windows_stay_opaque_over_dias(manager_factory, monkeypatch):
+    manager = manager_factory()
+    chat = manager.windows[0]
+    manager.interface = {"theme": "classic", "opacity": 65, "solid_when_active": True}
+    quest, cards = pair(manager, monkeypatch)
+    manager.preview_interface(None)
+    chat.view.editor.focus_force()
+    manager.root.update()
+    assert chat.root.attributes("-alpha") == 1
+    assert quest.root.attributes("-alpha") == cards.root.attributes("-alpha") == 1
+    chat.root.focus_force()
+    manager.root.update()
+    assert quest.root.attributes("-alpha") == cards.root.attributes("-alpha") == 1
