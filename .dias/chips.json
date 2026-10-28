@@ -597,6 +597,38 @@
           "message": "Goals, reviewed research, manual progress and search verified. Windows: 429 passed, 2 skips. Both themes inspected; actual game outcomes unverified."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "addon-troubleshooting",
+      "projectId": "wow-forever-helper",
+      "title": "Troubleshoot addon errors in one conversation",
+      "summary": "Paste or import one addon error, review what is sent, and keep diagnosis, attempted steps, and a later retry with the original conversation.",
+      "stage": "done",
+      "sequence": 16,
+      "prereqs": [
+        "linked-journal-resume"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-28T05:52:33.000Z",
+        "updatedAt": "2026-10-28T05:52:33.000Z"
+      },
+      "evidence": [
+        {
+          "entryId": "addon-troubleshooting-created",
+          "at": "2026-10-28T05:52:33.000Z",
+          "kind": "created",
+          "message": "Operator selected F08 after the live Dias display check."
+        },
+        {
+          "entryId": "addon-troubleshooting-done",
+          "at": "2026-10-28T05:52:33.000Z",
+          "kind": "stage-change",
+          "message": "Delivered in c545ca8: shared import module, review with locals omitted and identity replacement, single send, retry review. Windows 480 passed."
+        }
+      ]
     }
   ]
 }

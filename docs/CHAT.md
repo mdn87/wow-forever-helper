@@ -308,6 +308,17 @@ After preparation, choose **Review run** and describe what actually happened in 
 Synthetic checks cover both provider selections, preparation-to-review continuity across restart, changed destinations, missing images, oversized input, unsupported exports, edition mismatch, and explicit sends. Both themes were inspected at 440 by 480. This delivers manual image/text discussion, including Forever beta discussion with explicit uncertainty. MDT decoding, real dungeon mechanics, live position, and route execution are not verified or implemented.
 
 
+## Addon troubleshooting
+
+Open **Addon troubleshooting…** in a chat or activity menu, or find it with Ctrl+K. Enter the edition, addon name, and what you were doing when the error appeared. Paste one error into the Error tab, or choose **Import error text…** for a UTF-8 text file up to 64,000 bytes. The size is checked before the file is decoded; oversized, binary, or non-UTF-8 files are refused and the current draft is kept. Nothing reads BugSack, SavedVariables, or the clipboard automatically.
+
+**Prepare review** reads BugSack-style or plain error text as data: the message, repeat count, error time when present, and stack lines. The Locals section is omitted by default because it can hold character and addon state; choose **Include locals** to send it. Local user folders and WTF account folders are replaced with placeholders, and any words you list are replaced with `<redacted>`. The review shows the normalized text, what was omitted, and how many replacements were made, never the replaced values. Missing addon or client versions are listed as gaps. Instructions that appear inside the error are treated as untrusted text.
+
+The Details tab records versions, hypotheses, and attempted steps. **Send** attempts the reviewed request once in the selected conversation and preserves its draft; a failed send keeps the review and form. **Save note** stores the evidence and source conversation in Journal. Later, choose **Review retry**, describe what happened, and optionally paste the retry's error for comparison. A retry review requires the original conversation when one was saved. The bundled troubleshooting skill compares attempts without treating a changed or missing stack trace as proof of a fix.
+
+Synthetic checks cover BugSack-style normalization, locals omission, path, account, and word replacement, size, encoding, binary, line-count, and missing-field refusals, both provider selections, restart and retry review against the original conversation, single send, failed import, and failed send. Both themes were inspected at 440 by 480. No live provider request, real addon error, or game-side exporter is part of this check.
+
+
 ## Quest chains and prerequisites
 
 Select a quest in Quest guide and choose **Research selected quest chain…**. Opening the dialog reads saved context without requesting research or adding anything to Quest chat. **Research chain** explicitly asks the chosen provider for that edition's prerequisites and immediate follow-ups; **Retry** is explicit after failure. The existing bounded research queue and cache are reused. Source URLs are readable in the results and open only when selected in the Sources tab.

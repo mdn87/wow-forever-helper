@@ -1,6 +1,6 @@
 # Companion upgrade implementation plan
 
-Status: F01–F04, F06, F12, F13, F16, and F17 delivered. Updated: 2026-10-23. Original baseline: `c5fa294`.
+Status: F01–F04, F06, F08, F12, F13, F16, and F17 delivered. Updated: 2026-10-28. Original baseline: `c5fa294`.
 
 This is the build sequence for the ideas in [Future upgrades](FUTURE_UPGRADES.md), incorporating the checked [Fable review](FUTURE_UPGRADES_REVIEW.md). It supersedes the competing priority lists in that research document. All ten addon ideas and the earlier interface ideas are retained. Current behavior remains documented in [Chat](CHAT.md), [Quests](QUESTS.md), and [Assistive input](ASSISTIVE_INPUT.md).
 
@@ -19,7 +19,7 @@ The product outcome is a continuing conversation that can use selected game evid
 | [F05](#f05-repeatable-activity-checklists) | Today and This week lists with manual completion and explicit repeat rules. | F04 | Addon 5: SavedInstances | Queued |
 | [F06](#f06-quest-chains-and-prerequisites) | Research one selected chain and continue discussing it in Quest chat. | F01 | Addon 1: BtWQuests | Delivered: selected-chain research, not an addon database |
 | [F07](#f07-explainable-gear-comparisons) | Compare one explicit candidate with an equipped item. | F01 | Addon 2: Pawn; Raidbots comparison pattern | Queued |
-| [F08](#f08-addon-troubleshooting) | Review an error import and keep diagnosis and retries in one conversation. | F01; builds the shared import layer | Addon 6: BugSack | Queued |
+| [F08](#f08-addon-troubleshooting) | Review an error import and keep diagnosis and retries in one conversation. | F01; builds the shared import layer | Addon 6: BugSack | Delivered: pasted or imported error text; no automatic addon discovery |
 | [F09](#f09-session-economy-analysis) | Import a supported Journalator CSV and discuss deterministic totals. | F08 import layer, F01 | Addon 7: Journalator | Queued; export schema unverified |
 | [F10](#f10-screenshot-markup) | Crop, annotate, and mask a selected image before sending it. | Existing Screen adviser | Screenshot markup | Queued |
 | [F11](#f11-session-bookmarks) | Save a manual timestamped note with optional reviewed image and context. | F01; F10 for edited images | Session bookmarks | Queued |
@@ -249,7 +249,7 @@ Before landing a feature:
 
 ## Delivery record
 
-F01–F04, F06, F12, F13, F16, and F17 are delivered. Other ideas remain parked until selected. Checks below describe only the delivered scope.
+F01–F04, F06, F08, F12, F13, F16, and F17 are delivered. Other ideas remain parked until selected. Checks below describe only the delivered scope.
 
 | Feature | Delivered scope / commit | Verification | Remaining work |
 | --- | --- | --- | --- |
@@ -266,6 +266,7 @@ F01–F04, F06, F12, F13, F16, and F17 are delivered. Other ideas remain parked 
 | F17 | `6d30fb0` / PR 23. Manual image/text route preparation and later review in one conversation, linked notes, and safe imports. | Windows: 391 passed, 2 existing skips. Both themes inspected at 440 × 480; restart, both provider selections, and missing images covered. | MDT decoding and actual dungeon mechanics remain unverified; no live tracking or route execution. |
 
 | F06 | `f74dd17`. Selected-chain research, sourced relationships, snapshot observations, and explicit Quest chat updates. | Windows: 410 passed, 2 existing skips. Both themes inspected at 440 × 480. Live synthetic chain schema passed for Codex and Claude. | Actual quest-chain accuracy needs edition-specific evidence; no addon database is bundled. |
+| F08 | `c545ca8`. Shared bounded text import module, Addon troubleshooting notebook with locals omission and identity replacement, single reviewed send, Journal evidence, retry review bound to the original conversation, and a bundled skill. | Windows: 480 passed, 2 existing skips. Both themes inspected at 440 × 480. Synthetic Codex and Claude selections only; no live provider request. | Real BugSack exports and addon-specific diagnosis quality are unverified. No automatic addon discovery or game-side exporter. |
 
 Add one row as each feature begins; keep the build-sequence state in sync. A feature is complete only when its selected deliverable and acceptance checks are satisfied, with any broader integration limitation stated explicitly.
 
