@@ -27,7 +27,7 @@ def validate_goal(goal):
     from .activities import FLAVORS
     from .journal import bounded_text, metadata
     try:
-        if (not isinstance(goal, dict) or set(goal) - {*TEXT_LIMITS, 'kind', 'edition', 'state', 'review'}
+        if (not isinstance(goal, dict) or set(goal) - {*TEXT_LIMITS, 'kind', 'edition', 'state', 'review', 'recurrence'}
                 or not {*TEXT_LIMITS, 'kind', 'edition', 'state'} <= set(goal)
                 or goal.get('kind') not in KINDS or goal.get('state') not in STATES
                 or goal.get('edition') not in {*FLAVORS, 'Unknown'}):
@@ -36,6 +36,9 @@ def validate_goal(goal):
             bounded_text(goal.get(key), limit, empty=key != 'title')
         if goal['url'] and not goal['url'].startswith(('https://', 'http://')):
             raise ValueError
+        if 'recurrence' in goal:
+            from .recurrence import validate_rule
+            validate_rule(goal['recurrence'])
         if 'review' in goal:
             review = goal['review']
             if not isinstance(review, dict) or set(review) - {'text', 'source', 'evidence'}:
@@ -52,6 +55,9 @@ def goal_summary(goal):
     lines = ['PERSONAL GOAL · ' + goal['title'],
              'Type: ' + goal['kind'], 'Goal edition: ' + goal['edition'],
              'Manual goal status: ' + goal['state'], 'Source link (not independently verified): ' + (goal['url'] or 'Unknown')]
+    if goal.get('recurrence'):
+        from .recurrence import rule_summary
+        lines += ['Repeat rule (chosen by player): ' + rule_summary(goal['recurrence'])]
     for field, title in [('constraints', 'PLAYER CONSTRAINTS'), ('requirements', 'RESEARCHED REQUIREMENTS (reviewed notes)'),
                          ('suggestions', 'AGENT SUGGESTIONS (not player decisions)'),
                          ('decision', 'PLAYER DECISION'), ('progress', 'MANUALLY REPORTED PROGRESS')]:

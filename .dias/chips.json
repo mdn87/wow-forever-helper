@@ -629,6 +629,38 @@
           "message": "Delivered in c545ca8: shared import module, review with locals omitted and identity replacement, single send, retry review. Windows 480 passed."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "repeatable-checklists",
+      "projectId": "wow-forever-helper",
+      "title": "Track recurring activities with explicit reset rules",
+      "summary": "Show Today and This week lists, retain manual completion and undo history, and review a plan for available time and priorities.",
+      "stage": "done",
+      "sequence": 17,
+      "prereqs": [
+        "personal-goals"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-29T03:11:09Z",
+        "updatedAt": "2026-10-29T03:11:09Z"
+      },
+      "evidence": [
+        {
+          "entryId": "repeatable-checklists-selected",
+          "at": "2026-10-29T03:11:09Z",
+          "kind": "created",
+          "message": "Operator approved F05: recurring goals, manual completion and undo, and reviewed planning requests."
+        },
+        {
+          "entryId": "repeatable-checklists-verified",
+          "at": "2026-10-29T03:11:09Z",
+          "kind": "stage-change",
+          "message": "Windows: 504 passed, 2 existing skips; final 26 targeted checks passed. Both themes inspected on an isolated desktop. Real game resets and live planning unverified."
+        }
+      ]
     }
   ]
 }

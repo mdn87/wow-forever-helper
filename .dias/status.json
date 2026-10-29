@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-28T05:52:33+00:00",
+  "assessedAt": "2026-10-29T03:11:09Z",
   "confidence": "authoritative",
-  "currentMilestone": "Addon troubleshooting (F08) delivered",
-  "remainingSummary": "F08 is implemented and verified with synthetic checks; real BugSack exports are unverified. The Dias display pair passed a live touch check. Native Dias mode and other ideas remain parked.",
+  "currentMilestone": "Repeatable activity checklists (F05) delivered",
+  "remainingSummary": "F05 manual checklists and reviewed planning are verified with synthetic checks. Usage study continues through October 30. F07 and other ideas remain parked; real game resets are unverified.",
   "nextChipId": null,
   "source": {
-    "label": "F08 implementation and synthetic verification",
-    "updatedAt": "2026-10-28"
+    "label": "F05 implementation and synthetic verification",
+    "updatedAt": "2026-10-29"
   }
 }

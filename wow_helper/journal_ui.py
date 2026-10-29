@@ -173,6 +173,7 @@ class ResumeDialog(JournalDialog):
     def __init__(self, view, *, goals_only=False, journal_id=None):
         self.journal_id = journal_id or view.journal_id
         self.goals_only, self.goal_dialog = goals_only, None
+        self.checklist = None
         self.followup = None
         super().__init__(view, "Goals and wishlist" if goals_only else "Resume session")
         self.notice.set("Select saved advice or a goal. Continue conversation opens its source without sending anything. "
@@ -202,8 +203,16 @@ class ResumeDialog(JournalDialog):
         self.ttk.Button(buttons, text="Edit / make goal…", command=self.edit_goal).grid(row=2, column=1, sticky="ew", padx=5, pady=(5, 0))
         buttons.columnconfigure((0, 1), weight=1)
         self.preview = self.text(self.surface)
+        self.ttk.Button(self.actions, text='Today / This week…', command=self.show_checklist).pack(side='left')
         self.reload()
         self.show()
+
+    def show_checklist(self):
+        from .checklist_ui import ChecklistDialog
+        if self.checklist:
+            self.checklist.root.lift()
+            return
+        self.checklist = ChecklistDialog(self)
 
     def reload(self, selected=None):
         self.data = self.view.activity.journal(self.journal_id)
@@ -317,12 +326,14 @@ class ResumeDialog(JournalDialog):
             self.goal_dialog.close()
         if self.followup:
             self.followup.close()
+        if self.checklist:
+            self.checklist.close()
         self.view._resume_dialog = None
         self.root.destroy()
 
 
 class FollowupDialog(JournalDialog):
-    def __init__(self, owner, target, entry):
+    def __init__(self, owner, target, entry, *, task=None):
         self.owner, self.target, self.entry = owner, target, deepcopy(entry)
         self.key, self.revision = target.selected.key, target.selection_revision
         self.request_id = str(uuid.uuid4())
@@ -335,6 +346,8 @@ class FollowupDialog(JournalDialog):
         from .goals import RESEARCH_TASK
         self.task = self.tk.StringVar(master=self.root, value=RESEARCH_TASK if entry.get('goal') else
                                      entry.get("next_time", {}).get("text") or "Help me continue from this saved advice.")
+        if task is not None:
+            self.task.set(task)
         self.ttk.Entry(self.surface, textvariable=self.task).pack(fill="x", padx=8, pady=4)
         controls = self.frame(self.surface, padding=8)
         controls.pack(fill="x")

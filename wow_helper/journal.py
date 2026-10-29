@@ -112,7 +112,7 @@ class JournalService:
             bounded_text(data.get("name"), 80)
             seen = set()
             for index, entry in enumerate(data["entries"]):
-                if not isinstance(entry, dict) or set(entry) - {"id", "at", "text", "source", "evidence", "next_time", "goal"}:
+                if not isinstance(entry, dict) or set(entry) - {"id", "at", "text", "source", "evidence", "next_time", "goal", "completions"}:
                     raise ValueError
                 bounded_text(entry.get("text"), 8000)
                 bounded_text(entry.get("at"), 100)
@@ -129,6 +129,9 @@ class JournalService:
                 if "goal" in entry:
                     from .goals import validate_goal
                     validate_goal(entry["goal"])
+                if 'completions' in entry:
+                    from .recurrence import validate_events
+                    validate_events(entry['completions'])
             if sum(len(e["text"]) for e in data["entries"]) > 500_000:
                 raise ValueError
             return data
@@ -179,6 +182,29 @@ class JournalService:
             self._write(path, data)
             from .usage_study import record
             record(self.storage, "goals" if goal is not None else "journal", "save")
+            return data
+
+    def complete_period(self, journal_id, note_id, done, *, expected, current_period, now=None):
+        """Record an explicit completion/undo without changing the goal or old periods."""
+        from .recurrence import MAX_EVENTS, completed, period
+        now = now or datetime.now(timezone.utc)
+        with self.locked(journal_id) as (path, data):
+            entry = next((e for e in data['entries'] if e['id'] == note_id), None)
+            if entry is None or entry != expected:
+                raise ChatError('This checklist changed in another window. Refresh before marking it.')
+            rule = entry.get('goal', {}).get('recurrence')
+            if not rule or period(rule, now) != current_period:
+                raise ChatError('The reset period changed. Refresh before marking this activity.')
+            if type(done) is not bool:
+                raise ChatError('Choose manual completion or undo.')
+            if completed(entry, rule, current_period) == done:
+                return data
+            events = entry.setdefault('completions', [])
+            if len(events) >= MAX_EVENTS:
+                raise ChatError('This activity history is full. Create a new goal; existing history is kept.')
+            events.append(dict(rule=deepcopy(rule), period=current_period, done=done,
+                               at=now.astimezone(timezone.utc).isoformat(timespec='seconds')))
+            self._write(path, data)
             return data
 
     def update_goal(self, journal_id, note_id, goal, next_time, *, expected):
