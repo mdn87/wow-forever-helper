@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-29T03:11:09Z",
+  "assessedAt": "2026-10-29T03:58:52Z",
   "confidence": "authoritative",
   "currentMilestone": "Repeatable activity checklists (F05) delivered",
-  "remainingSummary": "F05 manual checklists and reviewed planning are verified with synthetic checks. Usage study continues through October 30. F07 and other ideas remain parked; real game resets are unverified.",
+  "remainingSummary": "F07 interaction selected: hover, then explicitly request a live tooltip comparison without reload. Capture/extraction proof needs the game open; implementation remains unverified. Usage-study review remains due at expiry.",
   "nextChipId": null,
   "source": {
-    "label": "F05 implementation and synthetic verification",
+    "label": "F05 delivered; F07 live interaction selected",
     "updatedAt": "2026-10-29"
   }
 }
