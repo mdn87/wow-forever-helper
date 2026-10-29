@@ -78,7 +78,7 @@ class CompanionWindow:
         self.options_menu.add_command(label="Activity layouts…", command=lambda: manager.show_activity_layouts(self))
         self.options_menu.add_command(label="Activity history…", command=lambda: manager.show_activity_history(self))
         self.options_menu.add_command(label="Usage study…", command=lambda: manager.show_usage_study(self))
-        self.options_menu.add_command(label="Voice input…  Ctrl+Alt+V", command=lambda: manager.show_voice_input(self))
+        self.options_menu.add_command(label="Voice input…  Keypad -", command=lambda: manager.show_voice_input(self))
         self.options_menu.add_command(label="Search companion…  Ctrl+K", command=lambda: manager.show_search(self))
 
         self.options_menu.add_command(label="WoW companion displays…", command=lambda: show_display_setup(manager, self.root))

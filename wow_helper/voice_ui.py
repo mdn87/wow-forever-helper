@@ -12,8 +12,8 @@ class VoiceDialog(JournalDialog):
         self.dictation = self.key = None
         self.target = None
         self.after = None
-        super().__init__(window.view, 'Voice input · Ctrl+Alt+V')
-        self.notice.set('Enable voice for this window, then hold Ctrl+Alt+V to record for this chat. '
+        super().__init__(window.view, 'Voice input · Keypad -')
+        self.notice.set('Enable voice for this window, then hold Keypad - to record for this chat. '
                         'Speak when Recording appears; release to transcribe into the draft.')
         info = self.label(self.surface, 'Local Windows dictation · default microphone\n'
                           '30 seconds maximum · no audio saved · no spoken replies\n'
@@ -69,9 +69,9 @@ class VoiceDialog(JournalDialog):
         if self.dictation:
             for kind, text in self.dictation.poll():
                 if kind == 'ready' and not self.dictation.busy:
-                    self.set_status('Mic connected · not recording. Hold Ctrl+Alt+V to record for this chat only.')
+                    self.set_status('Mic connected · not recording. Hold Keypad - to record for this chat only.')
                 elif kind == 'listening':
-                    self.set_status('Recording for this chat · release Ctrl+Alt+V to finish (30 seconds maximum).')
+                    self.set_status('Recording for this chat · release Keypad - to finish (30 seconds maximum).')
                 elif kind == 'transcribing':
                     self.set_status('Recording stopped · transcribing locally. Mic remains connected.')
                 elif kind in ('error', 'device_error'):
@@ -85,9 +85,9 @@ class VoiceDialog(JournalDialog):
                 elif event == 'release':
                     self.stop()
                 elif event == 'unavailable':
-                    self.set_status('Ctrl+Alt+V is unavailable or already used. Hold the button in this panel instead.')
+                    self.set_status('Keypad - is unavailable or already used. Hold the button in this panel instead.')
                 elif event == 'tap':
-                    self.set_status('Shortcut arrived as a tap; no held input detected. Hold Ctrl+Alt+V or the panel button to record.')
+                    self.set_status('Shortcut arrived as a tap; no held input detected. Hold Keypad - or the panel button to record.')
         self.after = self.root.after(30, self.poll)
 
     def deliver(self, text):

@@ -47,6 +47,8 @@ class WindowsAPI:
         self.user.RegisterHotKey.restype = wintypes.BOOL
         self.user.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
         self.user.UnregisterHotKey.restype = wintypes.BOOL
+        self.user.GetAsyncKeyState.argtypes = [ctypes.c_int]
+        self.user.GetAsyncKeyState.restype = ctypes.c_short
         self.user.PeekMessageW.argtypes = [ctypes.POINTER(wintypes.MSG), wintypes.HWND,
                                           wintypes.UINT, wintypes.UINT, wintypes.UINT]
         self.user.PeekMessageW.restype = wintypes.BOOL
@@ -71,9 +73,12 @@ class WindowsAPI:
         if handle:
             self.kernel.CloseHandle(handle)
 
-    def register(self, key):
-        # CONTROL | ALT | NOREPEAT: one physical press, one reveal request.
-        return bool(self.user.RegisterHotKey(None, 1, 0x4003, key))
+    def register(self, key, *, modifiers=0x0003):
+        # Default CONTROL | ALT; always NOREPEAT for one event per physical press.
+        return bool(self.user.RegisterHotKey(None, 1, 0x4000 | modifiers, key))
+
+    def key_down(self, key):
+        return bool(self.user.GetAsyncKeyState(key) & 0x8000)
 
     def poll_hotkey(self):
         message = self.wintypes.MSG()

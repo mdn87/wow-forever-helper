@@ -195,29 +195,27 @@ class Dictation:
 
 
 class PushToTalkKey:
-    """Register only Ctrl+Alt+V. Observe only that chord's held state; no hooks."""
-    def __init__(self):
+    """Register unmodified keypad minus and observe only its held state; no hooks."""
+    def __init__(self, *, api=None):
+        self.api = api
         self.events = queue.Queue()
         self.stop = threading.Event()
         self.thread = threading.Thread(target=self._listen, daemon=True, name='companion-voice-shortcut')
         self.thread.start()
 
     def _listen(self):
-        if os.name != 'nt':
+        if os.name != 'nt' and self.api is None:
             self.events.put('unavailable'); return
         from .window_access import WindowsAPI
-        import ctypes
-        api = WindowsAPI()
-        api.user.GetAsyncKeyState.argtypes = [ctypes.c_int]
-        api.user.GetAsyncKeyState.restype = ctypes.c_short
+        api = self.api if self.api is not None else WindowsAPI()
         registered = False
         held = False
         try:
-            registered = api.register(0x56)
+            registered = api.register(0x6D, modifiers=0)  # VK_SUBTRACT, distinct from row minus.
             self.events.put('ready' if registered else 'unavailable')
             while registered and not self.stop.wait(.02):
                 pressed = api.poll_hotkey()
-                down = all(api.user.GetAsyncKeyState(key) & 0x8000 for key in (0x11, 0x12, 0x56))
+                down = api.key_down(0x6D)
                 if pressed and down and not held:
                     held = True; self.events.put('press')
                 elif pressed and not down:

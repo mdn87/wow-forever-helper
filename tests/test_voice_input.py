@@ -6,10 +6,62 @@ import io
 import sys
 import types
 import wave
+import queue
 
 import pytest
 
 from wow_helper.voice_input import Dictation
+
+
+@pytest.mark.parametrize('frames, expected', [
+    ([(True, True), (True, True), (False, True), (False, False)], ['ready', 'press', 'release']),
+    ([(True, False)], ['ready', 'tap']),
+    ([(True, True)], ['ready', 'press', 'release']),  # Closing a held shortcut releases it.
+])
+def test_keypad_minus_tracks_hold_release_and_ignores_repeats(frames, expected):
+    from wow_helper.voice_input import PushToTalkKey
+    class API:
+        def __init__(self):
+            self.frames = queue.Queue()
+            for frame in frames:
+                self.frames.put(frame)
+            self.done = threading.Event()
+            self.down = False
+            self.unregistered = False
+        def register(self, key, *, modifiers):
+            assert key == 0x6D and modifiers == 0  # VK_SUBTRACT, no Ctrl/Alt.
+            return True
+        def poll_hotkey(self):
+            try:
+                pressed, self.down = self.frames.get_nowait()
+                return pressed
+            except queue.Empty:
+                self.done.set()
+                return False
+        def key_down(self, key):
+            assert key == 0x6D  # Never poll minus-row, modifiers, or mouse buttons.
+            return self.down
+        def unregister(self):
+            self.unregistered = True
+    api = API()
+    key = PushToTalkKey(api=api)
+    try:
+        assert api.done.wait(2)
+    finally:
+        key.close()
+    assert key.poll() == expected
+    assert api.unregistered
+
+
+def test_keypad_minus_conflict_is_reported_without_reading_key_state():
+    from wow_helper.voice_input import PushToTalkKey
+    class API:
+        def register(self, key, *, modifiers):
+            return False
+    key = PushToTalkKey(api=API())
+    key.thread.join(timeout=1)
+    key.close()
+    assert key.poll() == ['unavailable']
 
 
 def wait_for(service, kind):
