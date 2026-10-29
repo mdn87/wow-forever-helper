@@ -10,15 +10,19 @@ class API:
     def __init__(self, *, available=True, pressed=True):
         self.available, self.pressed = available, pressed
         self.registered = self.closed = False
+        self.registrations = []
+        self.released = []
 
-    def register(self, key):
+    def register(self, key, *, modifiers=3, hotkey_id=1):
         self.registered = True
+        self.registrations.append((key, modifiers, hotkey_id))
         return self.available
 
-    def poll_hotkey(self):
+    def poll_hotkey(self, *, hotkey_ids=(1,)):
         return self.pressed
 
-    def unregister(self):
+    def unregister(self, *, hotkey_id=1):
+        self.released.append(hotkey_id)
         self.closed = True
 
 
@@ -89,3 +93,23 @@ def test_changed_game_window_does_not_capture(tmp_path):
     windows = iter([42, 43])
     result, _, captures, api = run_probe(tmp_path, identify=lambda _: next(windows))
     assert result["state"] == "game-changed" and not captures and api.closed
+
+
+def test_comparison_shift_chord_is_accepted_and_both_chords_released(tmp_path):
+    class ShiftAPI(API):
+        def poll_hotkey(self, *, hotkey_ids=(1,)):
+            return 2 in hotkey_ids
+    result, _, captures, api = run_probe(tmp_path, api=ShiftAPI())
+    assert result["state"] == "captured" and len(captures) == 1
+    assert api.registrations == [(0x78, 3, 1), (0x78, 7, 2)]
+    assert api.released == [1, 2]
+
+
+def test_shift_chord_conflict_releases_first_registration_without_capture(tmp_path):
+    class ConflictAPI(API):
+        def register(self, key, *, modifiers=3, hotkey_id=1):
+            super().register(key, modifiers=modifiers, hotkey_id=hotkey_id)
+            return hotkey_id == 1
+    result, _, captures, api = run_probe(tmp_path, api=ConflictAPI())
+    assert result["state"] == "shortcut-unavailable" and not captures
+    assert api.released == [1]

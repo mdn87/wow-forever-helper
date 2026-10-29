@@ -5,16 +5,16 @@
   "assessmentState": "unassessed",
   "assessmentScope": "current-milestone",
   "percentComplete": null,
-  "milestonePhase": "operational-proof",
+  "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-29T06:46:50Z",
+  "assessedAt": "2026-10-29T07:58:42Z",
   "confidence": "authoritative",
-  "currentMilestone": "Prove real tooltip capture and extraction for live gear comparison",
-  "remainingSummary": "The first diagnostic expired without a shortcut event and captured nothing. A deliberate real-client capture and extraction check is still needed before the comparison request, stat differences, and Journal saving. Voice accuracy and the usage-study review remain separate checks.",
-  "nextChipId": "live-gear-comparison",
+  "currentMilestone": "Live gear comparison implemented and verified within the recorded scope",
+  "remainingSummary": "Fresh Retail capture, native Codex and Claude synthetic comparisons, and 594 tests passed. Full player-operated comparison, real speech accuracy, and the usage-study review remain separate observations.",
+  "nextChipId": null,
   "source": {
-    "label": "Authorized live-comparison batch and diagnostic preparation",
+    "label": "Live comparison implementation and verification",
     "updatedAt": "2026-10-29"
   }
 }

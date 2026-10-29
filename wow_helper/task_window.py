@@ -53,6 +53,7 @@ class TaskWindow(ChatWindow):
         self.notebook_drafts = notebook_drafts(raw.get("notebooks"))
         self._notebooks = {}
         self._chain_dialog = None
+        self._gear_dialog = None
         self.chain_keys = {k: v for k, v in raw.get('chain_keys', {}).items()
                            if isinstance(k, str) and isinstance(v, str) and re.fullmatch('[0-9a-f]{64}', k)
                            and re.fullmatch('[0-9a-f]{64}', v)} if isinstance(raw.get('chain_keys'), dict) else {}
@@ -105,6 +106,7 @@ class TaskWindow(ChatWindow):
         self.actions_menu.add_command(label="Dungeon route walkthrough…", command=self.show_route_notebook)
         self.actions_menu.add_command(label="Addon troubleshooting…", command=self.show_addon_troubleshooting)
         self.actions_menu.add_command(label="Goals and wishlist…", command=self.show_goals)
+        self.actions_menu.add_command(label="Live gear comparison…", command=self.show_live_gear)
         if self.book is not None:
             self._build_panel(raw)
             if kind == "quests":
@@ -892,8 +894,17 @@ class TaskWindow(ChatWindow):
         from .usage_study import record
         record(self.activity.storage, feature, action)
 
+    def show_live_gear(self):
+        from .gear_ui import GearDialog
+        if self._gear_dialog:
+            self._gear_dialog.root.lift()
+        else:
+            self._gear_dialog = GearDialog(self)
+
     def close(self):
         self._view_ready = False
+        if self._gear_dialog:
+            self._gear_dialog.close()
         if self._chain_dialog:
             self._chain_dialog.close()
         for dialog in list(self._notebooks.values()):

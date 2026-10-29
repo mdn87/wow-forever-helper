@@ -92,6 +92,22 @@ def test_launch_failure_is_durable_and_does_not_leave_session_busy(store, monkey
     assert "private diagnostic" not in str(store.history(session))
 
 
+def test_structured_request_has_readable_history_without_changing_native_prompt(store, monkeypatch):
+    session = store.create('codex')
+    store.send(session, 'Synthetic extraction instructions', uid(44),
+               display_body='Compare these items', schema={'type': 'object'})
+    assert not store.idle(session)
+    assert [m.text for m in store.history(session)] == ['Compare these items', 'Processing this request…']
+    with pytest.raises(ChatError, match='not ready'):
+        store.present(session, uid(44), 'Premature answer')
+    processes = fake_cli(monkeypatch, [{'type': 'item.completed', 'item': {'type': 'agent_message', 'text': '{}'}}])
+    agents.run_turn(store.storage, session.id, uid(44))
+    assert store.idle(session)
+    store.present(session, uid(44), 'Validated comparison')
+    assert [m.text for m in store.history(session)] == ['Compare these items', 'Validated comparison']
+    assert b'Synthetic extraction instructions' in processes[0].inputs[0]
+
+
 def test_timeout_terminates_native_process_and_allows_a_new_explicit_turn(store, monkeypatch):
     session = store.create("claude")
     store.send(session, "Question", uid(1), timeout=30)

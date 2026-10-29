@@ -218,3 +218,19 @@ def test_native_event_delivery_and_registration_release(tmp_path):
     finally:
         api.close_event(handle)
     assert not signal_existing(layout)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows shortcut registration")
+def test_native_shift_variant_registers_and_releases_independently():
+    api = WindowsAPI()
+    registered = []
+    try:
+        for key_id, modifiers in ((1, 3), (2, 7)):
+            assert api.register(0x87, modifiers=modifiers, hotkey_id=key_id)
+            registered.append(key_id)
+        assert not api.poll_hotkey(hotkey_ids=(1, 2))
+    finally:
+        for key_id in registered:
+            api.unregister(hotkey_id=key_id)
+    assert api.register(0x87, modifiers=7, hotkey_id=2)
+    api.unregister(hotkey_id=2)
