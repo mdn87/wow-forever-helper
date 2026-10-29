@@ -78,6 +78,7 @@ class CompanionWindow:
         self.options_menu.add_command(label="Activity layouts…", command=lambda: manager.show_activity_layouts(self))
         self.options_menu.add_command(label="Activity history…", command=lambda: manager.show_activity_history(self))
         self.options_menu.add_command(label="Usage study…", command=lambda: manager.show_usage_study(self))
+        self.options_menu.add_command(label="Voice input…  Ctrl+Alt+V", command=lambda: manager.show_voice_input(self))
         self.options_menu.add_command(label="Search companion…  Ctrl+K", command=lambda: manager.show_search(self))
 
         self.options_menu.add_command(label="WoW companion displays…", command=lambda: show_display_setup(manager, self.root))
@@ -277,6 +278,8 @@ class CompanionWindow:
         if self.closed:
             return
         self.closed = True
+        if self.manager._voice_dialog and self.manager._voice_dialog.window is self:
+            self.manager._voice_dialog.close()
         self.root.unbind_class(self.search_tag, "<Control-k>")
         if self.manager._interface_dialog and self.manager._interface_dialog.parent is self.root:
             self.manager._interface_dialog.close()
@@ -323,6 +326,7 @@ class WindowManager:
         self._search_dialog = None
         self._activity_dialog = None
         self._usage_dialog = None
+        self._voice_dialog = None
         self._interface_preview = None
         self.interface = interface_settings(None)
         self.next_number = 1
@@ -366,6 +370,16 @@ class WindowManager:
                 window.dispose()
             self.lock.close()
             raise
+
+    def show_voice_input(self, window):
+        from .voice_ui import VoiceDialog
+        if self._voice_dialog:
+            self._voice_dialog.root.lift()
+            self._voice_dialog.notice.set('Voice belongs to its original chat window. Close this panel before choosing another.')
+        elif window.view and hasattr(window.view, 'editor'):
+            self._voice_dialog = VoiceDialog(self, window)
+        else:
+            window.set_notice('Open a chat window to use voice input.')
 
     @property
     def display_settings(self):
@@ -898,6 +912,8 @@ class WindowManager:
         if not self.save_layout():
             return
         self.closed = True
+        if self._voice_dialog:
+            self._voice_dialog.close()
         if self._display_after is not None:
             self.root.after_cancel(self._display_after)
             self._display_after = None

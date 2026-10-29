@@ -12,6 +12,7 @@ dependencies = []
 
 [project.optional-dependencies]
 chat = ["websocket-client>=1.8,<2", "Pillow>=11.2.1,<13", "tzdata>=2025.2"]
+voice = ["sounddevice>=0.5,<0.6"]
 
 [project.scripts]
 wow-helper = "wow_helper.__main__:main"
@@ -20,7 +21,7 @@ wow-helper = "wow_helper.__main__:main"
 include = ["wow_helper*"]
 
 [tool.setuptools.package-data]
-wow_helper = ["assets/*.png", "assets/*.ttf", "assets/*.txt", "assets/*.md", "skills/*/SKILL.md"]
+wow_helper = ["assets/*.png", "assets/*.ttf", "assets/*.txt", "assets/*.md", "skills/*/SKILL.md", "voice_transcribe.ps1"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
