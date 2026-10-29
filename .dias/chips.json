@@ -699,6 +699,36 @@
           "message": "Held recording confirmed by operator. Local Whisper matched words in four synthetic phrases; live speech accuracy still needs verification."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "live-gear-comparison",
+      "projectId": "wow-forever-helper",
+      "title": "Compare live item tooltips on request",
+      "summary": "Prove real tooltip capture and extraction, then add an explicit comparison request with validated stat differences and Journal saving.",
+      "stage": "blocked",
+      "sequence": 19,
+      "prereqs": ["linked-journal-resume"],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-29T06:41:27Z",
+        "updatedAt": "2026-10-29T06:46:50Z"
+      },
+      "evidence": [
+        {
+          "entryId": "live-comparison-started",
+          "at": "2026-10-29T06:41:27Z",
+          "kind": "created",
+          "message": "Operator authorized the live-comparison batch. A hidden one-shot diagnostic passed 23 focused checks. Real client capture and extraction remain prerequisites."
+        },
+        {
+          "entryId": "live-proof-awaiting-tooltip",
+          "at": "2026-10-29T06:46:50Z",
+          "kind": "stage-change",
+          "message": "546 tests passed, 2 skipped. The Retail probe expired without a shortcut event or capture. Waiting for both tooltips to be ready for a fresh explicit check."
+        }
+      ]
     }
   ]
 }

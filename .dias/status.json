@@ -5,16 +5,16 @@
   "assessmentState": "unassessed",
   "assessmentScope": "current-milestone",
   "percentComplete": null,
-  "milestonePhase": "closeout",
+  "milestonePhase": "operational-proof",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-29T05:37:20Z",
+  "assessedAt": "2026-10-29T06:46:50Z",
   "confidence": "authoritative",
-  "currentMilestone": "Local Whisper dictation implemented and verified with synthetic speech",
-  "remainingSummary": "Held input works according to the operator. Whisper accuracy still needs a live speech check after restart. F07 live comparison needs tooltip capture/extraction proof. Usage-study review remains due at expiry.",
-  "nextChipId": null,
+  "currentMilestone": "Prove real tooltip capture and extraction for live gear comparison",
+  "remainingSummary": "The first diagnostic expired without a shortcut event and captured nothing. A deliberate real-client capture and extraction check is still needed before the comparison request, stat differences, and Journal saving. Voice accuracy and the usage-study review remain separate checks.",
+  "nextChipId": "live-gear-comparison",
   "source": {
-    "label": "Local Whisper implementation and synthetic recognition checks",
+    "label": "Authorized live-comparison batch and diagnostic preparation",
     "updatedAt": "2026-10-29"
   }
 }
