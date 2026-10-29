@@ -17,40 +17,89 @@ MAX_SECONDS = 30
 RATE = 16000
 
 
-def capture_audio(stop, listening):
-    try:
-        import sounddevice as sd
-    except ImportError:
-        raise ChatError('Voice dependencies are missing. Install the optional voice package, then reopen this panel.') from None
-    chunks = []
-    size = 0
-    overflow = threading.Event()
+class Microphone:
+    """Keep one input stream open; retain samples only inside an explicit hold."""
+    def __init__(self, notify=lambda *_: None):
+        self.notify = notify
+        self.ready = threading.Event()
+        self.closed = threading.Event()
+        self.lock = threading.Lock()
+        self.error = None
+        self.segment = None
+        self.thread = threading.Thread(target=self._run, daemon=True, name='companion-microphone')
+        self.thread.start()
 
-    def receive(data, frames, timing, status):
-        nonlocal size
-        if status:
-            overflow.set()
-        if size + len(data) <= RATE * 2 * MAX_SECONDS:
-            chunks.append(bytes(data)); size += len(data)
-        else:
-            stop.set()
+    def _run(self):
+        try:
+            try:
+                import sounddevice as sd
+            except ImportError:
+                raise ChatError('Voice dependencies are missing. Install the optional voice package, then reopen this panel.') from None
+            with sd.RawInputStream(samplerate=RATE, channels=1, dtype='int16', callback=self._receive):
+                self.ready.set()
+                if not self.closed.is_set():
+                    self.notify('ready', '')
+                self.closed.wait()
+        except Exception as error:
+            self.error = (str(error) if isinstance(error, ChatError) else
+                          'Microphone unavailable. Check Windows input and microphone permissions.')
+            self.ready.set()
+            if not self.closed.is_set():
+                self.notify('device_error', self.error)
 
-    if stop.is_set():
-        return b''
-    with sd.RawInputStream(samplerate=RATE, channels=1, dtype='int16', callback=receive):
-        if not stop.is_set():
+    def _receive(self, data, frames, timing, status):
+        with self.lock:
+            segment = self.segment
+            if segment is None or segment['stop'].is_set() or self.closed.is_set():
+                return  # No idle audio retained, including during transcription.
+            if time.monotonic() >= segment['deadline']:
+                segment['stop'].set(); return
+            if status:
+                segment['overflow'] = True
+            remaining = RATE * 2 * MAX_SECONDS - segment['size']
+            chunk = bytes(data[:remaining])
+            segment['chunks'].append(chunk)
+            segment['size'] += len(chunk)
+            if len(data) >= remaining:
+                segment['stop'].set()
+
+    def capture(self, stop, listening):
+        while not self.ready.wait(.02):
+            if stop.is_set() or self.closed.is_set():
+                return b''
+        if stop.is_set() or self.closed.is_set():
+            return b''
+        if self.error:
+            raise ChatError(self.error)
+        segment = dict(stop=stop, deadline=time.monotonic() + MAX_SECONDS, chunks=[], size=0, overflow=False)
+        with self.lock:
+            if self.closed.is_set() or stop.is_set():
+                return b''
+            self.segment = segment
+        try:
             listening()
             stop.wait(MAX_SECONDS)
-    # The input stream is closed before any recognition starts.
-    if overflow.is_set():
-        raise ChatError('Audio was interrupted. Your draft is unchanged; try another recording.')
-    if size < RATE // 2:
-        return b''
-    output = io.BytesIO()
-    with wave.open(output, 'wb') as audio:
-        audio.setnchannels(1); audio.setsampwidth(2); audio.setframerate(RATE)
-        audio.writeframes(b''.join(chunks))
-    return output.getvalue()
+        finally:
+            with self.lock:
+                self.segment = None
+        if self.closed.is_set():
+            return b''
+        if segment['overflow']:
+            raise ChatError('Audio was interrupted. Your draft is unchanged; try another recording.')
+        if segment['size'] < RATE // 2:
+            return b''
+        output = io.BytesIO()
+        with wave.open(output, 'wb') as audio:
+            audio.setnchannels(1); audio.setsampwidth(2); audio.setframerate(RATE)
+            audio.writeframes(b''.join(segment['chunks']))
+        return output.getvalue()
+
+    def close(self):
+        self.closed.set()
+        with self.lock:
+            if self.segment:
+                self.segment['stop'].set()
+        self.thread.join(timeout=1)
 
 
 def transcribe_audio(audio, cancelled=None):
@@ -90,14 +139,15 @@ def transcribe_audio(audio, cancelled=None):
 
 
 class Dictation:
-    def __init__(self, *, capture=capture_audio, transcribe=None):
-        self.capture = capture
+    def __init__(self, *, capture=None, transcribe=None):
         self.events = queue.Queue()
         self.release = threading.Event()
         self.cancelled = threading.Event()
         self.transcribe = transcribe or (lambda audio: transcribe_audio(audio, self.cancelled))
         self.busy = False
         self.thread = None
+        self.microphone = Microphone(lambda *event: self.events.put(event)) if capture is None else None
+        self.capture = capture if capture is not None else self.microphone.capture
 
     def start(self):
         if self.busy or self.cancelled.is_set():
@@ -138,6 +188,8 @@ class Dictation:
 
     def close(self):
         self.cancelled.set(); self.release.set()
+        if self.microphone:
+            self.microphone.close()
         if self.thread:
             self.thread.join(timeout=1)
 
