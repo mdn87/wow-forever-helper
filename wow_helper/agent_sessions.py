@@ -187,7 +187,7 @@ class AgentSessions:
                 continue
         return found
 
-    def send(self, session, body, request_id, *, schema=None, effort="medium", timeout=600):
+    def send(self, session, body, request_id, *, schema=None, effort="medium", timeout=600, display_body=None):
         folder, request_id = self.folder(session.id), identifier(request_id)
         path = folder / "requests" / (request_id + ".json")
         with state_lock(folder):
@@ -201,6 +201,10 @@ class AgentSessions:
             request = {"id": request_id, "body": body, "status": "queued", "at": time.time(),
                        "heartbeat": time.time(), "schema": schema, "effort": effort,
                        "timeout": max(30, min(int(timeout), 900))}
+            if display_body is not None:
+                if not isinstance(display_body, str) or len(display_body) > 6000 or '\0' in display_body:
+                    raise ChatError('The request description is invalid.')
+                request.update(display_body=display_body, display_response='Processing this request…')
             write_json(path, request)
             meta["requests"] = (meta.get("requests", []) + [request_id])[-100:]
             meta["active"] = request_id
@@ -220,6 +224,22 @@ class AgentSessions:
     def result(self, session_id, request_id):
         return read_json(self.folder(session_id) / "requests" / (identifier(request_id) + ".json"))
 
+    def idle(self, session):
+        # A terminal result can precede the native session-ID update by a few ms.
+        # Multi-stage requests must wait for that update before resuming it.
+        return not read_json(self.folder(session.id) / 'session.json').get('active')
+
+    def present(self, session, request_id, response):
+        if not isinstance(response, str) or len(response) > MAX_RESPONSE or '\0' in response:
+            raise ChatError('The response display is invalid.')
+        folder = self.folder(session.id)
+        path = folder / 'requests' / (identifier(request_id) + '.json')
+        with state_lock(folder):
+            record = read_json(path)
+            if record.get('status') not in TERMINAL or 'display_body' not in record:
+                raise ChatError('The response is not ready for display.')
+            write_json(path, {**record, 'display_response': response})
+
     def history(self, session):
         folder = self.folder(session.id)
         meta = read_json(folder / "session.json")
@@ -228,9 +248,9 @@ class AgentSessions:
             request = self.result(session.id, key)
             if not isinstance(request.get("body"), str):
                 continue
-            messages.append(Message(key + ":user", "user", request["body"], request.get("at", 0)))
-            body = request.get("response", "")
-            if request.get("status") not in TERMINAL:
+            messages.append(Message(key + ":user", "user", request.get('display_body', request["body"]), request.get("at", 0)))
+            body = request.get('display_response', request.get("response", ""))
+            if request.get("status") not in TERMINAL and 'display_body' not in request:
                 _, body, _, _ = output(folder / "requests" / (key + ".events.jsonl"))
                 if time.time() - request.get("heartbeat", 0) > 30:
                     body += "\n\nCompanion: this request appears interrupted. It has not been retried."

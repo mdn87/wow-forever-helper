@@ -73,24 +73,24 @@ class WindowsAPI:
         if handle:
             self.kernel.CloseHandle(handle)
 
-    def register(self, key, *, modifiers=0x0003):
+    def register(self, key, *, modifiers=0x0003, hotkey_id=1):
         # Default CONTROL | ALT; always NOREPEAT for one event per physical press.
-        return bool(self.user.RegisterHotKey(None, 1, 0x4000 | modifiers, key))
+        return bool(self.user.RegisterHotKey(None, hotkey_id, 0x4000 | modifiers, key))
 
     def key_down(self, key):
         return bool(self.user.GetAsyncKeyState(key) & 0x8000)
 
-    def poll_hotkey(self):
+    def poll_hotkey(self, *, hotkey_ids=(1,)):
         message = self.wintypes.MSG()
         found = False
         # Only this thread's WM_HOTKEY messages; never inspect another app's queue.
         while self.user.PeekMessageW(self.ctypes.byref(message), self.wintypes.HWND(-1),
                                      0x0312, 0x0312, 0x0001):
-            found = found or message.wParam == 1
+            found = found or message.wParam in hotkey_ids
         return found
 
-    def unregister(self):
-        self.user.UnregisterHotKey(None, 1)
+    def unregister(self, *, hotkey_id=1):
+        self.user.UnregisterHotKey(None, hotkey_id)
 
 
 def signal_existing(layout_path, *, api=None):

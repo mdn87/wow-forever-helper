@@ -1,6 +1,7 @@
 """Explicit single-window captures and locally imported images; no game input."""
 
 import os
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -116,31 +117,61 @@ def game_window(flavor):
     return found[0]
 
 
-def capture_game(storage, flavor):
+def crop_region(image, region, expected_size):
+    try:
+        if (not isinstance(region, (list, tuple)) or len(region) != 4
+                or any(type(v) is not int for v in region)
+                or not isinstance(expected_size, (list, tuple)) or len(expected_size) != 2
+                or any(type(v) is not int for v in expected_size)
+                or tuple(expected_size) != image.size):
+            raise ValueError
+        x, y, width, height = region
+        if min(x, y) < 0 or min(width, height) < 2 or x + width > image.width or y + height > image.height:
+            raise ValueError
+        return image.crop((x, y, x + width, y + height))
+    except (TypeError, ValueError):
+        raise ChatError("The game size or region changed. Review a fresh preview before comparing.") from None
+
+
+def capture_game(storage, flavor, *, region=None, expected_size=None):
     if os.name != "nt":
         raise ChatError("Live capture requires Windows. Open an image instead.")
     path = Path(storage) / "captures" / (str(uuid.uuid4()) + ".png")
     path.parent.mkdir(parents=True, exist_ok=True)
+    args = [sys.executable, "-m", "wow_helper.screen_capture", str(path), flavor]
+    if region is not None:
+        args.append(json.dumps({'region': region, 'size': expected_size}))
     try:
         # Isolate native capture so an unresponsive game cannot hang a worker.
-        result = subprocess.run([sys.executable, "-m", "wow_helper.screen_capture", str(path), flavor],
+        result = subprocess.run(args,
                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)
     except (OSError, subprocess.TimeoutExpired):
         raise ChatError("Capture did not finish. Keep WoW visible or open an image instead.") from None
+    if result.returncode == 3:
+        raise ChatError("The game size or region changed. Review a fresh preview before comparing.")
     if result.returncode != 0 or not path.is_file():
         raise ChatError("Capture failed. Open one visible WoW window for the selected edition, or open an image.")
     return path.name
 
 
 def main():
-    from PIL import ImageGrab
+    from .graphics_capture import grab_window
     from .activities import FLAVORS
-    if len(sys.argv) != 3 or sys.argv[2] not in FLAVORS.values():
+    if len(sys.argv) not in (3, 4) or sys.argv[2] not in FLAVORS.values():
         return 2
     try:
         window = game_window(sys.argv[2])
-        _save(ImageGrab.grab(window=window), Path(sys.argv[1]))
+        image = grab_window(window)
+        if len(sys.argv) == 4:
+            if len(sys.argv[3]) > 1000:
+                return 2
+            options = json.loads(sys.argv[3])
+            try:
+                image = crop_region(image, options['region'], options['size'])
+            except ChatError:
+                return 3
+        _save(image, Path(sys.argv[1]))
         return 0
     except Exception:
         return 1

@@ -1,6 +1,6 @@
 """Opt-in, one-shot capture evidence for F07; no comparison or automatic send.
 
-Run with pythonw on Windows. Ctrl+Alt+F9 captures once, only with the selected
+Run with pythonw on Windows. Ctrl+Alt+F9 (Shift optional) captures once, only with the selected
 game in front. The temporary shortcut expires after five minutes. Private
 results live under .runtime/live-gear-proof; no desktop image fallback exists.
 """
@@ -39,7 +39,7 @@ def probe(storage, flavor, *, api, publish, identify=game_window,
         publish(record)
         return record
 
-    registered = False
+    registered = []
     try:
         if flavor not in FLAVORS.values() or not 0 < timeout <= 300:
             return report("invalid-settings")
@@ -47,13 +47,16 @@ def probe(storage, flavor, *, api, publish, identify=game_window,
             window = identify(flavor)
         except Exception:
             return report("unavailable")
-        registered = api.register(0x78)  # F9 with CONTROL | ALT | NOREPEAT
-        if not registered:
-            return report("shortcut-unavailable")
+        # Keep the shortcut usable while Shift shows the equipped-item tooltip.
+        # Each chord has its own thread-local ID and is released on every exit.
+        for hotkey_id, modifiers in ((1, 3), (2, 7)):
+            if not api.register(0x78, modifiers=modifiers, hotkey_id=hotkey_id):
+                return report("shortcut-unavailable")
+            registered.append(hotkey_id)
         deadline = clock() + timeout
-        report("ready", shortcut="Ctrl+Alt+F9", expires_in_seconds=timeout)
+        report("ready", shortcut="Ctrl+Alt+F9 (Shift optional)", expires_in_seconds=timeout)
         while clock() < deadline:
-            if api.poll_hotkey():
+            if api.poll_hotkey(hotkey_ids=(1, 2)):
                 if identify(flavor) != window:
                     return report("game-changed")
                 if foreground() != window:
@@ -73,8 +76,8 @@ def probe(storage, flavor, *, api, publish, identify=game_window,
         # Exceptions may contain machine paths or image content. Never emit them.
         return report("capture-failed")
     finally:
-        if registered:
-            api.unregister()
+        for hotkey_id in registered:
+            api.unregister(hotkey_id=hotkey_id)
 
 
 def main(argv=None):

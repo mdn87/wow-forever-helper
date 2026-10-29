@@ -16,8 +16,12 @@ open before the probe starts. No companion restart is required.
 
 1. Read `.runtime/live-gear-proof/latest.json`. Continue only when its `state`
    is `ready`. A shortcut conflict or absent game ends the probe without capture.
-2. In WoW, show the candidate and equipped-item comparison tooltips. Keep the
-   pointer there and press **Ctrl+Alt+F9 once**. This temporary diagnostic
+2. Click inside WoW so it is active. Hover a candidate item in the bags and show
+   its equipped-item comparison tooltip. Keep the pointer there and press
+   **Ctrl+Alt+F9 once**; holding **Shift** with this chord is also supported.
+   Keep WoW active until capture finishes. Two views of the same item (such as
+   its socketing panel and tooltip) do not establish a candidate/equipped pair.
+   This temporary diagnostic
    shortcut is separate from held voice input and expires after five minutes.
 3. Read the result. `captured` means one local image was saved in the indicated
    run's `captures` folder. `focus_unchanged` compares foreground windows before
@@ -39,5 +43,11 @@ copy their contents into public issues, logs, or test fixtures.
 
 The probe exits after its first request, failure, or expiry and unregisters its
 shortcut. A failed or expired check needs another explicit invocation; nothing
-is replayed on restart. Later product work adds region preview, approved
-destination, structured extraction, deterministic comparison, and Journal saving.
+is replayed on restart. The normal [live-comparison flow](LIVE_GEAR.md) provides
+region preview, approved destination, validated stat differences and Journal saving.
+
+The original Pillow HWND path returned stale pixels in a real Retail check.
+Both the diagnostic and normal capture now use Windows Graphics Capture with a
+compositor timestamp check. A fresh Retail tooltip frame was verified afterward;
+the diagnostic's `extraction_verified` field remains false because the probe
+itself does not run a model or validate an item comparison.

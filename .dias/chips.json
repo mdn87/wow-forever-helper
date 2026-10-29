@@ -706,14 +706,16 @@
       "projectId": "wow-forever-helper",
       "title": "Compare live item tooltips on request",
       "summary": "Prove real tooltip capture and extraction, then add an explicit comparison request with validated stat differences and Journal saving.",
-      "stage": "blocked",
+      "stage": "done",
       "sequence": 19,
-      "prereqs": ["linked-journal-resume"],
+      "prereqs": [
+        "linked-journal-resume"
+      ],
       "linkedRunIds": [],
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-29T06:41:27Z",
-        "updatedAt": "2026-10-29T06:46:50Z"
+        "updatedAt": "2026-10-29T07:58:42Z"
       },
       "evidence": [
         {
@@ -727,6 +729,12 @@
           "at": "2026-10-29T06:46:50Z",
           "kind": "stage-change",
           "message": "546 tests passed, 2 skipped. The Retail probe expired without a shortcut event or capture. Waiting for both tooltips to be ready for a fresh explicit check."
+        },
+        {
+          "entryId": "live-comparison-verified",
+          "at": "2026-10-29T07:58:42Z",
+          "kind": "stage-change",
+          "message": "594 tests passed, 2 skipped. Fresh Retail capture and synthetic native Codex/Claude comparison passed; full player-operated flow remains unverified."
         }
       ]
     }
