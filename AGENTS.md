@@ -60,6 +60,7 @@ Everything here is world-readable: code, docs, commits, branch names, issues, PR
   - Add behavior tests for new commands and failure paths. Report input delivery separately from verified in-game success. There is no claim that Blizzard has approved this implementation.
 - Describe the project as a user-command accessibility helper and planned second-screen companion, not a way around game restrictions.
 - Parse SavedVariables with a restricted parser. Never execute Lua from disk.
+- Windows background helpers and local test probes must run without console windows or foreground-focus changes. Use `CREATE_NO_WINDOW` for subprocesses and `pythonw.exe` for spawned Python workers; do not silently fall back to console workers.
 - Explicit voice dictation (operator request and clarification, 2026-10-29) may use `RegisterHotKey` for Keypad - and check only that key's held state with `GetAsyncKeyState`, without a keyboard hook. Keep the companion's microphone connection open while voice is enabled, retain audio only during a deliberate hold, and discard all other samples. Release ends that recording for local transcription into a draft; it never mutes the system microphone or changes other apps' audio. Do not modify the operator's mouse settings. No automatic Send, game input, screenshot action, or spoken output follows dictation.
 
 ## Documentation

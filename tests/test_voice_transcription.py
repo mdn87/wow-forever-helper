@@ -41,6 +41,46 @@ def fake_worker(connection, model_dir):
         connection.close()
 
 
+def console_probe_worker(connection, model_dir):
+    import ctypes
+    from pathlib import Path
+    connection.recv_bytes()
+    kernel = ctypes.WinDLL('kernel32')
+    kernel.GetConsoleWindow.restype = ctypes.c_void_p
+    result = {'text': f'{Path(sys.executable).name}:{bool(kernel.GetConsoleWindow())}'}
+    connection.send_bytes(json.dumps(result).encode())
+    connection.close()
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows worker executable selection')
+def test_windows_worker_context_selects_windowless_python(monkeypatch):
+    from pathlib import Path
+    from wow_helper.voice_transcription import worker_context
+    selected = []
+    context = types.SimpleNamespace(set_executable=selected.append)
+    monkeypatch.setattr('wow_helper.voice_transcription.multiprocessing.get_context', lambda _: context)
+    assert worker_context() is context
+    assert Path(selected[0]).name.lower() == 'pythonw.exe'
+    assert Path(selected[0]).is_file()
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Native Windows console state')
+def test_native_worker_has_no_console_window():
+    engine = LocalWhisper(worker=console_probe_worker, timeout=10)
+    try:
+        assert engine.transcribe(wav()) == 'pythonw.exe:False'
+    finally:
+        engine.close()
+
+
+@pytest.mark.skipif(os.name != 'nt', reason='Windows worker executable selection')
+def test_missing_windowless_python_never_falls_back_to_console(monkeypatch):
+    from wow_helper.voice_transcription import worker_context
+    monkeypatch.setattr('wow_helper.voice_transcription.Path.is_file', lambda _: False)
+    with pytest.raises(ChatError, match='Windowless Python'):
+        worker_context()
+
+
 @pytest.mark.parametrize('audio', [b'not a wav', wav(rate=8000), wav(channels=2), wav(seconds=31)],
                          ids=['invalid-header', 'wrong-rate', 'stereo', 'too-long'])
 def test_rejects_malformed_or_unexpected_recording_before_loading_model(audio):

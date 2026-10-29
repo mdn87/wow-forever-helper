@@ -6,6 +6,7 @@ import json
 import multiprocessing
 import os
 from pathlib import Path
+import sys
 import threading
 import time
 import wave
@@ -18,6 +19,18 @@ MODEL_DIR = Path(__file__).resolve().parents[1] / '.runtime' / 'voice-models' / 
 MODEL_REPO = 'Systran/faster-whisper-small.en'
 MODEL_REVISION = 'd1d751a5f8271d482d14ca55d9e2deeebbae577f'
 MODEL_FILES = ('config.json', 'model.bin', 'tokenizer.json', 'vocabulary.txt')
+
+
+def worker_context():
+    context = multiprocessing.get_context('spawn')
+    if os.name == 'nt':
+        # A headless python.exe parent can otherwise create a visible console
+        # for each child. Explicitly select the GUI-subsystem interpreter.
+        executable = Path(sys.executable).with_name('pythonw.exe')
+        if not executable.is_file():
+            raise ChatError('Windowless Python is unavailable. Repair the voice installation before retrying.')
+        context.set_executable(str(executable))
+    return context
 
 
 def decode_wave(audio):
@@ -130,7 +143,7 @@ class LocalWhisper:
                     if self.closed.is_set() or (cancelled and cancelled.is_set()):
                         return ''
                     if self.process is None:
-                        context = multiprocessing.get_context('spawn')
+                        context = worker_context()
                         self.connection, child = context.Pipe()
                         self.process = context.Process(target=self.worker, args=(child, self.model_dir), daemon=True)
                         try:
