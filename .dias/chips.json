@@ -666,7 +666,7 @@
       "schemaVersion": 1,
       "chipId": "push-to-talk-dictation",
       "projectId": "wow-forever-helper",
-      "title": "Dictate into a companion draft with a mouse shortcut",
+      "title": "Dictate into a companion draft with a held shortcut",
       "summary": "Hold keypad minus to retain speech for local Whisper transcription into a chat draft. The microphone stays connected; no automatic send or spoken output.",
       "stage": "done",
       "sequence": 18,
@@ -696,7 +696,7 @@
           "entryId": "local-whisper-upgrade",
           "at": "2026-10-29T05:37:20Z",
           "kind": "stage-change",
-          "message": "Operator confirmed held recording works. Replaced Windows recognition with local English Whisper. Four synthetic phrases matched after word normalization; live microphone accuracy remains unverified."
+          "message": "Held recording confirmed by operator. Local Whisper matched words in four synthetic phrases; live speech accuracy still needs verification."
         }
       ]
     }
