@@ -15,7 +15,7 @@ class VoiceDialog(JournalDialog):
         super().__init__(window.view, 'Voice input · Keypad -')
         self.notice.set('Enable voice for this window, then hold Keypad - to record for this chat. '
                         'Speak when Recording appears; release to transcribe into the draft.')
-        info = self.label(self.surface, 'Local Windows dictation · default microphone\n'
+        info = self.label(self.surface, 'Local Whisper · English · default microphone\n'
                           '30 seconds maximum · no audio saved · no spoken replies\n'
                           'Mic connection stays open while voice is enabled.\n'
                           'Only held speech is kept. Other apps are unaffected.')
@@ -73,7 +73,7 @@ class VoiceDialog(JournalDialog):
                 elif kind == 'listening':
                     self.set_status('Recording for this chat · release Keypad - to finish (30 seconds maximum).')
                 elif kind == 'transcribing':
-                    self.set_status('Recording stopped · transcribing locally. Mic remains connected.')
+                    self.set_status('Recording stopped · Whisper is transcribing locally. Mic remains connected.')
                 elif kind in ('error', 'device_error'):
                     self.set_status(text)
                 elif kind == 'text':

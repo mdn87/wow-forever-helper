@@ -667,7 +667,7 @@
       "chipId": "push-to-talk-dictation",
       "projectId": "wow-forever-helper",
       "title": "Dictate into a companion draft with a mouse shortcut",
-      "summary": "Hold Ctrl+Alt+V to record locally, release to transcribe, and review the resulting chat draft. No automatic send or voice output.",
+      "summary": "Hold keypad minus to retain speech for local Whisper transcription into a chat draft. The microphone stays connected; no automatic send or spoken output.",
       "stage": "done",
       "sequence": 18,
       "prereqs": [
@@ -677,7 +677,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-29T04:35:53Z",
-        "updatedAt": "2026-10-29T04:35:53Z"
+        "updatedAt": "2026-10-29T05:37:20Z"
       },
       "evidence": [
         {
@@ -691,6 +691,12 @@
           "at": "2026-10-29T04:35:53Z",
           "kind": "stage-change",
           "message": "Eight focused tests passed; both themes inspected at minimum size. Native synthetic audio transcribed locally and shortcut registered. Physical mic/mouse use unverified."
+        },
+        {
+          "entryId": "local-whisper-upgrade",
+          "at": "2026-10-29T05:37:20Z",
+          "kind": "stage-change",
+          "message": "Operator confirmed held recording works. Replaced Windows recognition with local English Whisper. Four synthetic phrases matched after word normalization; live microphone accuracy remains unverified."
         }
       ]
     }

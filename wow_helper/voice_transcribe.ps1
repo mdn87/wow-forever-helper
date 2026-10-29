@@ -1,4 +1,5 @@
-# Local dictation of a bounded, in-memory WAV. This helper never opens a microphone.
+# Legacy System.Speech comparison helper; the companion now uses local Whisper.
+# This helper never opens a microphone and is not invoked by the voice panel.
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 try {

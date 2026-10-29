@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-29T04:35:53Z",
+  "assessedAt": "2026-10-29T05:37:20Z",
   "confidence": "authoritative",
-  "currentMilestone": "Push-to-talk voice input delivered",
-  "remainingSummary": "Voice dictation fills a draft only; physical microphone and mouse-button use remain unverified. F07 live comparison still needs tooltip capture/extraction proof. Usage-study review remains due at expiry.",
+  "currentMilestone": "Local Whisper dictation implemented and verified with synthetic speech",
+  "remainingSummary": "Held input works according to the operator. Whisper accuracy still needs a live speech check after restart. F07 live comparison needs tooltip capture/extraction proof. Usage-study review remains due at expiry.",
   "nextChipId": null,
   "source": {
-    "label": "Voice input implementation and synthetic verification",
+    "label": "Local Whisper implementation and synthetic recognition checks",
     "updatedAt": "2026-10-29"
   }
 }
