@@ -661,6 +661,38 @@
           "message": "Windows: 504 passed, 2 existing skips; final 26 targeted checks passed. Both themes inspected on an isolated desktop. Real game resets and live planning unverified."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "push-to-talk-dictation",
+      "projectId": "wow-forever-helper",
+      "title": "Dictate into a companion draft with a mouse shortcut",
+      "summary": "Hold Ctrl+Alt+V to record locally, release to transcribe, and review the resulting chat draft. No automatic send or voice output.",
+      "stage": "done",
+      "sequence": 18,
+      "prereqs": [
+        "persistent-companion-windows"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-29T04:35:53Z",
+        "updatedAt": "2026-10-29T04:35:53Z"
+      },
+      "evidence": [
+        {
+          "entryId": "voice-input-selected",
+          "at": "2026-10-29T04:35:53Z",
+          "kind": "created",
+          "message": "Operator selected a mouse-accessible binding and requested voice input only. Ctrl+Alt+V matches the supplied binding."
+        },
+        {
+          "entryId": "voice-input-verified",
+          "at": "2026-10-29T04:35:53Z",
+          "kind": "stage-change",
+          "message": "Eight focused tests passed; both themes inspected at minimum size. Native synthetic audio transcribed locally and shortcut registered. Physical mic/mouse use unverified."
+        }
+      ]
     }
   ]
 }

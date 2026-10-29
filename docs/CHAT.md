@@ -331,6 +331,18 @@ The helper now exposes up to 10,000 completed IDs from the existing addon export
 
 The final selected-upgrade suite passed 410 tests on Windows with the two existing keypad-event skips. Ctrl+K includes Build tutor, Dungeon route, and selected Quest chain actions, and searches already loaded activity-card quests without refreshing or researching.
 
+## Push-to-talk voice input
+
+Voice input is optional on Windows. Install the local extras with `python -m pip install ".[chat,voice]"`. From the intended chat window, open **Settings → Voice input… Ctrl+Alt+V**, then **Enable for this chat window**. Hold the mouse button mapped to **Ctrl+Alt+V**, wait for **Listening**, speak, and release. The panel also has a **hold here to talk** button (mouse or Space). A mouse macro that sends only a tap is detected and explained; configure the binding to hold the chord for the duration of the button press.
+
+Only one destination is armed at a time. The microphone uses Windows' default recording device and opens only for a deliberate hold, with a 30-second maximum. It closes before transcription. The installed Windows speech recognizer transcribes the in-memory WAV locally, without a cloud key, stored audio, spoken output, or a background service. The companion registers only its shortcut and observes that chord's release; it installs no keyboard hook. Startup, opening the panel, and enabling the shortcut do not record audio. Closing the panel, disabling voice, closing its destination window, or quitting cancels voice input.
+
+Recognized text appends to the chosen window's current draft. Review it and use normal **Send**; recognition can mishear names and punctuation. It never sends a request, captures a screenshot, or invokes an assistive game command. A session change, replaced destination, or full draft leaves the transcript in the panel for copying instead of inserting into another conversation or overwriting text. The last transcript is temporary; an inserted draft follows the existing Remember draft setting. No voice-specific transcript log is written.
+
+If Ctrl+Alt+V belongs to another app, the panel reports the conflict and its hold button remains available. Check Windows microphone permissions, the default input device, and installed speech language if recording or recognition fails. Voice enablement is session-only and stops when this panel closes; it is not restored after restart.
+
+Verification: synthetic tests cover release before transcription, duplicate starts, cancellation, microphone failure, bounded audio, recording timeout, draft preservation, changed sessions, full drafts, unchanged focus and no automatic sends. Both themes were inspected at 440 × 480 on an isolated desktop. On Windows, an in-memory synthesized phrase was transcribed correctly with the installed English recognizer; Ctrl+Alt+V registration succeeded. Actual speech through the player's microphone and the physical mouse binding remain unverified. Live gear comparison and voice-command execution are separate work.
+
 ## Personal goals and wishlist
 
 Open **Goals and wishlist…** from a chat or activity menu, or find **Personal goals and wishlist** through Ctrl+K. Choose **New goal**, then enter an item, mount, recipe, quest, or free-text goal and its edition. Goals belong to that window's Journal; Ctrl+K finds them across saved journals. Existing Journal notes can become goals through **Resume session → Edit / make goal**.
