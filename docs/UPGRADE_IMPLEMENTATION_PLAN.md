@@ -1,12 +1,12 @@
 # Companion upgrade implementation plan
 
-Status: F01–F04, F06, F08, F12, F13, F16, and F17 delivered. Updated: 2026-10-28. Original baseline: `c5fa294`.
+Status: F01–F06, F08, F12, F13, F16, and F17 delivered. Updated: 2026-10-28. Original baseline: `c5fa294`.
 
 This is the build sequence for the ideas in [Future upgrades](FUTURE_UPGRADES.md), incorporating the checked [Fable review](FUTURE_UPGRADES_REVIEW.md). It supersedes the competing priority lists in that research document. All ten addon ideas and the earlier interface ideas are retained. Current behavior remains documented in [Chat](CHAT.md), [Quests](QUESTS.md), and [Assistive input](ASSISTIVE_INPUT.md).
 
 The product outcome is a continuing conversation that can use selected game evidence, explain choices, remember what the player decided, and revisit the result. Each feature below must complete a useful part of that workflow. Addon inspiration does not imply a dependency on that addon or verified Forever compatibility.
 
-**Operator-selected sequence F13, F16, F17, and F06 is delivered.** F01–F03 are also implemented as recorded below. F04 personal goals and wishlist is also delivered. F12 activity history with persistent manual state and action history is also delivered. Other ideas remain parked until selected; F05 is still first in the historical default order. Complete, verify, and land one feature before moving to the next. The Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
+**Operator-selected sequence F13, F16, F17, and F06 is delivered.** F01–F03 are also implemented as recorded below. F04 personal goals and wishlist is also delivered. F12 activity history with persistent manual state and action history is also delivered. F05 repeatable activity checklists is also delivered. Other ideas remain parked until selected; F07 is now first in the historical default order. Complete, verify, and land one feature before moving to the next. The Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
 
 ## Build sequence
 
@@ -16,7 +16,7 @@ The product outcome is a continuing conversation that can use selected game evid
 | [F02](#f02-compact-pinned-advice) | Pin selected advice in a compact Play view. | F01 source references | Compact pinned advice / Play and Desk views | Delivered |
 | [F03](#f03-saved-activity-layouts) | Save and restore named arrangements of companion windows. | Existing window manager | Saved activity layouts | Delivered |
 | [F04](#f04-personal-goals-and-wishlist) | Track selected goals and their researched next steps. | F01 | Addon 4: ALL THE THINGS | Delivered: manual goals and reviewed research |
-| [F05](#f05-repeatable-activity-checklists) | Today and This week lists with manual completion and explicit repeat rules. | F04 | Addon 5: SavedInstances | Queued |
+| [F05](#f05-repeatable-activity-checklists) | Today and This week lists with manual completion and explicit repeat rules. | F04 | Addon 5: SavedInstances | Delivered: manual recurrence and reviewed planning |
 | [F06](#f06-quest-chains-and-prerequisites) | Research one selected chain and continue discussing it in Quest chat. | F01 | Addon 1: BtWQuests | Delivered: selected-chain research, not an addon database |
 | [F07](#f07-explainable-gear-comparisons) | Compare one explicit candidate with an equipped item. | F01 | Addon 2: Pawn; Raidbots comparison pattern | Queued |
 | [F08](#f08-addon-troubleshooting) | Review an error import and keep diagnosis and retries in one conversation. | F01; builds the shared import layer | Addon 6: BugSack | Delivered: pasted or imported error text; no automatic addon discovery |
@@ -106,7 +106,7 @@ Validate all metadata and count it toward the existing two-megabyte journal limi
 
 **Accept:** goals survive restart, preserve evidence and edition, distinguish user decisions from agent suggestions, and can reopen their conversation without sending. Missing evidence cannot be shown as verified ownership or completion. No ALL THE THINGS installation or comprehensive collection database is required.
 
-**Delivered:** version-one Journal entries can carry a bounded goal, requirements, reviewed suggestions with their source and evidence, player constraints and decisions, manual status and progress, and a next step. Goals are searchable and reopen without sending. Explicit research reuses the selected conversation and the existing follow-up preview; saving a reply can update an existing goal without overwriting its original evidence or player decision. No collection database, automatic completion, recurrence, or addon integration is included. See [current usage](CHAT.md#personal-goals-and-wishlist).
+**Delivered:** version-one Journal entries can carry a bounded goal, requirements, reviewed suggestions with their source and evidence, player constraints and decisions, manual status and progress, and a next step. Goals are searchable and reopen without sending. Explicit research reuses the selected conversation and the existing follow-up preview; saving a reply can update an existing goal without overwriting its original evidence or player decision. No collection database, automatic completion, or addon integration is included; F05 adds recurrence separately. See [current usage](CHAT.md#personal-goals-and-wishlist).
 
 ## F05. Repeatable activity checklists
 
@@ -115,6 +115,8 @@ Validate all metadata and count it toward the existing two-megabyte journal limi
 **Build:** add a recurrence evaluator and completion history separate from goal definitions. Store the user-chosen time zone and reset rule; do not guess a game's regional reset from the computer clock. Reopening the app computes the current period without rewriting historical completion.
 
 **Accept:** daily/weekly boundaries, daylight-saving transitions, missed periods, undo, restart, and clock changes behave deterministically. Manual completion is labeled. Automatic lockout or cooldown observation remains a separately unverified extension; this increment needs no SavedInstances integration or snapshot archive.
+
+**Delivered:** per-goal Daily/Weekly rules with explicit IANA time zones, reset times and weekdays; Today/This week lists scoped to a journal; separate bounded completion/undo history; reviewed time-and-priority planning in the selected conversation. Existing goals and history remain intact on failed or conflicting saves. See [current checklist behavior](CHAT.md#repeatable-activity-checklists).
 
 ## F06. Quest chains and prerequisites
 
@@ -249,7 +251,7 @@ Before landing a feature:
 
 ## Delivery record
 
-F01–F04, F06, F08, F12, F13, F16, and F17 are delivered. Other ideas remain parked until selected. Checks below describe only the delivered scope.
+F01–F06, F08, F12, F13, F16, and F17 are delivered. Other ideas remain parked until selected. Checks below describe only the delivered scope.
 
 | Feature | Delivered scope / commit | Verification | Remaining work |
 | --- | --- | --- | --- |
@@ -257,7 +259,8 @@ F01–F04, F06, F08, F12, F13, F16, and F17 are delivered. Other ideas remain pa
 | F02 | Frozen advice cards from chat, Quest chat, Journal, or a selected quest; separate Play/Desk sizes and explicit source navigation. Feature commit `809774d`, merged in PR #18; Windows and Linux CI passed. | Windows: 324 passed, 2 existing keypad-event skips. Synthetic Classic/Modern Play at 340 × 300, Desk at 440 × 580, review at 440 × 480, and 24-point text at 65% opacity inspected. | Existing source navigation reused; no fresh live-provider round trip or game check. Missing sources and times remain unknown. |
 | F03 | Named arrangements with save/replace, restore previews, compatible-window reuse, card modes, and rollback on failed workspace saves. Feature commit `804cfa7`. | Windows: 346 passed, 2 existing keypad-event skips. Eighteen new checks cover storage, limits, drafts, retention, restart, monitor recovery, rollback, and no new requests. Classic/Modern dialogs inspected at 480 × 540 on a hidden desktop. | Existing provider transport reused; no new live-provider or in-game check. Dias integration remains a separate workstream. |
 
-| F04 | Personal goals and wishlist; reviewed research in the chosen session, saved suggestions, decisions and manual progress, Journal links and search. | Windows full suite: 429 passed, 2 existing keypad-event skips. Both themes inspected at 440 × 480 with enlarged text. | Actual acquisition routes, ownership and game outcomes are unverified. Recurrence remains F05. |
+| F04 | Personal goals and wishlist; reviewed research in the chosen session, saved suggestions, decisions and manual progress, Journal links and search. | Windows full suite: 429 passed, 2 existing keypad-event skips. Both themes inspected at 440 × 480 with enlarged text. | Actual acquisition routes, ownership and game outcomes are unverified. Recurrence is delivered separately in F05. |
+| F05 | Explicit Daily/Weekly rules, journal-scoped Today/This week lists, separate completion/undo history, and reviewed time-and-priority planning in the selected chat. | Windows Python 3.14 full suite: 504 passed, 2 existing skips; final 26 recurrence/UI checks passed after journal-navigation and failed-refresh fixes. Both themes inspected at 440 × 480 (Repeat/preview) and 480 × 560 (checklist) on a hidden desktop. | Real game resets, lockouts/cooldowns, SavedInstances integration, and live planning replies unverified. Existing provider transport reused. |
 | F12 | Quiet outcome list, bounded read/dismiss/restore/retry history, source navigation, search, and explicit retry review preserving drafts. | Windows Python 3.11 full suite: 447 passed, 2 existing keypad-event skips. Final targeted checks: 16 passed, including added research retry coverage. Both themes inspected at 480 × 480; retry review at 480 × 420 with 18-point text. | Outcomes are recorded as observed, not reconstructed from all provider history. Pending tracking follows chat retention. No new live-provider or in-game check. |
 | F13 | `d216458` / PR 20. Ctrl+K searches bounded app-owned notes, next steps, quests, known sessions, windows, cards, layouts, and registered actions. | Windows: 363 passed, 2 existing keypad-event skips after merging the two-display feature. Both themes inspected at 480 × 540; keyboard draft preservation, Unicode, missing sources, limits, and restart covered. | Wishlist search is delivered with F04; activity-history records are included in F12. Navigation reuses existing transport without requests. |
 
