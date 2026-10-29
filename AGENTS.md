@@ -60,7 +60,7 @@ Everything here is world-readable: code, docs, commits, branch names, issues, PR
   - Add behavior tests for new commands and failure paths. Report input delivery separately from verified in-game success. There is no claim that Blizzard has approved this implementation.
 - Describe the project as a user-command accessibility helper and planned second-screen companion, not a way around game restrictions.
 - Parse SavedVariables with a restricted parser. Never execute Lua from disk.
-- Explicit voice dictation (operator request, 2026-10-29) may use `RegisterHotKey` for Ctrl+Alt+V and check only that chord's held state with `GetAsyncKeyState`, without a keyboard hook. Open the microphone only for a deliberate hold, close it before local transcription, and add reviewed text to a companion draft. No automatic Send, game input, screenshot action, or spoken output follows dictation.
+- Explicit voice dictation (operator request and clarification, 2026-10-29) may use `RegisterHotKey` for Ctrl+Alt+V and check only that chord's held state with `GetAsyncKeyState`, without a keyboard hook. Keep the companion's microphone connection open while voice is enabled, retain audio only during a deliberate hold, and discard all other samples. Release ends that recording for local transcription into a draft; it never mutes the system microphone or changes other apps' audio. Do not modify the operator's mouse settings. No automatic Send, game input, screenshot action, or spoken output follows dictation.
 
 ## Documentation
 

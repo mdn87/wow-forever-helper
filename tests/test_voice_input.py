@@ -47,27 +47,37 @@ def test_cancel_discards_audio_and_never_transcribes():
     assert not calls
 
 
-def test_microphone_stream_closes_and_wav_is_bounded(monkeypatch):
-    from wow_helper.voice_input import capture_audio
-    stop = threading.Event()
-    closed = []
+def test_microphone_stays_open_and_discards_audio_outside_each_hold(monkeypatch):
+    from wow_helper.voice_input import Microphone
+    streams = []
     class Stream:
         def __init__(self, **kwargs):
             self.callback = kwargs['callback']
+            self.closed = False
+            streams.append(self)
         def __enter__(self):
-            self.callback(b'\0' * 16000, 8000, None, False)
-            stop.set()
             return self
         def __exit__(self, *_):
-            closed.append(True)
+            self.closed = True
     monkeypatch.setitem(sys.modules, 'sounddevice', types.SimpleNamespace(RawInputStream=Stream))
-    audio = capture_audio(stop, lambda: None)
-    assert closed
-    with wave.open(io.BytesIO(audio), 'rb') as wav:
-        assert wav.getframerate() == 16000 and wav.getnframes() == 8000
-    # A release before the worker starts must not open the device at all.
-    closed.clear()
-    assert capture_audio(stop, lambda: None) == b'' and not closed
+    mic = Microphone()
+    assert mic.ready.wait(1)
+    stream = streams[0]
+    for value in (b'\x01\0', b'\x02\0'):
+        stream.callback(b'\xff' * 16000, 8000, None, False)  # Idle audio must be dropped.
+        stop = threading.Event()
+        def listening():
+            stream.callback(value * 8000, 8000, None, False)
+            stop.set()
+            stream.callback(b'\xff' * 16000, 8000, None, False)  # Already released.
+        audio = mic.capture(stop, listening)
+        assert not stream.closed and len(streams) == 1
+        with wave.open(io.BytesIO(audio), 'rb') as wav:
+            assert wav.getframerate() == 16000 and wav.getnframes() == 8000
+            assert wav.readframes(8000) == value * 8000
+    assert mic.capture(stop, lambda: None) == b''
+    mic.close()
+    assert stream.closed
 
 
 def test_capture_error_preserves_no_audio_and_reports_failure():
@@ -79,8 +89,33 @@ def test_capture_error_preserves_no_audio_and_reports_failure():
     service.close()
 
 
-def test_recording_deadline_closes_stream_without_key_release(monkeypatch):
-    from wow_helper.voice_input import capture_audio
+def test_connection_failure_is_reported_before_any_hold(monkeypatch):
+    def fail(**_):
+        raise OSError('Synthetic private device details')
+    monkeypatch.setitem(sys.modules, 'sounddevice', types.SimpleNamespace(RawInputStream=fail))
+    service = Dictation()
+    assert wait_for(service, 'device_error')[1] == 'Microphone unavailable. Check Windows input and microphone permissions.'
+    service.close()
+
+
+def test_closing_microphone_during_hold_discards_audio(monkeypatch):
+    from wow_helper.voice_input import Microphone
+    class Stream:
+        def __init__(self, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *_):
+            pass
+    monkeypatch.setitem(sys.modules, 'sounddevice', types.SimpleNamespace(RawInputStream=Stream))
+    mic = Microphone()
+    assert mic.ready.wait(1)
+    assert mic.capture(threading.Event(), mic.close) == b''
+    assert mic.closed.is_set() and not mic.thread.is_alive()
+
+
+def test_recording_deadline_ends_segment_but_keeps_microphone_open(monkeypatch):
+    from wow_helper.voice_input import Microphone
     monkeypatch.setattr('wow_helper.voice_input.MAX_SECONDS', .01)
     closed = []
     class Stream:
@@ -91,7 +126,11 @@ def test_recording_deadline_closes_stream_without_key_release(monkeypatch):
         def __exit__(self, *_):
             closed.append(True)
     monkeypatch.setitem(sys.modules, 'sounddevice', types.SimpleNamespace(RawInputStream=Stream))
-    assert capture_audio(threading.Event(), lambda: None) == b''
+    mic = Microphone()
+    assert mic.ready.wait(1)
+    assert mic.capture(threading.Event(), lambda: None) == b''
+    assert not closed
+    mic.close()
     assert closed
 
 

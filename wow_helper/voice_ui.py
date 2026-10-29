@@ -13,12 +13,12 @@ class VoiceDialog(JournalDialog):
         self.target = None
         self.after = None
         super().__init__(window.view, 'Voice input · Ctrl+Alt+V')
-        self.notice.set('Voice is off. Enable for this window, then hold your Ctrl+Alt+V mouse button. '
-                        'Wait for Listening, speak, and release. Text is added to the draft; nothing is sent.')
+        self.notice.set('Enable voice for this window, then hold Ctrl+Alt+V to record for this chat. '
+                        'Speak when Recording appears; release to transcribe into the draft.')
         info = self.label(self.surface, 'Local Windows dictation · default microphone\n'
                           '30 seconds maximum · no audio saved · no spoken replies\n'
-                          'Enabled only while this panel remains open.\n'
-                          'Mouse software must hold the chord, not play a tap macro.')
+                          'Mic connection stays open while voice is enabled.\n'
+                          'Only held speech is kept. Other apps are unaffected.')
         info.configure(wraplength=390, justify='left'); info.pack(fill='x', padx=8, pady=8)
         self.enable_button = self.ttk.Button(self.surface, text='Enable for this chat window', command=self.enable)
         self.enable_button.pack(fill='x', padx=8)
@@ -41,8 +41,7 @@ class VoiceDialog(JournalDialog):
         self.key = self.key_factory()
         self.enable_button.configure(state='disabled')
         self.hold.configure(state='normal')
-        self.notice.set('Voice enabled for this window. Hold Ctrl+Alt+V and wait for Listening. Microphone is off now.')
-        self.window.set_notice('Voice enabled: hold Ctrl+Alt+V to dictate. Microphone off.')
+        self.set_status('Connecting to microphone… other apps keep their own microphone settings.')
 
     def start(self):
         if not self.dictation or self.dictation.busy:
@@ -52,7 +51,7 @@ class VoiceDialog(JournalDialog):
             self.disable(); return
         self.target = (view, view.selection_key, view.selection_revision)
         if self.dictation.start():
-            self.set_status('Starting microphone… keep holding; speak when Listening appears.')
+            self.set_status('Starting this recording… keep holding; speak when Recording appears.')
 
     def stop(self):
         if self.dictation:
@@ -69,11 +68,13 @@ class VoiceDialog(JournalDialog):
         self.after = None
         if self.dictation:
             for kind, text in self.dictation.poll():
-                if kind == 'listening':
-                    self.set_status('Listening · release Ctrl+Alt+V to finish (30 seconds maximum).')
+                if kind == 'ready' and not self.dictation.busy:
+                    self.set_status('Mic connected · not recording. Hold Ctrl+Alt+V to record for this chat only.')
+                elif kind == 'listening':
+                    self.set_status('Recording for this chat · release Ctrl+Alt+V to finish (30 seconds maximum).')
                 elif kind == 'transcribing':
-                    self.set_status('Microphone off · transcribing locally…')
-                elif kind == 'error':
+                    self.set_status('Recording stopped · transcribing locally. Mic remains connected.')
+                elif kind in ('error', 'device_error'):
                     self.set_status(text)
                 elif kind == 'text':
                     self.deliver(text)
@@ -86,13 +87,13 @@ class VoiceDialog(JournalDialog):
                 elif event == 'unavailable':
                     self.set_status('Ctrl+Alt+V is unavailable or already used. Hold the button in this panel instead.')
                 elif event == 'tap':
-                    self.set_status('The mouse binding sent a tap. Configure it to hold Ctrl+Alt+V while the button is held.')
+                    self.set_status('Shortcut arrived as a tap; no held input detected. Hold Ctrl+Alt+V or the panel button to record.')
         self.after = self.root.after(30, self.poll)
 
     def deliver(self, text):
         from .task_window import replace_text
         if not text:
-            self.set_status('No speech recognized. Microphone off; hold the button longer and try again.'); return
+            self.set_status('No speech recognized. Mic remains connected; hold the button while speaking and try again.'); return
         replace_text(self.transcript, text)
         view, selection, revision = self.target
         if (self.window.closed or self.window.view is not view or view.selection_key != selection
@@ -104,7 +105,7 @@ class VoiceDialog(JournalDialog):
             self.set_status('The draft is full. Transcript kept here for copying; existing text is unchanged.'); return
         view.editor.insert('end', addition)
         view.on_change()
-        self.set_status('Voice text added to this chat draft. Review it, then Send. Microphone off.')
+        self.set_status('Voice text added to this chat draft. Review it, then Send. Mic connected; not recording.')
 
     def disable(self):
         if self.key:
@@ -113,7 +114,7 @@ class VoiceDialog(JournalDialog):
             self.dictation.close(); self.dictation = None
         self.enable_button.configure(state='normal')
         self.hold.configure(state='disabled')
-        self.set_status('Voice disabled. Microphone off. Existing draft and last transcript are kept.')
+        self.set_status('Voice disabled; companion released its mic connection. Other apps are unaffected. Draft and transcript kept.')
 
     def close(self):
         if self.after:
