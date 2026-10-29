@@ -1,17 +1,14 @@
 """Explicit local push-to-talk. No provider requests, game input, or audio files."""
 
-import base64
 import io
-import json
 import os
-from pathlib import Path
 import queue
-import subprocess
 import threading
 import time
 import wave
 
-from .chat import ChatError, MAX_MESSAGE
+from .chat import ChatError
+from .voice_transcription import LocalWhisper
 
 MAX_SECONDS = 30
 RATE = 16000
@@ -102,48 +99,13 @@ class Microphone:
         self.thread.join(timeout=1)
 
 
-def transcribe_audio(audio, cancelled=None):
-    if os.name != 'nt':
-        raise ChatError('Local voice input requires Windows.')
-    if len(audio) > RATE * 2 * MAX_SECONDS + 1024:
-        raise ChatError('Recording exceeds the 30-second limit.')
-    shell = Path(os.environ.get('SystemRoot', 'C:/Windows')) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
-    try:
-        with subprocess.Popen([str(shell), '-NoProfile', '-NonInteractive', '-File',
-                               str(Path(__file__).with_name('voice_transcribe.ps1'))],
-                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                              creationflags=subprocess.CREATE_NO_WINDOW) as process:
-            deadline = time.monotonic() + 45
-            first = True
-            while True:
-                if cancelled and cancelled.is_set():
-                    process.terminate(); process.communicate(); return ''
-                try:
-                    output, _ = process.communicate(input=base64.b64encode(audio) if first else None, timeout=.2)
-                    break
-                except subprocess.TimeoutExpired:
-                    first = False
-                    if time.monotonic() >= deadline:
-                        process.kill(); process.communicate()
-                        raise ChatError('Local transcription timed out. Your draft is unchanged.')
-            returncode = process.returncode
-        data = json.loads(output.decode('utf-8-sig'))
-        text = data.get('text', '')
-        if returncode or data.get('error'):
-            raise ChatError('Windows dictation is unavailable. Check the installed speech language and try again.')
-        if not isinstance(text, str) or len(text) > MAX_MESSAGE or '\0' in text:
-            raise ValueError
-        return text.strip()
-    except (OSError, subprocess.TimeoutExpired, ValueError, UnicodeError, AttributeError):
-        raise ChatError('Local transcription did not finish. Your draft is unchanged; try again.') from None
-
-
 class Dictation:
     def __init__(self, *, capture=None, transcribe=None):
         self.events = queue.Queue()
         self.release = threading.Event()
         self.cancelled = threading.Event()
-        self.transcribe = transcribe or (lambda audio: transcribe_audio(audio, self.cancelled))
+        self.recognizer = LocalWhisper() if transcribe is None else None
+        self.transcribe = transcribe or (lambda audio: self.recognizer.transcribe(audio, self.cancelled))
         self.busy = False
         self.thread = None
         self.microphone = Microphone(lambda *event: self.events.put(event)) if capture is None else None
@@ -190,6 +152,8 @@ class Dictation:
         self.cancelled.set(); self.release.set()
         if self.microphone:
             self.microphone.close()
+        if self.recognizer:
+            self.recognizer.close()
         if self.thread:
             self.thread.join(timeout=1)
 
