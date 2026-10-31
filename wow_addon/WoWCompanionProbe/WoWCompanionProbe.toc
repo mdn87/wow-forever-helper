@@ -1,0 +1,7 @@
+## Interface: 16001, 120001
+## Title: WoW Companion Probe
+## Notes: Opt-in measuring tool for the WoW Forever Helper's context channel. On request it draws a test strip or shows a text box holding a small packet about what the game is showing. Reads game state only.
+## Version: 0.1.0
+## SavedVariables: WoWCompanionProbeDB
+
+WoWCompanionProbe.lua
