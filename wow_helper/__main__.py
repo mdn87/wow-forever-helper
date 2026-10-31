@@ -58,6 +58,16 @@ def main(argv=None):
     addon = commands.add_parser("install-addon", help="Copy the read-only companion addon into the game's AddOns folder")
     addon.add_argument("--wow-root", help="WoW install folder; remembered")
     addon.add_argument("--flavor", help="Only this game folder, for example _classic_beta_")
+    addon.add_argument("--probe", action="store_true", help="Install the separate context-channel probe addon instead")
+    probe = commands.add_parser("context-probe", help="Read one context packet from the clipboard, the game window or an image and report what arrived; prints no game text unless asked")
+    probe.add_argument("--source", choices=("clipboard", "window", "image"), required=True)
+    probe.add_argument("--flavor", help="Game folder to capture for --source window, for example _retail_ or _classic_beta_")
+    probe.add_argument("--image", help="Image file for --source image")
+    probe.add_argument("--corner", choices=("topleft", "topright", "bottomleft", "bottomright", "full"), default="topleft", help="Where on the frame to look for the strip")
+    probe.add_argument("--max-age", type=int, default=120, help="Seconds after which a packet counts as stale")
+    probe.add_argument("--show", action="store_true", help="Include the cleaned packet content in the report")
+    probe.add_argument("--no-state", action="store_true", help="Do not remember the last packet, so every run is treated as the first")
+    probe.add_argument("--text", action="store_true", help="Print readable lines instead of JSON")
     args = parser.parse_args(argv)
     if args.command == "usage-study":
         from .usage_study import UsageStudy
@@ -89,6 +99,13 @@ def main(argv=None):
             return 3
     if args.command in {"quests", "character", "check-snapshot", "install-addon"}:
         return companion(args)
+    if args.command == "context-probe":
+        from .context import probe as context_probe
+        code, report = context_probe.run(
+            args.source, flavor=args.flavor, image_path=args.image, corner=args.corner, max_age=args.max_age, show=args.show,
+            state_file=None if args.no_state else context_probe.DEFAULT_STATE)
+        print(context_probe.as_text(report) if args.text else json.dumps(report))
+        return code
     try:
         # Anchor to the checkout, not caller CWD: retries share one deduplication store.
         store = Path(__file__).resolve().parents[1] / ".runtime" / "assist.sqlite"
@@ -132,11 +149,12 @@ def companion(args, *, now=None, wait=1.0):
             wtf.save_settings(settings, wow_root=str(Path(args.wow_root).resolve()))
         install_roots = wtf.roots(wtf.load_settings(settings).get("wow_root"))
         if args.command == "install-addon":
-            installed = wtf.install_addon(install_roots, args.flavor)
+            installed = wtf.install_addon(install_roots, args.flavor, probe=args.probe)
             if not installed:
                 raise SavedVariablesError("No WoW install that has been run was found; pass --wow-root.")
-            print(json.dumps({"status": "installed", "flavors": installed,
-                              "next": "Enable WoW Companion at character select, then /reload once."}))
+            follow = ("Enable WoW Companion Probe at character select, then /reload once and type /wfhprobe."
+                      if args.probe else "Enable WoW Companion at character select, then /reload once.")
+            print(json.dumps({"status": "installed", "flavors": installed, "next": follow}))
             return 0
         if args.file:
             path, flavor = Path(args.file), wtf.flavor_of(args.file)

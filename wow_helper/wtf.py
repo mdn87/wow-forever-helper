@@ -12,6 +12,8 @@ from pathlib import Path
 
 ADDON = "WoWCompanion"
 ADDON_SOURCE = Path(__file__).resolve().parents[1] / "wow_addon" / ADDON
+PROBE_ADDON = "WoWCompanionProbe"
+PROBE_SOURCE = ADDON_SOURCE.parent / PROBE_ADDON
 DEFAULT_ROOTS = (r"C:\Program Files (x86)\World of Warcraft", r"C:\Program Files\World of Warcraft")
 UNINSTALL = r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
 
@@ -85,19 +87,23 @@ def flavor_of(path):
     return None
 
 
-def install_addon(install_roots, only=None):
-    """Copy the addon into each flavour's Interface/AddOns. Returns the flavour names."""
+def install_addon(install_roots, only=None, *, probe=False):
+    """Copy the addon into each flavour's Interface/AddOns. Returns the flavour names.
+
+    ``probe`` installs the separate, opt-in context-channel probe addon instead of the companion.
+    """
+    name, source = (PROBE_ADDON, PROBE_SOURCE) if probe else (ADDON, ADDON_SOURCE)
     installed = []
     for root in install_roots:
         for flavor in flavors(root):
             # Only flavours the game has already run, so a stray folder is never populated.
             if (only and flavor.name != only) or not (flavor / "WTF").is_dir():
                 continue
-            target = flavor / "Interface" / "AddOns" / ADDON
+            target = flavor / "Interface" / "AddOns" / name
             target.mkdir(parents=True, exist_ok=True)
-            for source in ADDON_SOURCE.iterdir():
-                if source.suffix in {".toc", ".lua"}:
-                    shutil.copyfile(source, target / source.name)
+            for entry in source.iterdir():
+                if entry.suffix in {".toc", ".lua"}:
+                    shutil.copyfile(entry, target / entry.name)
             installed.append(flavor.name)
     return installed
 
