@@ -78,7 +78,7 @@ _KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,23}")
 PICKS = ("tracked", "watched", "first")
 _PICK = re.compile("|".join(PICKS))
 MISSING_NAMES = (
-    "who", "who.token", "who.level", "who.class",
+    "who", "who.ref", "who.level", "who.class",
     "where", "where.zone", "where.sub", "where.map",
     "quest", "quest.title", "quest.complete", "quest.objectives",
 )
@@ -88,7 +88,7 @@ MISSING_NAMES = (
 _ORDER = {
     "": ("v", "kind", "sid", "seq", "at", "build", "who", "where", "quest", "scope", "missing"),
     "build": ("version", "build", "interface"),
-    "who": ("token", "level", "class"),
+    "who": ("ref", "level", "class"),
     "where": ("zone", "sub", "map"),
     "quest": ("id", "pick", "title", "complete", "objectives"),
     "objective": ("text", "have", "need", "done"),
@@ -109,7 +109,7 @@ class Build:
 
 @dataclass(frozen=True)
 class Who:
-    token: str | None
+    ref: str | None
     level: int | None
     char_class: str | None
 
@@ -153,7 +153,7 @@ class Envelope:
     def to_dict(self):
         """The packet in its documented shape, ready for ``serialize``."""
         who = None if self.who is None else {
-            "token": self.who.token, "level": self.who.level, "class": self.who.char_class}
+            "ref": self.who.ref, "level": self.who.level, "class": self.who.char_class}
         where = None if self.where is None else {
             "zone": self.where.zone, "sub": self.where.sub, "map": self.where.map}
         quest = None
@@ -301,7 +301,7 @@ class _Reader:
         if value is None:
             return None
         data = _object(value, "who", "who")
-        return Who(_formatted(data["token"], "who.token", _HEX16, True),
+        return Who(_formatted(data["ref"], "who.ref", _HEX16, True),
                    _int(data["level"], "who.level", 1, 100, True),
                    _formatted(data["class"], "who.class", _CLASS, True))
 
@@ -425,7 +425,7 @@ def parse_envelope(payload, *, max_bytes=ENVELOPE_MAX_BYTES):
     if scope["quests"] != "one":
         raise ContextError("bad-format", "scope.quests")
     parsed = {
-        "who": None if who is None else {"token": who.token, "level": who.level, "class": who.char_class},
+        "who": None if who is None else {"ref": who.ref, "level": who.level, "class": who.char_class},
         "where": None if where is None else {"zone": where.zone, "sub": where.sub, "map": where.map},
         "quest": None if quest is None else {"title": quest.title, "complete": quest.complete,
                                              "objectives": quest.objectives},

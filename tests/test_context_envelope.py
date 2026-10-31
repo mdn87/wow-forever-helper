@@ -21,7 +21,7 @@ def packet(**changes):
         "seq": 7,
         "at": 1790000000,
         "build": {"version": "1.60.1", "build": "70532", "interface": 16001},
-        "who": {"token": "a1b2c3d4e5f60718", "level": 12, "class": "WARRIOR"},
+        "who": {"ref": "a1b2c3d4e5f60718", "level": 12, "class": "WARRIOR"},
         "where": {"zone": "Testvale", "sub": "Example Crossing", "map": 9001},
         "quest": {
             "id": 900001,
@@ -53,7 +53,7 @@ def test_a_full_packet_parses_into_typed_fields():
     parsed = parse_envelope(text(packet()))
     assert (parsed.sid, parsed.seq, parsed.at) == ("0123456789abcdef", 7, 1790000000)
     assert (parsed.build.version, parsed.build.build, parsed.build.interface) == ("1.60.1", "70532", 16001)
-    assert (parsed.who.token, parsed.who.level, parsed.who.char_class) == ("a1b2c3d4e5f60718", 12, "WARRIOR")
+    assert (parsed.who.ref, parsed.who.level, parsed.who.char_class) == ("a1b2c3d4e5f60718", 12, "WARRIOR")
     assert (parsed.where.zone, parsed.where.sub, parsed.where.map) == ("Testvale", "Example Crossing", 9001)
     assert (parsed.quest.id, parsed.quest.pick, parsed.quest.title, parsed.quest.complete) == (900001, "tracked", "Synthetic Delivery", False)
     assert parsed.quest.objectives[0].text == "Boars slain: 3/8"
@@ -73,13 +73,13 @@ def test_sections_may_be_null_when_the_thing_does_not_exist():
 
 
 def test_unreadable_fields_are_null_and_named_in_missing():
-    changed = packet(missing=["who.token", "where.sub", "quest.objectives"])
-    changed["who"]["token"] = None
+    changed = packet(missing=["who.ref", "where.sub", "quest.objectives"])
+    changed["who"]["ref"] = None
     changed["where"]["sub"] = None
     changed["quest"]["objectives"] = None
     parsed = parse_envelope(text(changed))
-    assert parsed.missing == ("who.token", "where.sub", "quest.objectives")
-    assert parsed.who.token is None and parsed.quest.objectives is None
+    assert parsed.missing == ("who.ref", "where.sub", "quest.objectives")
+    assert parsed.who.ref is None and parsed.quest.objectives is None
 
 
 def test_a_whole_section_can_be_missing():
@@ -236,7 +236,7 @@ def test_every_top_level_key_is_required(key):
     assert (error.code, error.path) == ("missing-field", key)
 
 
-@pytest.mark.parametrize("section,key", [("build", "version"), ("who", "token"), ("where", "map"), ("quest", "pick"), ("quest", "objectives")])
+@pytest.mark.parametrize("section,key", [("build", "version"), ("who", "ref"), ("where", "map"), ("quest", "pick"), ("quest", "objectives")])
 def test_every_nested_key_is_required(section, key):
     changed = packet()
     del changed[section][key]
@@ -293,10 +293,10 @@ def test_the_session_id_must_be_sixteen_lowercase_hex_characters(sid):
     assert reason(text(packet(sid=sid))).code == "bad-format"
 
 
-@pytest.mark.parametrize("token", ["", "ABC", "a1b2c3d4e5f6071", "Name-Realm", "a1b2c3d4e5f60718x"])
-def test_the_character_token_must_be_opaque_hex(token):
+@pytest.mark.parametrize("ref", ["", "ABC", "a1b2c3d4e5f6071", "Name-Realm", "a1b2c3d4e5f60718x"])
+def test_the_character_ref_must_be_opaque_hex(ref):
     changed = packet()
-    changed["who"]["token"] = token
+    changed["who"]["ref"] = ref
     assert reason(text(changed)).code == "bad-format"
 
 
@@ -345,8 +345,8 @@ def test_missing_may_only_name_known_fields():
 
 
 def test_missing_names_may_not_repeat():
-    changed = packet(missing=["who.token", "who.token"])
-    changed["who"]["token"] = None
+    changed = packet(missing=["who.ref", "who.ref"])
+    changed["who"]["ref"] = None
     assert reason(text(changed)).code == "bad-format"
 
 
@@ -413,7 +413,7 @@ def test_shape_lists_fields_and_counts_but_no_values():
         assert value not in blob
     assert shape["v"] == 1
     assert shape["objectives"] == 1
-    assert "quest.title" in shape["present"] and "who.token" in shape["present"]
+    assert "quest.title" in shape["present"] and "who.ref" in shape["present"]
     assert shape["missing"] == []
 
 
