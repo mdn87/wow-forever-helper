@@ -50,6 +50,7 @@ CODES = {
     "out-of-range": "a number is outside its allowed range",
     "bad-format": "a text field does not match its required format",
     "too-many": "a list has more entries than the schema allows",
+    "no-packet": "the text does not carry a context packet",
 }
 
 
