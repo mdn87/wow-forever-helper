@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-29T07:58:42Z",
+  "assessedAt": "2026-10-31T19:53:08Z",
   "confidence": "authoritative",
-  "currentMilestone": "Live gear comparison implemented and verified within the recorded scope",
-  "remainingSummary": "Fresh Retail capture, native Codex and Claude synthetic comparisons, and 594 tests passed. Full player-operated comparison, real speech accuracy, and the usage-study review remain separate observations.",
-  "nextChipId": null,
+  "currentMilestone": "Close out live-use observations for gear comparison and voice, then qualify the context probe.",
+  "remainingSummary": "The full gear workflow, live speech accuracy, and usage-study review remain open. PR #39 added context-probe groundwork with synthetic evidence only; real-client qualification is also open.",
+  "nextChipId": "live-use-closeout",
   "source": {
-    "label": "Live comparison implementation and verification",
-    "updatedAt": "2026-10-29"
+    "label": "PR #39 and handoff reconciliation",
+    "updatedAt": "2026-10-31"
   }
 }

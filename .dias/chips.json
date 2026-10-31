@@ -737,6 +737,89 @@
           "message": "594 tests passed, 2 skipped. Fresh Retail capture and synthetic native Codex/Claude comparison passed; full player-operated flow remains unverified."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "context-channel-probe",
+      "projectId": "wow-forever-helper",
+      "title": "Build a one-shot context-channel probe",
+      "summary": "Add a strict packet, freshness tracking, clipboard and pixel readers, a probe command, and an opt-in addon. Synthetic proof only; no companion integration.",
+      "stage": "done",
+      "sequence": 20,
+      "prereqs": [],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-31T19:53:08Z",
+        "updatedAt": "2026-10-31T19:53:08Z"
+      },
+      "evidence": [
+        {
+          "entryId": "context-channel-probe-created",
+          "at": "2026-10-31T19:53:08Z",
+          "kind": "created",
+          "message": "Track the merged probe as a separate workstream; real-client support remains unverified."
+        },
+        {
+          "entryId": "context-channel-probe-merged",
+          "at": "2026-10-31T19:53:08Z",
+          "kind": "stage-change",
+          "message": "PR #39 merged packet parsing, freshness, clipboard and pixel readers, the probe command, and opt-in addon. Synthetic tests pass; no real client or feature integration is verified."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "live-use-closeout",
+      "projectId": "wow-forever-helper",
+      "title": "Close out real-use observations",
+      "summary": "Record the full gear-comparison flow, live speech accuracy, and usage-study review; keep these observations separate from synthetic checks.",
+      "stage": "planned",
+      "sequence": 21,
+      "prereqs": [
+        "live-gear-comparison",
+        "push-to-talk-dictation"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-31T19:53:08Z",
+        "updatedAt": "2026-10-31T19:53:08Z"
+      },
+      "evidence": [
+        {
+          "entryId": "live-use-closeout-created",
+          "at": "2026-10-31T19:53:08Z",
+          "kind": "created",
+          "message": "The handoff leaves full player use, live speech accuracy, and the expired usage-study review open."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "context-channel-client-qualification",
+      "projectId": "wow-forever-helper",
+      "title": "Qualify the context probe on game clients",
+      "summary": "Check addon load, clipboard and pixel reads, freshness, secret-value handling, and client-specific fields. Record Retail and Forever results separately.",
+      "stage": "planned",
+      "sequence": 22,
+      "prereqs": [
+        "context-channel-probe"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-31T19:53:08Z",
+        "updatedAt": "2026-10-31T19:53:08Z"
+      },
+      "evidence": [
+        {
+          "entryId": "context-channel-client-qualification-created",
+          "at": "2026-10-31T19:53:08Z",
+          "kind": "created",
+          "message": "The context-channel plan lists real-client transport, display, copy, freshness, and unavailable-field checks as unverified."
+        }
+      ]
     }
   ]
 }
