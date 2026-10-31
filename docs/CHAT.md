@@ -288,6 +288,21 @@ Use Up/Down and Enter, double-click a result, or choose **Open selected**. Escap
 Search and navigation preserve current drafts and do not send requests, capture images, start research, focus WoW, or send game keys. Ctrl+K is intercepted before text-editing bindings so it cannot delete the rest of a draft line. Synthetic checks cover keyboard navigation, Unicode, repeated labels, missing sources, index refresh, restart, size limits, and both themes at 480 × 540.
 
 
+## Session economy analysis
+
+Open **Menu → Session economy analysis…**, or find it with **Ctrl+K**, to import
+English Journalator 171 / Auctionator 341 **Summary → By Type** CSV. Declare the
+edition, private profile/filter aliases, and reporting period, then prepare the
+normalized rows and integer-copper totals for review. Save the evidence in Journal
+or explicitly Send it to the selected conversation. An optional earlier-period
+comparison refuses overlapping periods and identical summaries; repeated imports
+never accumulate into a ledger.
+
+The export's `Profit` column is shown as net cash movement. Missing categories,
+transfers, refunds, filters, and period coverage remain uncertain. This scoped
+reader is implemented but unverified: tests, UI checks, restart, provider delivery,
+and actual addon exports are deferred. See [the source contract and limits](ECONOMY_IMPORT.md).
+
 ## Build tutor and experiment notebook
 
 Open **Build tutor and experiments…** from a chat or activity menu. Choose an edition and role, enter preferences and a comparison question, then import or paste a profile. **Prepare review** shows the exact normalized evidence and destination. **Send** makes one explicit request in that conversation and keeps its existing draft. Changing the inputs or destination requires another review.

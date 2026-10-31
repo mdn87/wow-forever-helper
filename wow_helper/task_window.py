@@ -107,6 +107,7 @@ class TaskWindow(ChatWindow):
         self.actions_menu.add_command(label="Build tutor and experiments…", command=self.show_build_tutor)
         self.actions_menu.add_command(label="Dungeon route walkthrough…", command=self.show_route_notebook)
         self.actions_menu.add_command(label="Addon troubleshooting…", command=self.show_addon_troubleshooting)
+        self.actions_menu.add_command(label="Session economy analysis…", command=self.show_economy_notebook)
         self.actions_menu.add_command(label="Post-fight coaching…", command=self.show_combat_coaching)
         self.actions_menu.add_command(label="Goals and wishlist…", command=self.show_goals)
         self.actions_menu.add_command(label="Live gear comparison…", command=self.show_live_gear)
@@ -905,6 +906,13 @@ class TaskWindow(ChatWindow):
             self._notebooks['addon'].root.lift()
         else:
             self._notebooks['addon'] = AddonNotebook(self)
+
+    def show_economy_notebook(self):
+        from .economy_notebook import EconomyNotebook
+        if 'economy' in self._notebooks:
+            self._notebooks['economy'].root.lift()
+        else:
+            self._notebooks['economy'] = EconomyNotebook(self)
 
     def show_combat_coaching(self):
         self.record_usage("combat", "open")

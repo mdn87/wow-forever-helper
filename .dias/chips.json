@@ -832,6 +832,33 @@
           "message": "The operator deferred real-client qualification while away from WoW. Keep this step planned; revisit the review reminder when the operator returns."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "session-economy-summary",
+      "projectId": "wow-forever-helper",
+      "title": "Review Journalator category cash summaries",
+      "summary": "Import the pinned English By Type CSV, review copper totals and declared periods, compare an earlier period, and save evidence. Acceptance remains deferred.",
+      "stage": "planned",
+      "sequence": 23,
+      "prereqs": [
+        "addon-troubleshooting",
+        "linked-journal-resume"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-10-31T23:51:56Z",
+        "updatedAt": "2026-10-31T23:51:56Z"
+      },
+      "evidence": [
+        {
+          "entryId": "economy-summary-local-implementation",
+          "at": "2026-10-31T23:51:56Z",
+          "kind": "note",
+          "message": "Local importer and reviewed Journal workflow implemented from pinned author source. Tests, UI, providers, restart, and actual exports remain unverified and deferred."
+        }
+      ]
     }
   ]
 }

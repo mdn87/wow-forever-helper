@@ -68,6 +68,8 @@ The quest companion's parser, advice order, and CLI are tested against synthetic
 
 **Published evidence tools (experimental)** provides **Journal → Resume session → Tool access…** and CLI management of frozen Journal publications, expiring conversation grants, access removal, private setup, and local MCP stdio list/read tools. UI behavior, authorization, and Codex/Claude setup remain unverified; no provider connection is configured automatically. See [publication tooling and its limits](docs/PUBLISHED_TOOLS.md).
 
+**Session economy analysis (unverified)** imports the pinned English Journalator 171 / Auctionator 341 By Type summary, calculates integer-copper cash totals, and prepares an explicit discussion with optional earlier-period comparison. Period/profile/filter declarations are reviewed; missing coverage remains unknown. Tests and actual exports remain deferred. See [economy imports](docs/ECONOMY_IMPORT.md).
+
 **Search companion** opens with **Ctrl+K** inside a companion window. Find saved notes and next steps, known quests and conversations, layouts, and settings without sending requests.
 
 **Saved activity layouts** let you name arrangements such as Leveling and Review from **Settings → Activity layouts…**. Preview a restore before applying it; matching windows keep their current conversations and drafts, and other open windows remain accessible. See [saved activity layouts](docs/CHAT.md#saved-activity-layouts).

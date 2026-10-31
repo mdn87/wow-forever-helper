@@ -8,10 +8,10 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-31T23:36:44Z",
+  "assessedAt": "2026-10-31T23:51:56Z",
   "confidence": "authoritative",
   "currentMilestone": "Deferred until a later WoW session: close out real-use observations and qualify the context probe.",
-  "remainingSummary": "The operator deferred runtime, UI, and live-game checks while away from WoW. Gear use, speech accuracy, usage-study review, and context-probe client qualification remain unverified. Reminder: revisit the saved review guide when the operator returns.",
+  "remainingSummary": "Runtime, UI, and live-game checks remain deferred until the operator returns to WoW, including the new F09 category-summary importer. Gear, speech, context-probe qualification, and economy acceptance remain unverified. MDT decoding needs codec qualification.",
   "nextChipId": null,
   "source": {
     "label": "Operator deferred testing until a later WoW session",
