@@ -784,7 +784,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-31T19:53:08Z",
-        "updatedAt": "2026-10-31T19:53:08Z"
+        "updatedAt": "2026-10-31T23:36:44Z"
       },
       "evidence": [
         {
@@ -792,6 +792,12 @@
           "at": "2026-10-31T19:53:08Z",
           "kind": "created",
           "message": "The handoff leaves full player use, live speech accuracy, and the expired usage-study review open."
+        },
+        {
+          "entryId": "live-use-closeout-deferred-20261031",
+          "at": "2026-10-31T23:36:44Z",
+          "kind": "note",
+          "message": "The operator deferred testing while away from WoW. Keep these checks planned and unverified; remind the operator when returning to WoW."
         }
       ]
     },
@@ -810,7 +816,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-10-31T19:53:08Z",
-        "updatedAt": "2026-10-31T19:53:08Z"
+        "updatedAt": "2026-10-31T23:36:44Z"
       },
       "evidence": [
         {
@@ -818,6 +824,12 @@
           "at": "2026-10-31T19:53:08Z",
           "kind": "created",
           "message": "The context-channel plan lists real-client transport, display, copy, freshness, and unavailable-field checks as unverified."
+        },
+        {
+          "entryId": "context-qualification-deferred-20261031",
+          "at": "2026-10-31T23:36:44Z",
+          "kind": "note",
+          "message": "The operator deferred real-client qualification while away from WoW. Keep this step planned; revisit the review reminder when the operator returns."
         }
       ]
     }

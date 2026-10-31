@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-31T19:53:08Z",
+  "assessedAt": "2026-10-31T23:36:44Z",
   "confidence": "authoritative",
-  "currentMilestone": "Close out live-use observations for gear comparison and voice, then qualify the context probe.",
-  "remainingSummary": "The full gear workflow, live speech accuracy, and usage-study review remain open. PR #39 added context-probe groundwork with synthetic evidence only; real-client qualification is also open.",
-  "nextChipId": "live-use-closeout",
+  "currentMilestone": "Deferred until a later WoW session: close out real-use observations and qualify the context probe.",
+  "remainingSummary": "The operator deferred runtime, UI, and live-game checks while away from WoW. Gear use, speech accuracy, usage-study review, and context-probe client qualification remain unverified. Reminder: revisit the saved review guide when the operator returns.",
+  "nextChipId": null,
   "source": {
-    "label": "PR #39 and handoff reconciliation",
+    "label": "Operator deferred testing until a later WoW session",
     "updatedAt": "2026-10-31"
   }
 }

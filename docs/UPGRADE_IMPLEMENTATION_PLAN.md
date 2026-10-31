@@ -8,6 +8,12 @@ The product outcome is a continuing conversation that can use selected game evid
 
 **Operator-selected sequence F13, F16, F17, and F06 is delivered.** F01–F03, F04 personal goals, F12 activity history, and F05 repeatable checklists are also delivered. F07 now provides explicit live tooltip comparison after real-client capture proof; its verification limits are recorded below. Other ideas remain parked. Complete, verify, and land one feature before moving to the next. The Requires column identifies actual dependencies. No dates or delivery estimates are assumed.
 
+## Deferred review reminder
+
+**Operator decision (2026-10-31):** defer the outstanding runtime, UI, authorization, recording, and live-game checks while the operator is away from WoW. They remain unverified. Revisit the private review guide when the operator returns to WoW; its link is retained in the session handoff. No timed notification is established by this project note.
+
+Start that later review with F10 screenshot privacy: solid masks in the saved PNG, the Magnify-to-Mask guard, crop coordinates, Undo/Reset, metadata removal, and explicit sending. Then revisit F18 publication/authorization, F19 recovery and recording measurements, bookmarks/manual coaching, and the Dias gear/voice/context-probe closeout. This is a deferred review queue; acceptance remains unfinished.
+
 ## Build sequence
 
 | Order | Feature and first deliverable | Requires | Original idea | State |
