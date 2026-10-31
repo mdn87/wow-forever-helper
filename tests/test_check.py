@@ -11,7 +11,7 @@ from wow_helper import check
 from wow_helper.savedvars import SavedVariablesError, parse
 
 FIXTURES = Path(__file__).parent / "fixtures"
-CURRENT = FIXTURES / "savedvariables_check.lua"      # addon 0.4.0, modern API
+CURRENT = FIXTURES / "savedvariables_check.lua"      # addon 0.4.1, modern API
 OLDER = FIXTURES / "savedvariables_quests.lua"       # a snapshot from before client info existed
 ADDON = Path(__file__).resolve().parents[1] / "wow_addon" / "WoWCompanion"
 
@@ -50,7 +50,7 @@ def test_older_addon_snapshot_names_what_is_missing():
     checks = by_name(report)
     assert {name for name, c in checks.items() if c["result"] == "missing"} == {
         "addon_version", "client_build", "toc_interface", "distance", "api_sources"}
-    assert checks["addon_version"]["detail"] == "saved by an addon older than 0.4.0; run install-addon and /reload"
+    assert checks["addon_version"]["detail"] == "saved by an addon older than 0.4.1; run install-addon and /reload"
     assert checks["toc_interface"]["detail"] == "unknown until the addon saves the client build"
     assert checks["objective_counts"]["result"] == "confirmed"  # the older fixture already carried counts
     assert report["counts"]["mismatch"] == 0
@@ -66,7 +66,7 @@ def test_interface_outside_the_toc_is_a_mismatch_with_the_fix_spelled_out():
     assert checks["toc_interface"]["result"] == "mismatch"
     assert checks["toc_interface"]["detail"] == ("the client reports interface 11507 but the .toc lists 16001, 120001; "
                                                  "tick Load out of date AddOns, then update the .toc")
-    assert checks["addon_version"]["detail"] == "addon 0.3.9 saved it; this helper ships 0.4.0; run install-addon and /reload"
+    assert checks["addon_version"]["detail"] == "addon 0.3.9 saved it; this helper ships 0.4.1; run install-addon and /reload"
     assert checks["schema"]["detail"] == "data version 2; this helper reads 1"
     assert report["counts"]["mismatch"] == 3
 
@@ -94,7 +94,7 @@ def test_text_and_json_carry_no_zone_quest_title_or_path():
     text = check.as_text(report)
     lines = text.splitlines()
     assert lines[0] == "Snapshot check from just now (edition _classic_beta_): 13 confirmed, 0 missing, 0 mismatched."
-    assert lines[1] == "  confirmed  addon_version: addon 0.4.0 saved this snapshot"
+    assert lines[1] == "  confirmed  addon_version: addon 0.4.1 saved this snapshot"
     assert len(lines) == 14
     for leak in ("Testvale", "Example", "Synthetic", "Otherfield", "\\", "/"):
         assert leak not in text and leak not in json.dumps(report)
@@ -116,3 +116,61 @@ def test_cli_check_snapshot(capsys):
     assert capsys.readouterr().out.startswith("Snapshot check from ")
     assert cli.main(["check-snapshot", "--file", str(CURRENT), "--flavor", "_retail_"]) == 2
     assert json.loads(capsys.readouterr().out)["status"] == "refused"
+
+
+def snapshot(**changes):
+    """The current fixture as a parsed snapshot, with top-level fields replaced or removed (None)."""
+    parsed = parse(CURRENT.read_text(encoding="utf-8"))
+    for key, value in changes.items():
+        if value is None:
+            parsed["WoWCompanionDB"].pop(key, None)
+        else:
+            parsed["WoWCompanionDB"][key] = value
+    return parsed
+
+
+def zero_reads(parsed):
+    parsed["WoWCompanionDB"]["player"].update(xp=0, xpMax=0)
+    parsed["WoWCompanionDB"]["character"]["money"] = 0
+    return parsed
+
+
+def test_money_and_experience_reading_zero_together_do_not_confirm_character_status():
+    parsed = zero_reads(snapshot(addon="0.4.0", trigger=None))
+    report = check.report(parsed, 1000, now=1030, interfaces=[16001, 120001])
+    detail = by_name(report)["character_status"]
+    assert detail["result"] == "missing"
+    assert detail["detail"] == ("money and experience read zero together, which this client does at logout or reload; "
+                                "run install-addon for the current addon and /reload")
+    assert "unload_reads" not in by_name(report)
+
+
+def test_event_snapshots_add_no_unload_check_and_trust_their_zeros():
+    plain = result()
+    assert len(plain["checks"]) == 13 and "unload_reads" not in by_name(plain)
+    parsed = zero_reads(snapshot(trigger="event"))
+    report = check.report(parsed, 1000, now=1030, interfaces=[16001, 120001])
+    assert by_name(report)["character_status"]["result"] == "confirmed" and "unload_reads" not in by_name(report)
+
+
+def test_an_unload_save_records_whether_the_client_read_zeros():
+    normal = check.report(snapshot(trigger="unload"), 1000, now=1030, interfaces=[16001, 120001])
+    assert by_name(normal)["unload_reads"] == {"check": "unload_reads", "result": "confirmed",
+                                               "detail": "money and experience read normally while the addon saved at unload"}
+    kept = check.report(snapshot(trigger="unload", zeroedReads=True, keptEarlier=True), 1000, now=1030, interfaces=[16001, 120001])
+    assert by_name(kept)["unload_reads"]["result"] == "mismatch"
+    assert by_name(kept)["unload_reads"]["detail"] == ("the client read zero money and experience while the addon saved at unload; "
+                                                       "the addon kept the earlier values")
+    assert by_name(kept)["character_status"]["result"] == "confirmed" and kept["counts"]["mismatch"] == 1
+    cleared = snapshot(trigger="unload", zeroedReads=True, keptEarlier=False)
+    del cleared["WoWCompanionDB"]["character"]["money"]
+    report = check.report(cleared, 1000, now=1030, interfaces=[16001, 120001])
+    assert by_name(report)["unload_reads"]["detail"].endswith("the addon had no earlier values and left them unknown")
+    assert by_name(report)["character_status"]["result"] == "missing"
+
+
+def test_the_addon_keeps_earlier_reads_when_the_unload_save_reads_zero():
+    lua = (ADDON / "WoWCompanion.lua").read_text(encoding="utf-8")
+    handler = lua[lua.index('event == "PLAYER_LOGOUT"'):]
+    assert handler.index('snapshot("unload")') < handler.index("keepEarlierReads(") < handler.index("WoWCompanionDB = last")
+    assert "zeroedReads" in lua and "keptEarlier" in lua and "savedThisSession" in lua

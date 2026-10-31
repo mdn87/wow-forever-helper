@@ -13,6 +13,23 @@ COSMETIC = {4, 19}  # the shirt and tabard have no item level that matters
 REPAIR_AT = 25      # percent durability left on the most worn item
 BAGS_LOW_AT = 2     # free bag slots
 LINKS = {"_retail_": "https://www.wowhead.com/item=", "classic": "https://www.wowhead.com/classic/item="}
+UNLOAD_WARNING = ("Money and experience read zero while the game saved, which this client does at logout or reload, "
+                  "so they are not shown. Run install-addon for the current addon, then /reload.")
+UNLOAD_CLEARED = "Money and experience were not available when the game last saved. Play for a minute, then /reload."
+
+
+def zeroed_unload_reads(db):
+    """Whether money, experience, and the experience bar read zero together in a save that may be an unload save.
+
+    The Forever client was reported to read exactly these zeros while the UI unloads, at logout or reload, and a
+    character below the level cap cannot have no experience bar. Saves made during play are trusted. Addon 0.4.1
+    keeps the earlier values instead and says so; saves from older addons carry no trigger and are read this way.
+    """
+    if _str(db.get("trigger")) == "event":
+        return False
+    player = db.get("player") if isinstance(db.get("player"), dict) else {}
+    data = db.get("character") if isinstance(db.get("character"), dict) else {}
+    return (_int(data.get("money")), _int(player.get("xp")), _int(player.get("xpMax"))) == (0, 0, 0)
 
 
 def gold(copper):
@@ -48,6 +65,11 @@ def report(parsed, mtime, *, flavor=None, now):
     warnings = []
     if age > STALE_AFTER:
         warnings.append(f"The snapshot is {age // 60} minutes old; /reload in game for current status.")
+    if zeroed_unload_reads(db):
+        money = rested = None
+        warnings.append(UNLOAD_WARNING)
+    elif db.get("zeroedReads") is True and db.get("keptEarlier") is False:
+        warnings.append(UNLOAD_CLEARED)
     if worst and worst["durability_percent"] <= REPAIR_AT:
         state = "broken" if worst["durability_percent"] == 0 else f"at {worst['durability_percent']}%"
         warnings.append(f"Repair soon: the {worst['slot']} item is {state}.")

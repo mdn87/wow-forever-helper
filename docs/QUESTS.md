@@ -14,6 +14,14 @@ The game does not let other programs read the quest log, so a small addon copies
 
 Use `--flavor` with `quests` or `character` to read only one game edition. The helper chooses the newest snapshot within that edition and refuses the request if none exists; it never falls back to another edition. This choice applies only to the current report and is not remembered. It does not select a character or account within that edition.
 
+### Saves at unload
+
+The addon's last save runs while the UI unloads, at logout or `/reload`, and carries `trigger = "unload"`. Saves made during play carry `trigger = "event"`. NeverQuestAlone's source documents that the Forever client reads money, experience, and the experience bar as zero in that moment, on build 70009.
+
+Addon 0.4.1 therefore keeps the values from its last save in the same session when an unload save reads all three as zero. When the session made no earlier save, it leaves them out. It records `zeroedReads` and `keptEarlier` so the helper can say which happened. Snapshots from addon 0.4.0 carry no trigger, so the helper treats money, experience, and the experience bar reading zero together as unknown, not as an empty wallet, and asks for the addon update. A zero from a save made during play is still trusted.
+
+`check-snapshot` adds an `unload_reads` line for unload saves. It is `confirmed` when the client read normally and `mismatch` when it read zeros, which makes it the live evidence for a given build.
+
 ## Setup
 
 ```console
@@ -119,6 +127,8 @@ The check reads the same snapshot as `quests` and `character`, so a snapshot tha
 - Parser, advice order, CLI, discovery, addon install, and the snapshot check are covered by automated tests. The tests use the synthetic fixtures `tests/fixtures/savedvariables_quests.lua` and `tests/fixtures/savedvariables_check.lua` and fake install folders.
 - The addon's Lua was syntax-checked with `luaparser`.
 - **Live check on 2026-10-10:** addon 0.4.0 was installed in `_classic_beta_` on Windows. After the operator enabled it and ran `/reload`, `check-snapshot --flavor _classic_beta_ --text` reported 13 confirmed, 0 missing, and 0 mismatched checks. The client reported version 1.60.1, build 70338, interface 16001, and the modern quest-log API. Quest objectives with counters, distance values, completed quest IDs, and character status were present. Both `quests --flavor _classic_beta_` and `character --flavor _classic_beta_` returned `status: ok` without warnings; the character report included money, rested XP, gear, durability, and bag counts. The real snapshot remains local and is not a test fixture.
+- **Unload guard, 2026-10-31:** the readers and the snapshot check are covered by automated tests on synthetic snapshots. The addon's guard was also run once under a Lua 5.3 VM with a stubbed client, where addon 0.4.0 replaced real money and experience with zeros and addon 0.4.1 kept them across seven scenarios. That harness is not in the repository.
+- **Still unverified:** whether the Forever client still reads zeros while unloading on the current build. The simulation assumed the report from NeverQuestAlone. No game client has run addon 0.4.1; `unload_reads` will show it after a logout.
 - **Still unverified:** the available-quest API returned an empty list in this check, so a populated result and coverage of quests visible in game need testing. The presence of objective counters, distances, and character stats does not establish their accuracy against the in-game display. Retail and other clients, the classic text-only objective fallback, and Forever quest links have not been verified by this live check. Chat does not yet attach quest or character reports automatically.
 
 

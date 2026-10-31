@@ -6,7 +6,7 @@
 WoWCompanionDB = WoWCompanionDB or {}
 
 local SCHEMA = 1
-local ADDON_VERSION = "0.4.0" -- keep equal to the .toc Version line
+local ADDON_VERSION = "0.4.1" -- keep equal to the .toc Version line
 
 local function objectives(index, questID)
   local list = {}
@@ -149,7 +149,7 @@ local function sources()
   }
 end
 
-local function snapshot()
+local function snapshot(trigger)
   local modern = C_QuestLog and C_QuestLog.GetInfo and true or false
   local count = modern and C_QuestLog.GetNumQuestLogEntries() or GetNumQuestLogEntries()
   local quests, collapsed, header = {}, {}, nil
@@ -169,7 +169,8 @@ local function snapshot()
   local _, class = UnitClass("player")
   local nearby, mapID = available()
   return {
-    schema = SCHEMA, addon = ADDON_VERSION, savedAt = GetServerTime(), api = modern and "modern" or "classic",
+    schema = SCHEMA, addon = ADDON_VERSION, trigger = trigger or "event", savedAt = GetServerTime(),
+    api = modern and "modern" or "classic",
     client = client(), sources = sources(),
     player = { level = UnitLevel("player"), class = class, xp = UnitXP("player"),
                xpMax = UnitXPMax("player"), zone = GetRealZoneText(), subzone = GetSubZoneText() },
@@ -179,6 +180,27 @@ local function snapshot()
 end
 
 local pending = false
+local savedThisSession = false
+
+-- The Forever client was reported to read money, experience, and the experience bar as zero while the UI unloads
+-- (logout or /reload). Together those zeros are not a real character, so keep the values saved earlier in this
+-- session, or leave them out when there are none, and record that it happened so the helper can say so.
+local function keepEarlierReads(last, earlier)
+  local player, status = last.player, last.character
+  if player.xp ~= 0 or player.xpMax ~= 0 or status.money ~= 0 then return end
+  local oldPlayer = savedThisSession and type(earlier) == "table" and earlier.player
+  local oldStatus = savedThisSession and type(earlier) == "table" and earlier.character
+  local kept = type(oldPlayer) == "table" and type(oldStatus) == "table"
+      and oldStatus.money ~= nil and oldPlayer.xp ~= nil and oldPlayer.xpMax ~= nil
+      and not (oldStatus.money == 0 and oldPlayer.xp == 0 and oldPlayer.xpMax == 0)
+  if kept then
+    status.money, status.rested, player.xp, player.xpMax = oldStatus.money, oldStatus.rested, oldPlayer.xp, oldPlayer.xpMax
+  else
+    status.money, status.rested, player.xp, player.xpMax = nil, nil, nil, nil
+  end
+  last.zeroedReads, last.keptEarlier = true, kept and true or false
+end
+
 local frame = CreateFrame("Frame")
 for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "QUEST_LOG_UPDATE", "ZONE_CHANGED_NEW_AREA", "PLAYER_LOGOUT",
                          "PLAYER_MONEY", "PLAYER_EQUIPMENT_CHANGED", "UPDATE_INVENTORY_DURABILITY",
@@ -189,7 +211,8 @@ end
 frame:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGOUT" then
     -- The quest API can come back empty during teardown; keep the last good copy then.
-    local last = snapshot()
+    local last = snapshot("unload")
+    keepEarlierReads(last, WoWCompanionDB)
     if #last.quests > 0 or not WoWCompanionDB.quests then WoWCompanionDB = last end
   elseif not pending then
     -- QUEST_LOG_UPDATE fires in bursts; take one copy after the burst settles.
@@ -197,6 +220,7 @@ frame:SetScript("OnEvent", function(_, event)
     C_Timer.After(2, function()
       pending = false
       WoWCompanionDB = snapshot()
+      savedThisSession = true
     end)
   end
 end)

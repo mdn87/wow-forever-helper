@@ -1,10 +1,11 @@
 -- Synthetic fixture: hand-written for tests, not taken from a game client or a real account.
--- A snapshot from addon 0.4.0 on a modern-API client. Every value is fake: the client version,
+-- A snapshot from addon 0.4.1, saved during play, on a modern-API client. Every value is fake: the client version,
 -- build, zone, quest titles, and quest IDs (900000+) are invented.
 
 WoWCompanionDB = {
 	["schema"] = 1,
-	["addon"] = "0.4.0",
+	["addon"] = "0.4.1",
+	["trigger"] = "event",
 	["savedAt"] = 1790000000,
 	["api"] = "modern",
 	["client"] = {
