@@ -324,6 +324,7 @@ class ResumeDialog(JournalDialog):
         self.goals_only, self.goal_dialog = goals_only, None
         self.checklist = None
         self.followup = None
+        self.tool_access = None
         super().__init__(view, "Goals and wishlist" if goals_only else "Resume session")
         self.notice.set("Select saved advice, a bookmark, or a goal. Continue conversation opens its source without sending anything. "
                         "Research prepares a request for review.")
@@ -353,6 +354,7 @@ class ResumeDialog(JournalDialog):
         buttons.columnconfigure((0, 1), weight=1)
         self.preview = self.text(self.surface)
         self.ttk.Button(self.actions, text='Today / This week…', command=self.show_checklist).pack(side='left')
+        self.ttk.Button(self.actions, text='Tool access…', command=self.show_tool_access).pack(side='left', padx=4)
         self.reload()
         self.show()
 
@@ -362,6 +364,22 @@ class ResumeDialog(JournalDialog):
             self.checklist.root.lift()
             return
         self.checklist = ChecklistDialog(self)
+
+    def show_tool_access(self):
+        from .tool_access_ui import ToolAccessDialog
+        entry = self.entry()
+        if not entry:
+            self.notice.set("Select a saved note to review its tool access.")
+            return
+        if self.tool_access:
+            self.tool_access.root.lift()
+            if self.tool_access.note_id != entry["id"]:
+                self.tool_access.notice.set("This screen stays bound to its original saved note. Close it before opening Tool access for another selection.")
+            return
+        try:
+            self.tool_access = ToolAccessDialog(self, deepcopy(entry))
+        except ChatError as error:
+            self.notice.set(str(error))
 
     def reload(self, selected=None):
         self.data = self.view.activity.journal(self.journal_id)
@@ -479,6 +497,8 @@ class ResumeDialog(JournalDialog):
             self.followup.close()
         if self.checklist:
             self.checklist.close()
+        if self.tool_access:
+            self.tool_access.close()
         self.view._resume_dialog = None
         self.root.destroy()
 

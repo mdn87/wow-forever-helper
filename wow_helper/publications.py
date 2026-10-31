@@ -65,7 +65,10 @@ def valid_payload(payload):
 
 class PublicationService:
     def __init__(self, storage=CHAT_STATE, *, clock=time.time):
-        self.storage = Path(storage).resolve()
+        try:
+            self.storage = Path(storage).resolve()
+        except (OSError, ValueError, TypeError, RuntimeError):
+            raise ChatError("Tool publication storage is unavailable.") from None
         self.clock = clock
         self.path = self.storage / "tool-publications.json"
         self._safe(self.path)
@@ -77,10 +80,14 @@ class PublicationService:
             raise ChatError("The local clock cannot establish tool publication age or grant expiry.") from None
 
     def _safe(self, path):
-        runtime = (ROOT / ".runtime").resolve()
-        if (not runtime.is_relative_to(ROOT.resolve()) or not self.storage.is_relative_to(runtime)
-                or self.storage.resolve() != self.storage or not path.resolve().is_relative_to(self.storage)
-                or path.is_symlink()):
+        try:
+            runtime = (ROOT / ".runtime").resolve()
+            allowed = (runtime.is_relative_to(ROOT.resolve()) and self.storage.is_relative_to(runtime)
+                       and self.storage.resolve() == self.storage and path.resolve().is_relative_to(self.storage)
+                       and not path.is_symlink())
+        except (OSError, RuntimeError):
+            allowed = False
+        if not allowed:
             raise ChatError("Tool publications require the project's ignored local runtime storage.")
 
     def _load(self):
@@ -188,16 +195,22 @@ class PublicationService:
             raise ChatError(UNAVAILABLE)
         return grant
 
-    def create(self, provider, session_id, *, hours=24):
-        if provider not in {"codex", "claude"} or type(hours) is not int or not 1 <= hours <= 168:
-            raise ChatError("Choose Codex or Claude and a grant lifetime of 1 to 168 hours.")
-        session_id = identifier(session_id)
+    def _launch_descriptor(self, grant_id, token):
         executable = Path(sys.executable)
         if os.name == "nt":
             executable = executable.with_name("pythonw.exe")
             if not executable.is_file():
                 raise ChatError("A windowless Python executable is required for the local tool server.")
+        return {"command": str(executable),
+                "args": ["-m", "wow_helper", "published-tools", "serve", "--grant-id", grant_id],
+                "env": {"PYTHONPATH": str(ROOT), "WOW_HELPER_TOOL_TOKEN": token}}
+
+    def create(self, provider, session_id, *, hours=24):
+        if provider not in {"codex", "claude"} or type(hours) is not int or not 1 <= hours <= 168:
+            raise ChatError("Choose Codex or Claude and a grant lifetime of 1 to 168 hours.")
+        session_id = identifier(session_id)
         grant_id, token = str(uuid.uuid4()), secrets.token_urlsafe(32)
+        descriptor = self._launch_descriptor(grant_id, token)
         with self._edit() as data:
             if len(data["grants"]) >= MAX_GRANTS:
                 raise ChatError("The retained grant limit is reached. Existing grants are kept.")
@@ -208,15 +221,12 @@ class PublicationService:
             data["grants"][grant_id] = {"provider": provider, "session_id": session_id,
                 "secret_hash": hashlib.sha256(token.encode("ascii")).hexdigest(),
                 "created_at": now, "expires_at": expires, "revoked": False}
-            descriptor = {"command": str(executable),
-                          "args": ["-m", "wow_helper", "published-tools", "serve", "--grant-id", grant_id],
-                          "env": {"PYTHONPATH": str(ROOT), "WOW_HELPER_TOOL_TOKEN": token}}
             self._write_private(self.storage / "tool-access" / (grant_id + ".json"), descriptor)
         return {"grant_id": grant_id, "status": "configuration_required", "provider": provider,
                 "integration": "unverified", "launch_descriptor": "Private local descriptor saved; consult the tool-access documentation."}
 
-    def publish(self, grant_id, journal_id, note_id):
-        grant_id = identifier(grant_id)
+    def review(self, journal_id, note_id):
+        """Read the exact selection to review; create no grant or publication."""
         journal_id, note_id = identifier(journal_id), identifier(note_id)
         service = JournalService(self.storage)
         self._safe(service.path(journal_id))
@@ -235,9 +245,23 @@ class PublicationService:
             valid_payload(payload)
         except (ValueError, UnicodeError, ChatError):
             raise ChatError("Save a reviewed selection within 64,000 bytes, with user-folder paths and account-folder identifiers removed.") from None
+        source = note.get("source")
+        if not source:
+            raise ChatError("This note has no saved source conversation. Its evidence remains available in Journal.")
+        return {"journal_id": journal_id, "note_id": note_id, "saved_at": note["at"],
+                "source": {"provider": source["provider"], "session_id": identifier(source["session_id"])},
+                "payload": payload}
+
+    def publish(self, grant_id, journal_id, note_id, *, expected=None):
+        grant_id = identifier(grant_id)
+        selection = self.review(journal_id, note_id)
+        if expected is not None and selection != expected:
+            raise ChatError("The saved note changed after review. Review it again before publishing.")
+        journal_id, note_id = selection["journal_id"], selection["note_id"]
+        payload = selection["payload"]
         with self._edit() as data:
             grant = self._active(data, grant_id)
-            source = note.get("source", {})
+            source = selection["source"]
             if source.get("provider") != grant["provider"] or source.get("session_id") != grant["session_id"]:
                 raise ChatError("The note's source conversation does not match this grant. No evidence was published.")
             owned = [(key, record) for key, record in data["records"].items() if record["grant_id"] == grant_id]
@@ -252,6 +276,54 @@ class PublicationService:
             data["records"][record_id] = {"grant_id": grant_id, "journal_id": journal_id, "note_id": note_id,
                 "published_at": self._now(), "revoked": False, "payload": payload}
         return {"record_id": record_id, "status": "published"}
+
+    def for_source(self, provider, session_id):
+        """Bounded owner-only management data; never expose authentication secrets."""
+        if provider not in {"codex", "claude"}:
+            raise ChatError("Choose a saved source conversation for tool access.")
+        session_id = identifier(session_id)
+        data, now = self._load(), self._now()
+        result = []
+        for grant_id, grant in data["grants"].items():
+            if grant["provider"] != provider or grant["session_id"] != session_id:
+                continue
+            state = ("removed" if grant["revoked"] else "expired" if now >= grant["expires_at"]
+                     else "clock_uncertain" if now < grant["created_at"] else "active")
+            records = []
+            for record_id, record in data["records"].items():
+                if record["grant_id"] != grant_id:
+                    continue
+                snapshot = record["payload"]["evidence"].get("snapshot_at")
+                records.append({"record_id": record_id, "published_at": record["published_at"],
+                    "state": "removed" if record["revoked"] else "available" if state == "active" else state,
+                    "summary": record["payload"]["note"].replace("\n", " ")[:100],
+                    "published_age_seconds": max(0, now - record["published_at"]) if now >= record["published_at"] else None,
+                    "snapshot_age_seconds": now - snapshot if type(snapshot) in (int, float) and 0 <= snapshot <= now else None})
+            result.append({"grant_id": grant_id, "created_at": grant["created_at"],
+                           "expires_at": grant["expires_at"], "state": state,
+                           "integration": "unverified", "records": records})
+        return sorted(result, key=lambda item: (item["created_at"], item["grant_id"]), reverse=True)
+
+    def private_setup(self, grant_id):
+        """Explicit owner view of the launch secret; never called by MCP tools."""
+        grant_id = identifier(grant_id)
+        data = self._load()
+        self._active(data, grant_id)
+        path = self.storage / "tool-access" / (grant_id + ".json")
+        self._safe(path)
+        try:
+            with path.open("rb") as stream:
+                raw = stream.read(16_001)
+            if len(raw) > 16_000:
+                raise ValueError
+            descriptor = json.loads(raw, object_pairs_hook=unique_object)
+            token = descriptor["env"]["WOW_HELPER_TOOL_TOKEN"]
+            self._authorized(data, grant_id, token)
+            if descriptor != self._launch_descriptor(grant_id, token):
+                raise ValueError
+            return descriptor
+        except (OSError, ValueError, KeyError, TypeError, UnicodeError, RecursionError):
+            raise ChatError("The private setup file is unavailable or does not match this checkout and grant.") from None
 
     def revoke(self, grant_id, record_id=None):
         grant_id = identifier(grant_id)

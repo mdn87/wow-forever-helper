@@ -66,7 +66,7 @@ The quest companion's parser, advice order, and CLI are tested against synthetic
 
 **Build tutor and experiments** imports a bounded Retail SimulationCraft profile or manual build notes, previews a discussion, and saves comparison questions with evidence in Journal. See [build tutoring](docs/CHAT.md#build-tutor-and-experiment-notebook).
 
-**Published evidence tools (experimental)** provides CLI management of frozen Journal publications, expiring conversation grants, access removal, and local MCP stdio list/read tools. Authorization behavior and Codex/Claude setup remain unverified; no provider connection is configured automatically. See [publication tooling and its limits](docs/PUBLISHED_TOOLS.md).
+**Published evidence tools (experimental)** provides **Journal → Resume session → Tool access…** and CLI management of frozen Journal publications, expiring conversation grants, access removal, private setup, and local MCP stdio list/read tools. UI behavior, authorization, and Codex/Claude setup remain unverified; no provider connection is configured automatically. See [publication tooling and its limits](docs/PUBLISHED_TOOLS.md).
 
 **Search companion** opens with **Ctrl+K** inside a companion window. Find saved notes and next steps, known quests and conversations, layouts, and settings without sending requests.
 

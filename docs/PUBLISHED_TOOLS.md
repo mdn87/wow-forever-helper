@@ -1,12 +1,26 @@
 # Explicit publications for local agent tools
 
-F18 has a local publication store, management commands, and an MCP stdio server. They expose explicitly selected, frozen Journal evidence through opaque record IDs. Tests were skipped at the operator's request. Authorization behavior, protocol interoperability, provider setup, and actual provider conversation binding remain unverified. This is experimental tooling; it does not complete F18 or establish Codex/Claude integration support.
+F18 has a Journal management screen, local publication store, management commands, and an MCP stdio server. They expose explicitly selected, frozen Journal evidence through opaque record IDs. Tests were skipped at the operator's request. UI behavior, authorization, protocol interoperability, provider setup, and actual provider conversation binding remain unverified. This is experimental tooling; it does not complete F18 or establish Codex/Claude integration support.
 
 ## Select what a conversation may read
 
 Save the reviewed evidence in Journal with its original conversation first. The initial record shape is `reviewed_journal_evidence`, using the existing bounded Journal metadata and evidence used by the addon troubleshooting and build notebooks. Publication copies the selected note and its evidence. It omits local image references and records that omission as a gap. It does not fetch an image, read a new game snapshot, inspect an addon, open provider transcripts, or update the saved evidence.
 
-Management currently uses the CLI; there is no publication-management dialog. Journal and note UUIDs are in the private saved Journal files under `.runtime/chat/journals/`. The source conversation UUID must match the saved note's source. These are local identifiers; keep native conversation IDs and private state out of issues and commits. The placeholders below must be replaced locally.
+## Journal controls
+
+Open Journal's **Resume session**, select a saved note, then choose **Tool access…**. The screen stays bound to that note and its original conversation while other Journal or chat selections change. A note without a saved source conversation cannot open this workflow. An unpublishable note can still open access management for its known source, so existing grants can be removed.
+
+- **Review** shows the exact frozen note, text evidence, and gaps to publish. **Review saved note** rereads only that bound note. Publishing compares the current saved selection with the review and refuses a change until it is reviewed again. A changed source conversation requires closing and reopening the screen.
+- **Access** lists grants for the original conversation, including their expiry and removal state. Choose a one-hour, 24-hour, or seven-day lifetime and press **New grant** to create access without publishing data. Select an active grant and explicitly press **Publish note** after review. The record list shows frozen-note summaries, publication times, and available snapshot ages. **Remove record** and **Remove grant** remove future access while keeping retained snapshots and Journal notes.
+- **Private setup** initially hides the launch descriptor. **Show private setup** displays it locally only after checking the selected grant and descriptor. **Copy setup** rechecks both before placing credentials and paths on the system clipboard. These controls do not configure a provider or send requests.
+
+Opening the screen, switching grants, and refreshing the list publish nothing. Local access state refreshes every five seconds. Grant expiry or removal, changed setup, or unreadable state clears any setup shown in the screen and disables unavailable operations. The backend checks access again when a button is pressed. Closing the screen clears its displayed setup and cancels its refresh callback. Clipboard copies and data already retained by a provider cannot be erased by closing the screen or removing access.
+
+The screen uses the existing Journal window styling, a 480 × 600 minimum size, and separate tabs for review, access, and private setup. Theme layout, enlarged text, keyboard use, repeated open/close, publication failure handling, and authorization behavior have not been exercised. No interaction or visual acceptance is claimed.
+
+## CLI management
+
+The same operations remain available through the CLI. Journal and note UUIDs are in the private saved Journal files under `.runtime/chat/journals/`. The source conversation UUID must match the saved note's source. These are local identifiers; keep native conversation IDs and private state out of issues and commits. The placeholders below must be replaced locally.
 
 Create a conversation grant:
 
@@ -65,4 +79,4 @@ Publication state is bounded to 4,000,000 bytes, 32 retained grants, 128 retaine
 
 ## What remains
 
-No real grants, publications, or provider requests were created during implementation. Syntax compilation and static diff/leak inspection are distinct from runtime acceptance. Meaningful authorization/data-isolation checks and separate Codex/Claude setup and capability qualification remain required before claiming support. A user-facing management dialog also remains outside this CLI increment. Prepared evidence files and the existing explicit send workflow remain available.
+No real grants, publications, or provider requests were created during implementation. Syntax compilation and static diff/leak inspection are distinct from runtime acceptance. Journal management is implemented with UI behavior unverified. Meaningful authorization/data-isolation checks and separate Codex/Claude setup and capability qualification remain required before claiming support. Prepared evidence files and the existing explicit send workflow remain available.
