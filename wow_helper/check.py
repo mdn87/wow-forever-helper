@@ -7,11 +7,14 @@ issue or a commit message as evidence of what a game client confirmed.
 
 import re
 
+from .character import zeroed_unload_reads
 from .quests import SCHEMA, STALE_AFTER, VARIABLE, _age, _int, _str
 from .savedvars import SavedVariablesError, as_list
 from .wtf import ADDON_SOURCE
 
-ADDON_VERSION = "0.4.0"  # the first addon version that saves client build info and API sources
+# The addon version this helper ships. 0.4.0 was the first to save client build info and API sources; 0.4.1 keeps
+# earlier money and experience when the client reads them as zero while the UI unloads.
+ADDON_VERSION = "0.4.1"
 TOC = ADDON_SOURCE / "WoWCompanion.toc"
 CONFIRMED, MISSING, MISMATCH = "confirmed", "missing", "mismatch"
 
@@ -106,13 +109,26 @@ def report(parsed, mtime, *, flavor=None, now, interfaces=None):
         check("available_quests", MISSING, "this client offers no C_QuestLine map listing")
 
     status = db.get("character") if isinstance(db.get("character"), dict) else None
-    if status and _int(status.get("money")) is not None:
+    if zeroed_unload_reads(db):
+        check("character_status", MISSING, "money and experience read zero together, which this client does at logout or "
+                                           "reload; run install-addon for the current addon and /reload")
+    elif db.get("zeroedReads") is True and db.get("keptEarlier") is False:
+        check("character_status", MISSING, "money and experience were not available at the last save; play for a minute, "
+                                           "then /reload")
+    elif status and _int(status.get("money")) is not None:
         bags = status.get("bags") if isinstance(status.get("bags"), dict) else {}
         gear = len([g for g in as_list(status.get("gear")) if isinstance(g, dict)])
         bag_note = f"{_int(bags.get('free'))} of {_int(bags.get('total'))} bag slots free" if bags else "no bag counts"
         check("character_status", CONFIRMED, f"money, {gear} gear slots, {bag_note}")
     else:
         check("character_status", MISSING, "no character status; needs addon 0.3.0 or newer")
+    if _str(db.get("trigger")) == "unload":
+        if db.get("zeroedReads") is True:
+            outcome = ("the addon kept the earlier values" if db.get("keptEarlier") is True
+                       else "the addon had no earlier values and left them unknown")
+            check("unload_reads", MISMATCH, f"the client read zero money and experience while the addon saved at unload; {outcome}")
+        else:
+            check("unload_reads", CONFIRMED, "money and experience read normally while the addon saved at unload")
     player = db.get("player") if isinstance(db.get("player"), dict) else {}
     if _int(player.get("level")) and _str(player.get("class")):
         check("player", CONFIRMED, f"level {_int(player.get('level'))} {_str(player.get('class')).lower()}")

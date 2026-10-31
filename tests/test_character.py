@@ -72,3 +72,45 @@ def test_character_cli(tmp_path, monkeypatch, capsys):
     assert json.loads(out)["gold"] == "12g 34s 56c" and str(tmp_path) not in out
     assert cli.main(["character", "--file", str(FIXTURE), "--text"]) == 0
     assert capsys.readouterr().out.startswith("Character status from")
+
+
+UNLOAD_ZERO = ('WoWCompanionDB = { %s["player"] = { ["level"] = 12, ["xp"] = 0, ["xpMax"] = 0 }, '
+               '["character"] = { ["money"] = 0, ["rested"] = 0, ["bags"] = { ["free"] = 12, ["total"] = 40 } } }')
+UNLOAD_WARNING = ("Money and experience read zero while the game saved, which this client does at logout or reload, "
+                  "so they are not shown. Run install-addon for the current addon, then /reload.")
+
+
+def test_money_and_experience_that_read_zero_together_are_unknown():
+    status = character.report(parse(UNLOAD_ZERO % ""), 1000, now=1000)
+    assert status["copper"] is None and status["gold"] is None and status["rested_percent_of_level"] is None
+    assert status["bags"] == {"free": 12, "total": 40}
+    assert status["warnings"] == [UNLOAD_WARNING]
+    lines = character.as_text(status).splitlines()
+    assert "gold" not in lines[0] and lines[1:] == [UNLOAD_WARNING]
+
+
+def test_a_real_empty_wallet_is_still_reported():
+    parsed = parse('WoWCompanionDB = { ["player"] = { ["xp"] = 120, ["xpMax"] = 8800 }, ["character"] = { ["money"] = 0 } }')
+    status = character.report(parsed, 1000, now=1000)
+    assert status["gold"] == "0c" and status["warnings"] == []
+
+
+def test_a_save_made_during_play_is_trusted_even_when_all_three_read_zero():
+    status = character.report(parse(UNLOAD_ZERO % '["trigger"] = "event", '), 1000, now=1000)
+    assert status["gold"] == "0c" and status["warnings"] == []
+
+
+def test_values_the_addon_kept_through_an_unload_read_normally():
+    parsed = parse('WoWCompanionDB = { ["trigger"] = "unload", ["zeroedReads"] = true, ["keptEarlier"] = true, '
+                   '["player"] = { ["xp"] = 3400, ["xpMax"] = 8800 }, ["character"] = { ["money"] = 123456, ["rested"] = 4400 } }')
+    status = character.report(parsed, 1000, now=1000)
+    assert status["gold"] == "12g 34s 56c" and status["rested_percent_of_level"] == 50 and status["warnings"] == []
+
+
+def test_values_the_addon_could_not_keep_are_called_unknown():
+    parsed = parse('WoWCompanionDB = { ["trigger"] = "unload", ["zeroedReads"] = true, ["keptEarlier"] = false, '
+                   '["player"] = { ["level"] = 12 }, ["character"] = { ["bags"] = { ["free"] = 3, ["total"] = 40 } } }')
+    status = character.report(parsed, 1000, now=1000)
+    assert status["gold"] is None
+    assert status["warnings"] == ["Money and experience were not available when the game last saved. "
+                                  "Play for a minute, then /reload."]
