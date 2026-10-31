@@ -1,6 +1,6 @@
 # Companion upgrade implementation plan
 
-Status: F01–F08, F12, F13, F16, and F17 delivered within the scopes recorded below. Updated: 2026-10-29. Original baseline: `c5fa294`.
+Status: F01–F08, F12, F13, F16, and F17 delivered within the scopes recorded below. F10, F11, and the manual F15 workflow are implemented, but their acceptance remains unverified because testing was skipped at the operator's request. Updated: 2026-10-31. Original baseline: `c5fa294`.
 
 This is the build sequence for the ideas in [Future upgrades](FUTURE_UPGRADES.md), incorporating the checked [Fable review](FUTURE_UPGRADES_REVIEW.md). It supersedes the competing priority lists in that research document. All ten addon ideas and the earlier interface ideas are retained. Current behavior remains documented in [Chat](CHAT.md), [Quests](QUESTS.md), and [Assistive input](ASSISTIVE_INPUT.md).
 
@@ -20,13 +20,13 @@ The product outcome is a continuing conversation that can use selected game evid
 | [F06](#f06-quest-chains-and-prerequisites) | Research one selected chain and continue discussing it in Quest chat. | F01 | Addon 1: BtWQuests | Delivered: selected-chain research, not an addon database |
 | [F07](#f07-explainable-gear-comparisons) | Compare visible item tooltips on an explicit player request, without reload. | F01; live capture and extraction proof | Addon 2: Pawn; Raidbots comparison pattern | Delivered: approved region, explicit shortcut, validated deltas and Journal; verification limits below |
 | [F08](#f08-addon-troubleshooting) | Review an error import and keep diagnosis and retries in one conversation. | F01; builds the shared import layer | Addon 6: BugSack | Delivered: pasted or imported error text; no automatic addon discovery |
-| [F09](#f09-session-economy-analysis) | Import a supported Journalator CSV and discuss deterministic totals. | F08 import layer, F01 | Addon 7: Journalator | Queued; export schema unverified |
-| [F10](#f10-screenshot-markup) | Crop, annotate, and mask a selected image before sending it. | Existing Screen adviser | Screenshot markup | Queued |
-| [F11](#f11-session-bookmarks) | Save a manual timestamped note with optional reviewed image and context. | F01; F10 for edited images | Session bookmarks | Queued |
+| [F09](#f09-session-economy-analysis) | Import a supported Journalator CSV and discuss deterministic totals. | F08 import layer, F01 | Addon 7: Journalator | Not implemented; author source exports the selected view but publishes no stable CSV version or column contract |
+| [F10](#f10-screenshot-markup) | Crop, annotate, and mask a selected image before sending it. | Existing Screen adviser | Screenshot markup | Implemented; acceptance unverified |
+| [F11](#f11-session-bookmarks) | Save a manual timestamped note with optional reviewed image and context. | F01; F10 for edited images | Session bookmarks | Implemented; acceptance unverified |
 | [F12](#f12-activity-list) | Collect request outcomes and open the relevant conversation. | Existing response tracking | Activity list | Delivered: quiet outcomes, persistent manual state, reviewed retries |
 | [F13](#f13-search-and-command-menu) | Find saved content and companion actions with Ctrl+K. | F01; expands with future F04/F12 records | Search and command menu | Delivered |
-| [F14](#f14-inventory-preparation) | Export bag contents and explain supplies or changes between selected snapshots. | F08 evidence/import conventions; addon field validation | Addon 3: Baganator | Queued; client fields unverified |
-| [F15](#f15-post-fight-coaching) | Review one supported encounter summary and compare a later attempt. | F08 import layer, F01 | Addon 8: Details! | Queued; transport and fields unverified |
+| [F14](#f14-inventory-preparation) | Export bag contents and explain supplies or changes between selected snapshots. | F08 evidence/import conventions; addon field validation | Addon 3: Baganator | Queued; item-ID and stack-count fields have not been confirmed on the selected client |
+| [F15](#f15-post-fight-coaching) | Review one supported encounter summary and compare a later attempt. | F08 import layer, F01 | Addon 8: Details! | Manual notes and same-session comparison implemented; Details adapter unverified |
 | [F16](#f16-build-tutor-and-experiment-notebook) | Explain a supported character profile and an optional existing simulation report. | Bounded profile import; full F07 inspection remains separate | Addon 9: SimulationCraft | Delivered: Retail static subset and manual notes; simulation accuracy unverified |
 | [F17](#f17-dungeon-route-walkthrough) | Discuss a selected route; decode supported route strings only after validation. | F01; existing bounded image import | Addon 10: Mythic Dungeon Tools | Delivered: manual image/text discussion; MDT decoder unsupported |
 | [F18](#f18-local-read-only-agent-tools) | Let a configured agent read only context published to its conversation. | Stable records from F08 and at least one importer | Optional addon-to-agent tool interface | Later extension |
@@ -166,19 +166,21 @@ Validate all metadata and count it toward the existing two-megabyte journal limi
 
 **Build:** first verify a documented export version and its columns against author-maintained source; record supported schema/edition in the adapter. Add explicit byte, row, field-length, and date-range bounds in that implementation. Calculate integer-copper totals on the desktop and expose a bounded summary plus selected rows. Require an explicit profile association for cross-session comparisons.
 
+**Schema finding (2026-10-31):** the [author's export handler](https://github.com/TheMouseNest/Journalator/blob/main/Journalator_Display/Source/Display/Main.lua#L1169-L1181) calls `GetCSV` on whichever data-provider view is selected. The source tree does not publish a CSV version or a stable column contract, and the view-specific providers are not self-describing in that export handler. No Journalator CSV is treated as supported until its exact view schema can be established.
+
 **Accept:** synthetic exports cover quoting, encoding, unknown columns/categories, invalid amounts/dates, duplicate and overlapping imports, transfers, refunds, missing periods, and conflicting identities. Show unresolved categories and coverage; do not silently drop rows or double-count overlapping data. Distinguish net cash movement from profit and omit per-hour claims without duration evidence. Treat unsupported CSV formats as unavailable, not zero activity.
 
 ## F10. Screenshot markup
 
-**Deliver:** crop, magnify, add an arrow, or mask selected regions before asking Screen adviser a question. Preview the exact derived image that will be sent.
+**Deliver:** crop, magnify, add an arrow, or mask selected regions before asking Screen adviser a question. Preview the exact derived image that will be sent. The editor keeps the source, edits pixels locally, and saves a metadata-free derivative under a new name.
 
 **Build:** extend `screen_capture.py` and the screen task panel using the existing image dependencies. Keep the original separate from the derived image, strip metadata, flatten solid privacy masks into pixels, and bind the prepared request to that specific result. Retain the existing single-window capture boundary.
 
-**Accept:** resize/crop coordinates and undo are correct; masked pixels cannot reappear through scaling or metadata; limits, cancel, missing files, and save failures preserve the original. Editing or restoring an image sends no request. Tests use synthetic images only.
+**Accept:** resize/crop coordinates and undo are correct; masked pixels cannot reappear through scaling or metadata; limits, cancel, missing files, and save failures preserve the original. Editing or restoring an image sends no request. Tests use synthetic images only. **Current implementation note:** the magnify tool creates an inset; the editor requires those insets to be undone before masking so a duplicate cannot retain unmasked pixels. Behavioral acceptance was not checked in this turn.
 
 ## F11. Session bookmarks
 
-**Deliver:** Bookmark this moment saves a manual timestamp and note with optional selected evidence or image. Reopen it in Journal and explicitly ask the original or chosen conversation about it.
+**Deliver:** **Menu → Bookmark this moment…** saves a manual note with optional selected conversation reference, context, and reviewed image. Reopen it in Journal and explicitly ask the original or chosen conversation about it.
 
 **Build:** add bookmark records linked through F01 references. Request a screenshot only when explicitly selected, and show its preview before saving or sending. Keep event time, image capture time, and any manual time correction distinct.
 
@@ -214,7 +216,7 @@ Validate all metadata and count it toward the existing two-megabyte journal limi
 
 **Deliver:** select one encounter, ask the agent to explain supported observations and agree on one improvement, then compare a later user-selected attempt.
 
-**Build:** investigate Details' supported export path and selected-client fields before choosing an adapter. Prefer the smallest bounded summary that answers the question. If only screenshots and typed summaries are available, label that delivered workflow separately and leave the structured adapter unverified. Reuse F08 normalization and identity controls; preserve encounter coverage and timestamps.
+**Build:** investigate Details' supported export path and selected-client fields before choosing an adapter. Prefer the smallest bounded summary that answers the question. **Manual fallback implemented:** the Post-fight coaching notebook accepts player-written notes and an optional selected image, saves the first attempt, then compares a later attempt only in the same conversation. It does not parse Details exports or combat logs. The structured adapter remains unverified. Reuse F08 normalization and identity controls; preserve encounter coverage and timestamps.
 
 **Accept:** partial or unsupported fields, duplicate encounters, actor replacements, version differences, and failed imports are explicit. Every coaching claim cites the available evidence; aggregate totals cannot establish an exact cause of death. No live combat control, automatic diagnosis loop, or game input is added.
 
@@ -287,6 +289,9 @@ F01–F08, F12, F13, F16, and F17 are delivered. Other ideas remain parked until
 | F06 | `f74dd17`. Selected-chain research, sourced relationships, snapshot observations, and explicit Quest chat updates. | Windows: 410 passed, 2 existing skips. Both themes inspected at 440 × 480. Live synthetic chain schema passed for Codex and Claude. | Actual quest-chain accuracy needs edition-specific evidence; no addon database is bundled. |
 | F07 | Reviewed tooltip region and destination, explicit Shift-compatible Ctrl+Alt+F9, fresh window capture, validated item facts, calculated differences, separate explanation and reviewed Journal saving. | Windows: 594 passed, 2 existing skips. Fresh Retail capture took 3.18 seconds; operator confirmed returning to chat manually. Native Codex and Claude synthetic image extraction and explanation passed. Both themes inspected on an isolated desktop. | Full player-operated flow remains unverified. Voice stays draft-only; no overall upgrade percentage or simulation accuracy is claimed. |
 | F08 | `c545ca8`. Shared bounded text import module, Addon troubleshooting notebook with locals omission and identity replacement, single reviewed send, Journal evidence, retry review bound to the original conversation, and a bundled skill. | Windows: 480 passed, 2 existing skips. Both themes inspected at 440 × 480. Synthetic Codex and Claude selections only; no live provider request. | Real BugSack exports and addon-specific diagnosis quality are unverified. No automatic addon discovery or game-side exporter. |
+| F10 | Local crop, arrow, magnify, and solid pixel-mask editor for the selected Screen adviser image; saves a new metadata-free PNG and does not send automatically. | Tests and visual inspection skipped at the operator's request. | Behavior, undo coordinates, theme layout, and save failures remain unverified. A magnified inset must be undone before masking. |
+| F11 | Manual Journal bookmark with optional conversation reference, frozen selected context, reviewed image, separate image-capture time, and manual correction. | Tests and visual inspection skipped at the operator's request. | Note-only, restart, missing-source, and follow-up behavior remain unverified. Image references remain local; follow-up requests are text-only. |
+| F15 | Manual post-fight coaching notebook with typed attempt notes, optional selected image, Journal saving, and later-attempt comparison bound to the first conversation. | Tests and visual inspection skipped at the operator's request. No Details export or combat-log adapter was checked. | Structured encounter fields, export transport, encounter coverage, actor identity, and mechanics remain unverified. |
 
 Add one row as each feature begins; keep the build-sequence state in sync. A feature is complete only when its selected deliverable and acceptance checks are satisfied, with any broader integration limitation stated explicitly.
 

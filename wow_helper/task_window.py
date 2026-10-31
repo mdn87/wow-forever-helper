@@ -65,6 +65,8 @@ class TaskWindow(ChatWindow):
         self.pending_note = (pending if isinstance(pending, dict) and self._valid_id(pending.get("id"))
                              and isinstance(pending.get("body"), str) and isinstance(pending.get("name"), str) else None)
         self._setup_dialog = self._request_dialog = None
+        self._markup_dialog = None
+        self._bookmark_dialog = None
         self._preview_image = None
         self._source_image = None
         self._image_after = None
@@ -105,8 +107,11 @@ class TaskWindow(ChatWindow):
         self.actions_menu.add_command(label="Build tutor and experiments…", command=self.show_build_tutor)
         self.actions_menu.add_command(label="Dungeon route walkthrough…", command=self.show_route_notebook)
         self.actions_menu.add_command(label="Addon troubleshooting…", command=self.show_addon_troubleshooting)
+        self.actions_menu.add_command(label="Post-fight coaching…", command=self.show_combat_coaching)
         self.actions_menu.add_command(label="Goals and wishlist…", command=self.show_goals)
         self.actions_menu.add_command(label="Live gear comparison…", command=self.show_live_gear)
+        self.actions_menu.add_command(label="Edit reviewed image…", command=self.edit_image)
+        self.actions_menu.add_command(label="Bookmark this moment…", command=self.bookmark_moment)
         if self.book is not None:
             self._build_panel(raw)
             if kind == "quests":
@@ -142,6 +147,7 @@ class TaskWindow(ChatWindow):
             self.capture_button = self._button(actions, "Capture WoW", self.capture)
             self.import_button = self._button(actions, "Open image", self.open_image)
             self.paste_button = self._button(actions, "Paste", self.paste_image)
+            self.markup_button = self._button(actions, "Edit image", self.edit_image)
         else:
             self.report_button = self._button(actions, "Refresh", self.refresh_panel)
         if self.kind == "character":
@@ -559,7 +565,7 @@ class TaskWindow(ChatWindow):
                 return datetime.fromisoformat(raw).astimezone().strftime("%b %d, %H:%M")
             except ValueError:
                 return "Saved note"
-        replace_text(self.report_text, "\n\n".join(date(e["at"]) + "\n" + (note_summary(e) if e.get('goal') else e['text']) for e in data["entries"])
+        replace_text(self.report_text, "\n\n".join(date(e["at"]) + "\n" + (note_summary(e) if e.get('goal') or e.get('bookmark') else e['text']) for e in data["entries"])
                      or "Add your first note below. Notes remain on this machine when this window closes.")
         self.report_text.see("end")
         self.activity_notice.set(f"{len(data['entries'])} notes · Saved locally · Ask agent prepares a summary request.")
@@ -625,6 +631,16 @@ class TaskWindow(ChatWindow):
             self.book.select(self.panel)
         else:
             self.status.set("There is no agent reply to copy yet.")
+
+    def bookmark_moment(self):
+        if self._bookmark_dialog:
+            self._bookmark_dialog.root.lift()
+            return
+        from .journal_ui import BookmarkDialog
+        try:
+            self._bookmark_dialog = BookmarkDialog(self)
+        except ChatError as error:
+            self.activity_notice.set(str(error))
 
     def pin_quest_step(self):
         from .pinned_advice import PinAdviceDialog
@@ -709,6 +725,19 @@ class TaskWindow(ChatWindow):
     def paste_image(self):
         from .screen_capture import paste_image
         self._submit("activity", lambda: paste_image(self.activity.storage), on_result=self._image_result)
+
+    def edit_image(self):
+        if not self.image_name:
+            self.activity_notice.set("Capture, paste, or open an image before editing.")
+            return
+        if self._markup_dialog:
+            self._markup_dialog.root.lift()
+            return
+        from .image_markup import ImageMarkupDialog
+        try:
+            self._markup_dialog = ImageMarkupDialog(self)
+        except ChatError as error:
+            self.activity_notice.set(str(error))
 
     def _image_result(self, result, error):
         if error:
@@ -877,6 +906,14 @@ class TaskWindow(ChatWindow):
         else:
             self._notebooks['addon'] = AddonNotebook(self)
 
+    def show_combat_coaching(self):
+        self.record_usage("combat", "open")
+        from .combat_coach import CombatNotebook
+        if 'combat' in self._notebooks:
+            self._notebooks['combat'].root.lift()
+        else:
+            self._notebooks['combat'] = CombatNotebook(self)
+
     def show_quest_chain(self):
         from .chain_ui import ChainDialog
         if self._chain_dialog:
@@ -913,7 +950,8 @@ class TaskWindow(ChatWindow):
             view.close()
         if hasattr(self, "quest_tree"):
             self.quest_tree.close()
-        for dialog in (self._setup_dialog, self._request_dialog, self._resume_dialog):
+        for dialog in (self._setup_dialog, self._request_dialog, self._resume_dialog,
+                       self._bookmark_dialog, self._markup_dialog):
             if dialog is not None:
                 dialog.close()
         self._preview_image = None
