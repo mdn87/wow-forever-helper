@@ -1,6 +1,6 @@
 # Recording-log foundation
 
-F19 has an internal Python log store and lifecycle controller. There is no recording UI, native capture scheduler, NVIDIA directory observer, video alignment, transcription, or agent analysis in this increment. Runtime behavior and crash recovery remain unverified: tests and live measurements were skipped at the operator's request.
+F19 has an internal Python log store and lifecycle controller, plus an explicit recording-observation CLI. Recording UI, native capture scheduling, video alignment, transcription, and agent analysis remain unfinished. Runtime behavior and crash recovery remain unverified: tests and live measurements were skipped at the operator's request.
 
 ## Ownership and lifecycle
 
@@ -49,4 +49,24 @@ Use `RecordingController.create(policy=...)` for a fresh ready log or `Recording
 
 The controller accepts injected wall and monotonic clocks; the store accepts an injected free-space reader. A future synthetic capture adapter can submit explicit sample bytes through tickets. No fake capture runner, runtime acceptance results, real recording-growth measurements, or finalization measurements are claimed in this increment.
 
-The next F19 work is the planned measurement of external output growth and finalization, followed by app-level ownership, a real single-window capture worker, explicit controls, and stop/reserve checks. Video links and optional analysis follow in separate stages.
+## Recording-observation command
+
+The next measurement tool is implemented as a foreground CLI. Choose a local recording directory explicitly:
+
+```console
+python -m wow_helper recording-observe --directory "RECORDING_DIRECTORY" --seconds 120
+```
+
+The command polls only directory entries and file metadata by default. It observes `.mp4`, `.mov`, and `.mkv` files without recursion, file writes, hashes, or recorder controls. It outputs one JSON report to stdout and saves no source paths, names, or file contents. Each file receives a temporary alias such as `recording-001`; aliases reset for each invocation. Ctrl+C stops observation and returns the partial report when available. It does not change foreground windows or game input.
+
+The report records initial and final byte counts, positive observed growth, maximum growth rate between polls, first/last observation times, metadata changes, transitions, and source-volume free space. Probe history retains each bounded attempt's alias, elapsed time, size, and result, even if the file later grows again. Polling can miss intermediate changes and brief files. File identity depends on filesystem metadata and can be uncertain. Rates are observations over sampled intervals, not a configured recorder bitrate or a promise about future writes. `growing` means a positive size change was observed; `quiescent_candidate` means no sampled size or modification-time change occurred during the chosen quiet period. Neither is an authoritative recording or finalization state.
+
+Bounds are explicit: 1–3,600 seconds per invocation, 1–60 seconds between scans (default 2), at most 2,048 directory entries per scan, 64 distinct observed files, and 256 retained transition events. Additional events are counted as dropped while file summaries continue. Directory or file limits stop the run with a partial report. Unreadable file entries are counted. Symlink entries are skipped, and a detected directory replacement stops observation. Windows UNC source directories are refused. Local filesystem calls can still delay a poll; this is not an isolated capture worker.
+
+Add `--probe-format` to permit an optional installed `ffprobe` to inspect format/stream metadata after quiescence. `--quiet-seconds` defaults to 10 and must span at least two polling intervals, with a maximum of 300 seconds. This uses [ffprobe's selected metadata fields and interval options](https://ffmpeg.org/ffprobe.html#Main-options), with [allowed demuxers](https://ffmpeg.org/ffmpeg-formats.html#Format-Options) restricted to MOV/MP4 and Matroska. Network protocols are excluded, stream count is bounded, and no frames or raw metadata tags are exported. The tool installs no dependency automatically.
+
+Each format probe has at most three seconds of execution time, 32,000 bytes of captured output, and bounded termination waits. There are at most eight attempts per invocation, with at most one attempt for an unchanged file signature. Probes run without console windows on Windows. Before/after file metadata must agree before a result is accepted. Timeouts, missing tools, unreadable formats, changed files, and output limits produce fixed statuses without raw tool errors. If a probe worker fails to exit after termination, observation stops instead of starting another probe.
+
+A `metadata_readable` result exposes only a numeric duration, when available, and whether a video stream was reported. It always retains `finalization: unverified`. An unchanged size, a readable duration, or a successful format probe cannot establish complete playback or accurate alignment. A file can resume writing after a quiet period. This command does not repair or remux files and does not treat a failed probe as an empty or finished recording.
+
+The command and optional probe have not been run against synthetic or real recordings in this increment. Actual output-growth and finalization observations remain outstanding. Those measurements precede app-level capture ownership, explicit controls, and a native worker; video links and optional analysis follow later.

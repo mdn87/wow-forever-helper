@@ -68,7 +68,28 @@ def main(argv=None):
     probe.add_argument("--show", action="store_true", help="Include the cleaned packet content in the report")
     probe.add_argument("--no-state", action="store_true", help="Do not remember the last packet, so every run is treated as the first")
     probe.add_argument("--text", action="store_true", help="Print readable lines instead of JSON")
+    recording = commands.add_parser("recording-observe", help="Measure a selected recording directory; output omits names and paths")
+    recording.add_argument("--directory", required=True, help="Local source directory to observe without modifying files")
+    recording.add_argument("--seconds", type=int, default=60, help="Observation duration, 1 to 3600 seconds")
+    recording.add_argument("--interval", type=int, default=2, help="Metadata polling interval, 1 to 60 seconds")
+    recording.add_argument("--quiet-seconds", type=int, default=10, help="Quiet period before an optional format probe, at least two intervals")
+    recording.add_argument("--probe-format", action="store_true", help="Allow bounded ffprobe metadata reads after quiescence; finalization remains unverified")
     args = parser.parse_args(argv)
+    if args.command == "recording-observe":
+        from .recording_observer import observe
+        from .chat import ChatError
+        try:
+            result = observe(args.directory, seconds=args.seconds, interval=args.interval,
+                             quiet_seconds=args.quiet_seconds, probe=args.probe_format)
+            print(json.dumps(result, allow_nan=False))
+            return 0 if result["finished_reason"] in {"duration_complete", "user_stopped"} else 3
+        except KeyboardInterrupt:
+            print(json.dumps({"status": "stopped", "message": "Recording observation stopped before a report was available."}))
+            return 130
+        except (ChatError, OSError) as error:
+            print(json.dumps({"status": "error", "message": str(error) if isinstance(error, ChatError)
+                              else "Recording metadata is unavailable. Source files were kept."}))
+            return 2
     if args.command == "usage-study":
         from .usage_study import UsageStudy
         from .chat import ChatError
