@@ -32,6 +32,7 @@ ENVELOPE_MAX_BYTES = 8192
 MAX_OBJECTIVES = 8
 MAX_DEPTH = 6
 MAX_INT_CHARS = 12
+SEQ_MAX = 2 ** 31 - 1
 
 CODES = {
     "too-large": "the packet is larger than the size limit",
@@ -69,7 +70,7 @@ class ContextError(Exception):
         return f"{self.code}{where}: {describe(self.code)}"
 
 
-_HEX16 = re.compile(r"[0-9a-f]{16}")
+HEX16 = re.compile(r"[0-9a-f]{16}")
 _CLASS = re.compile(r"[A-Z]{3,16}")
 _VERSION = re.compile(r"[0-9]{1,3}(?:\.[0-9]{1,4}){1,3}")
 _BUILD = re.compile(r"[0-9]{1,9}")
@@ -301,7 +302,7 @@ class _Reader:
         if value is None:
             return None
         data = _object(value, "who", "who")
-        return Who(_formatted(data["ref"], "who.ref", _HEX16, True),
+        return Who(_formatted(data["ref"], "who.ref", HEX16, True),
                    _int(data["level"], "who.level", 1, 100, True),
                    _formatted(data["class"], "who.class", _CLASS, True))
 
@@ -412,8 +413,8 @@ def parse_envelope(payload, *, max_bytes=ENVELOPE_MAX_BYTES):
 
     _object(data, "", "")
     reader = _Reader()
-    sid = _formatted(data["sid"], "sid", _HEX16)
-    seq = _int(data["seq"], "seq", 1, 2 ** 31 - 1)
+    sid = _formatted(data["sid"], "sid", HEX16)
+    seq = _int(data["seq"], "seq", 1, SEQ_MAX)
     at = _int(data["at"], "at", 1_500_000_000, 4_100_000_000)
     build = reader.build(data["build"])
     who = reader.who(data["who"])
