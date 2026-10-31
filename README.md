@@ -76,6 +76,8 @@ The [upgrade implementation plan](docs/UPGRADE_IMPLEMENTATION_PLAN.md) tracks de
 
 Run tests with `python -m pytest -q -p no:cacheprovider`. CI runs on Windows and Linux; neither job sends live keys.
 
+The context-channel probe addon (see [context channel](docs/CONTEXT_CHANNEL.md), unverified on a game client) is tested by running its Lua under Lua 5.1 against an invented game. That needs the optional `lupa` package (`python -m pip install -e ".[chat,addon-tests]"`); without it those tests skip and the rest of the suite is unaffected.
+
 On Windows, UI tests use a separate, non-visible desktop by default, so test
 windows cannot flash over your work or take its keyboard focus. Isolation failure
 stops the UI tests instead of opening windows on your desktop. For deliberate
