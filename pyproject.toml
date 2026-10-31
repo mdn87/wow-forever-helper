@@ -13,6 +13,7 @@ dependencies = []
 [project.optional-dependencies]
 chat = ["websocket-client>=1.8,<2", "Pillow>=11.2.1,<13", "tzdata>=2025.2", "windows-capture==2.0.1; sys_platform == 'win32'"]
 voice = ["sounddevice>=0.5,<0.6", "faster-whisper>=1.2.1,<2"]
+addon-tests = ["lupa>=2.8,<3"]
 
 [project.scripts]
 wow-helper = "wow_helper.__main__:main"
