@@ -17,7 +17,7 @@ def notebook_drafts(raw):
         return {}
     return {k: {f: v for f, v in form.items() if isinstance(f, str) and isinstance(v, str)
                 and len(f) <= 40 and len(v.encode('utf-8', errors='replace')) <= 64_000}
-            for k, form in raw.items() if k in {'build', 'route', 'addon', 'combat', 'economy'} and isinstance(form, dict)
+            for k, form in raw.items() if k in {'build', 'route', 'addon', 'combat', 'economy', 'fight'} and isinstance(form, dict)
             and len(form) <= 20}
 
 
