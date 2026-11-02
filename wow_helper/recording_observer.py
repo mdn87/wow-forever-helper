@@ -185,7 +185,8 @@ class RecordingObserver:
                     if Path(entry.name).suffix.lower() not in MEDIA_SUFFIXES:
                         continue
                     try:
-                        info = entry.stat(follow_symlinks=False)
+                        # DirEntry.stat() zeroes st_dev/st_ino on Windows; identity needs os.stat.
+                        info = os.stat(entry.path, follow_symlinks=False)
                         if entry.is_symlink() or not stat.S_ISREG(info.st_mode):
                             continue
                     except OSError:

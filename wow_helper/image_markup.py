@@ -135,10 +135,11 @@ class ImageMarkupDialog:
         footer = tk.Frame(surface, bg=colors.BACKGROUND, padx=8, pady=7)
         footer.pack(fill="x")
         self.notice = tk.StringVar(master=self.root, value="Select a tool, then drag over the preview. Masked pixels are flattened to solid dark pixels.")
-        tk.Label(footer, textvariable=self.notice, bg=colors.BACKGROUND, fg=colors.MUTED,
-                 anchor="w", justify="left", wraplength=520).pack(side="left", fill="x", expand=True)
+        # Pack the buttons first so the wrapping notice cannot squeeze them at the minimum width.
         ttk.Button(footer, text="Save edited copy", command=self.save).pack(side="right", padx=(8, 0))
         ttk.Button(footer, text="Cancel", command=self.close).pack(side="right")
+        tk.Label(footer, textvariable=self.notice, bg=colors.BACKGROUND, fg=colors.MUTED,
+                 anchor="w", justify="left", wraplength=360).pack(side="left", fill="x", expand=True)
         self.root.deiconify()
         self.chrome.apply_native()
         self.queue_draw()

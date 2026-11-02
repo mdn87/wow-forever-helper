@@ -1,5 +1,6 @@
 """Manual post-fight notes with an explicit, unverified structured-import boundary."""
 
+from copy import deepcopy
 from pathlib import Path
 
 from .activities import FLAVORS
@@ -112,12 +113,16 @@ class CombatNotebook(DiscussionNotebook):
     def remember_first_attempt(self):
         if not self.source:
             return
+        reviewed = self.packet is not None and self.form() == self.reviewed_form
         self.bound_source = {"source_provider": self.source["provider"], "source_session": self.source["session_id"]}
         if self.fields["phase"].get() == "First attempt":
             earlier = self.editors["prior_notes"]
             if not earlier.get("1.0", "end-1c").strip():
                 combat_data = self.packet["reports"]["combat"]["data"]
                 earlier.insert("1.0", combat_data["payload"]["attempt_notes"])
+        if reviewed:
+            # A first-attempt packet excludes the binding and earlier-notes copy, so the same review stays valid.
+            self.reviewed_form = deepcopy(self.form())
         self.changed()
 
     def save(self):

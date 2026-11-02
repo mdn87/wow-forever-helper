@@ -1,0 +1,5 @@
+# Synthetic transaction-style export (unsupported layout), hand-written for tests; no real play data.
+# Lines starting with "# " are stripped by the tests before parsing.
+"Item Name","Count","Unit Price","Total","Source","Time"
+"Example Ore",20,1500,30000,"Testchar-ExampleRealm",1790000000
+"Example Herb",5,800,4000,"Testchar-ExampleRealm",1790000600
