@@ -1318,7 +1318,7 @@ def test_settings_menu_puts_play_actions_first_and_groups_the_rest(manager_facto
     manager = manager_factory()
     window = manager.new_window(kind="quests"); settle(window.view)
     assert menu_labels(window.options_menu) == [
-        "Bookmark this moment…", "Search companion…  Ctrl+K", "-",
+        "Bookmark this moment…", "Ask about the last fight…", "Search companion…  Ctrl+K", "-",
         "Tools", "Conversation", "Windows", "Preferences", "-",
         "Restart companion (load updates)", "Quit companion (stops shortcut)"]
     tools = menu_labels(window.tools_menu)

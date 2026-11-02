@@ -101,6 +101,7 @@ class TaskWindow(ChatWindow):
         super().__init__(chat_root, service, **kwargs)
         menus = self.menus
         menus.top.insert_command(0, label="Bookmark this moment…", command=self.bookmark_moment)
+        menus.top.insert_command(1, label="Ask about the last fight…", command=self.show_fight_question)
         menus.conversation.add_command(label="Prepare opening request…", command=self.prepare_request)
         menus.windows.add_command(label="Window setup…", command=self.show_setup)
         menus.windows.add_command(label="Save window preset…", command=self.save_preset)
@@ -922,6 +923,14 @@ class TaskWindow(ChatWindow):
             self._notebooks['combat'].root.lift()
         else:
             self._notebooks['combat'] = CombatNotebook(self)
+
+    def show_fight_question(self):
+        self.record_usage("fight", "open")
+        from .fight_question import FightQuestion
+        if 'fight' in self._notebooks:
+            self._notebooks['fight'].root.lift()
+        else:
+            self._notebooks['fight'] = FightQuestion(self)
 
     def show_quest_chain(self):
         from .chain_ui import ChainDialog

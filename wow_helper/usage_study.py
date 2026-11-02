@@ -12,7 +12,7 @@ from .window_state import LayoutLock
 
 FEATURES = frozenset({"companion", "chat", "quests", "character", "screen", "journal",
                       "goals", "build", "route", "addon", "chain", "search", "layouts", "pinned",
-                      "activity_history", "research", "combat"})
+                      "activity_history", "research", "combat", "fight"})
 ACTIONS = frozenset({"start", "open", "send", "save", "update", "capture", "received",
                      "completed", "failed", "cancelled", "interrupted", "read", "dismiss", "markup",
                      "restore", "retry"})
