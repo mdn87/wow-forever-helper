@@ -68,7 +68,67 @@ def main(argv=None):
     probe.add_argument("--show", action="store_true", help="Include the cleaned packet content in the report")
     probe.add_argument("--no-state", action="store_true", help="Do not remember the last packet, so every run is treated as the first")
     probe.add_argument("--text", action="store_true", help="Print readable lines instead of JSON")
+    recording = commands.add_parser("recording-observe", help="Measure a selected recording directory; output omits names and paths")
+    recording.add_argument("--directory", required=True, help="Local source directory to observe without modifying files")
+    recording.add_argument("--seconds", type=int, default=60, help="Observation duration, 1 to 3600 seconds")
+    recording.add_argument("--interval", type=int, default=2, help="Metadata polling interval, 1 to 60 seconds")
+    recording.add_argument("--quiet-seconds", type=int, default=10, help="Quiet period before an optional format probe, at least two intervals")
+    recording.add_argument("--probe-format", action="store_true", help="Allow bounded ffprobe metadata reads after quiescence; finalization remains unverified")
+    publications = commands.add_parser("published-tools", help="Manage explicit conversation-scoped Journal publications and the local read-only tool server")
+    publication_actions = publications.add_subparsers(dest="publication_action", required=True)
+    grant = publication_actions.add_parser("create", help="Create a private launch descriptor; provider integration remains unverified")
+    grant.add_argument("--provider", choices=("codex", "claude"), required=True)
+    grant.add_argument("--session-id", required=True, help="The selected source conversation UUID; never printed")
+    grant.add_argument("--hours", type=int, default=24)
+    publish = publication_actions.add_parser("publish", help="Explicitly publish one saved, reviewed Journal evidence selection")
+    publish.add_argument("--grant-id", required=True)
+    publish.add_argument("--journal-id", required=True)
+    publish.add_argument("--note-id", required=True)
+    revoke = publication_actions.add_parser("revoke", help="Remove future tool access; retained notes and publication snapshots are kept")
+    revoke.add_argument("--grant-id", required=True)
+    revoke.add_argument("--record-id", help="Omit to remove the whole grant's access")
+    publication_status = publication_actions.add_parser("status", help="Show publication IDs and access state without source text or credentials")
+    publication_status.add_argument("--grant-id", required=True)
+    publication_server = publication_actions.add_parser("serve", help="Serve a single authenticated grant over MCP stdio")
+    publication_server.add_argument("--grant-id", required=True)
     args = parser.parse_args(argv)
+    if args.command == "published-tools":
+        from .publications import PublicationService
+        from .chat import ChatError
+        if args.publication_action == "serve":
+            from .published_tools import serve
+            return serve(args.grant_id)
+        try:
+            service = PublicationService()
+            if args.publication_action == "create":
+                result = service.create(args.provider, args.session_id, hours=args.hours)
+            elif args.publication_action == "publish":
+                result = service.publish(args.grant_id, args.journal_id, args.note_id)
+            elif args.publication_action == "revoke":
+                result = service.revoke(args.grant_id, args.record_id)
+            else:
+                result = service.status(args.grant_id)
+            print(json.dumps(result, allow_nan=False))
+            return 0
+        except (ChatError, OSError) as error:
+            print(json.dumps({"status": "error", "message": str(error) if isinstance(error, ChatError)
+                              else "Tool publication storage is unavailable. Existing files are kept."}))
+            return 2
+    if args.command == "recording-observe":
+        from .recording_observer import observe
+        from .chat import ChatError
+        try:
+            result = observe(args.directory, seconds=args.seconds, interval=args.interval,
+                             quiet_seconds=args.quiet_seconds, probe=args.probe_format)
+            print(json.dumps(result, allow_nan=False))
+            return 0 if result["finished_reason"] in {"duration_complete", "user_stopped"} else 3
+        except KeyboardInterrupt:
+            print(json.dumps({"status": "stopped", "message": "Recording observation stopped before a report was available."}))
+            return 130
+        except (ChatError, OSError) as error:
+            print(json.dumps({"status": "error", "message": str(error) if isinstance(error, ChatError)
+                              else "Recording metadata is unavailable. Source files were kept."}))
+            return 2
     if args.command == "usage-study":
         from .usage_study import UsageStudy
         from .chat import ChatError

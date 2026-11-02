@@ -169,3 +169,58 @@ def test_commands_disable_interactive_permission_prompts_and_use_fixed_arguments
     assert "Bash" not in " ".join(claude)
     with pytest.raises(ChatError):
         agents.command("unknown")
+
+
+TOOLS = {"command": "synthetic-pythonw", "args": ["-m", "wow_helper", "published-tools", "serve", "--grant-id", uid(5)],
+         "env": {"PYTHONPATH": "synthetic-checkout", "WOW_HELPER_TOOL_TOKEN": "synthetic-token-" + "x" * 32}}
+
+
+def test_published_tools_attach_to_one_invocation_without_the_token_in_arguments(store):
+    claude = agents.command("claude", tools=TOOLS)
+    codex = agents.command("codex", tools=TOOLS)
+    assert not any("synthetic-token" in arg for arg in claude + codex)
+    config = json.loads(claude[claude.index("--mcp-config") + 1])
+    assert config == {"mcpServers": {"wow_journal": {
+        "type": "stdio", "command": "synthetic-pythonw", "args": TOOLS["args"],
+        "env": {"PYTHONPATH": "synthetic-checkout", "WOW_HELPER_TOOL_TOKEN": "${WOW_HELPER_TOOL_TOKEN}"}}}}
+    assert "--strict-mcp-config" in claude
+    assert claude[claude.index("--allowedTools") + 1] == "Read,Glob,Grep,WebSearch,WebFetch,mcp__wow_journal"
+    assert claude[claude.index("--tools") + 1] == "Read,Glob,Grep,WebSearch,WebFetch"
+    overrides = [codex[i + 1] for i, arg in enumerate(codex[:codex.index("exec")]) if arg == "-c"]
+    assert 'mcp_servers.wow_journal.command="synthetic-pythonw"' in overrides
+    assert "mcp_servers.wow_journal.args=" + json.dumps(TOOLS["args"]) in overrides
+    assert 'mcp_servers.wow_journal.env={PYTHONPATH = "synthetic-checkout"}' in overrides
+    assert 'mcp_servers.wow_journal.env_vars=["WOW_HELPER_TOOL_TOKEN"]' in overrides
+    assert "-s" in codex and "read-only" in codex
+
+
+def test_commands_without_published_tools_are_unchanged(store):
+    assert "--mcp-config" not in agents.command("claude")
+    assert not any("mcp_servers" in arg for arg in agents.command("codex"))
+
+
+@pytest.mark.parametrize("provider", ["codex", "claude"])
+def test_turn_passes_an_active_grant_token_only_through_the_environment(tmp_path, monkeypatch, provider):
+    from wow_helper import publications
+    monkeypatch.setattr(agents, "codex_executable", lambda: "synthetic-codex")
+    monkeypatch.setattr(agents, "claude_command", lambda: ["synthetic-claude"])
+    monkeypatch.setattr(publications, "ROOT", tmp_path)
+    chat_state = tmp_path / ".runtime" / "chat"
+    monkeypatch.setattr(agents.subprocess, "Popen", lambda *args, **kwargs: object())
+    store = agents.AgentSessions(chat_state / "agents")
+    session = store.create(provider, startup="Synthetic startup context", creation_id=uid(20))
+    grant = publications.PublicationService(chat_state).create(provider, session.id)["grant_id"]
+    store.send(session, "Synthetic question", uid(21))
+    events = ([{"type": "item.completed", "item": {"type": "agent_message", "text": "Answer"}}] if provider == "codex"
+              else [{"type": "result", "is_error": False, "result": "Answer"}])
+    processes = fake_cli(monkeypatch, events)
+    agents.run_turn(store.storage, session.id, uid(21))
+    token = publications.PublicationService(chat_state).private_setup(grant)["env"]["WOW_HELPER_TOOL_TOKEN"]
+    assert processes[0].kwargs["env"]["WOW_HELPER_TOOL_TOKEN"] == token
+    assert not any(token in arg for arg in processes[0].args) and grant in " ".join(processes[0].args)
+    publications.PublicationService(chat_state).revoke(grant)
+    monkeypatch.setattr(agents.subprocess, "Popen", lambda *args, **kwargs: object())
+    store.send(session, "Second question", uid(22))
+    processes = fake_cli(monkeypatch, events)
+    agents.run_turn(store.storage, session.id, uid(22))
+    assert processes[0].kwargs.get("env") is None and grant not in " ".join(processes[0].args)

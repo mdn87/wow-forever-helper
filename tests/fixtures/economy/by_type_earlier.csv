@@ -1,0 +1,6 @@
+# Synthetic Journalator Summary By Type export, hand-written for tests; no real play data.
+# Lines starting with "# " are stripped by the tests before parsing.
+"Name","In","Out","Profit"
+"Questing",80000,0,80000
+"Repairs",0,-35000,-35000
+"Looting",12345,0,12345

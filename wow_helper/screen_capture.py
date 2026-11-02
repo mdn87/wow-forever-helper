@@ -48,6 +48,19 @@ def import_image(storage, source):
     return path.name
 
 
+def save_edited_image(storage, image):
+    """Save a sanitized derivative under a new name; never overwrite its source."""
+    from PIL import Image
+    if not isinstance(image, Image.Image):
+        raise ChatError("The edited image is unavailable. The original remains selected.")
+    path = Path(storage) / "captures" / (str(uuid.uuid4()) + ".png")
+    try:
+        _save(image, path)
+    except (OSError, ValueError, OverflowError):
+        raise ChatError("The edited copy could not be saved. The original remains selected.") from None
+    return path.name
+
+
 def paste_image(storage):
     """An explicit clipboard read avoids opening a file picker over the game."""
     from PIL import Image, ImageGrab

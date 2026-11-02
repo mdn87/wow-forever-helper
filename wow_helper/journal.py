@@ -32,7 +32,32 @@ def bounded_text(value, limit, *, empty=False):
     value.encode("utf-8")
 
 
-def metadata(source=None, evidence=None, next_time=None):
+def bookmark_metadata(value):
+    if value is None:
+        return None
+    try:
+        if (not isinstance(value, dict)
+                or set(value) != {"event_at", "image_captured_at", "manual_correction_seconds"}):
+            raise ValueError
+        for key in ("event_at", "image_captured_at"):
+            timestamp = value[key]
+            if key == "event_at" and timestamp is None:
+                raise ValueError
+            if timestamp is not None:
+                if not isinstance(timestamp, str) or len(timestamp) > 100:
+                    raise ValueError
+                parsed = datetime.fromisoformat(timestamp)
+                if parsed.tzinfo is None or parsed.utcoffset() is None:
+                    raise ValueError
+        correction = value["manual_correction_seconds"]
+        if type(correction) is not int or abs(correction) > 86_400:
+            raise ValueError
+        return deepcopy(value)
+    except (ValueError, TypeError, OverflowError):
+        raise ChatError("The bookmark time is invalid. Your note is kept.") from None
+
+
+def metadata(source=None, evidence=None, next_time=None, bookmark=None):
     """Validate before copying; never silently truncate a reviewed selection."""
     result = {}
     try:
@@ -80,6 +105,8 @@ def metadata(source=None, evidence=None, next_time=None):
                 raise ValueError
             bounded_text(next_time["text"], 2000)
             result["next_time"] = next_time
+        if bookmark is not None:
+            result["bookmark"] = bookmark_metadata(bookmark)
         return deepcopy(result)
     except (ValueError, TypeError, UnicodeError, RecursionError):
         raise ChatError("The saved source or evidence is invalid. Your draft is kept.") from None
@@ -112,7 +139,7 @@ class JournalService:
             bounded_text(data.get("name"), 80)
             seen = set()
             for index, entry in enumerate(data["entries"]):
-                if not isinstance(entry, dict) or set(entry) - {"id", "at", "text", "source", "evidence", "next_time", "goal", "completions"}:
+                if not isinstance(entry, dict) or set(entry) - {"id", "at", "text", "source", "evidence", "next_time", "goal", "completions", "bookmark"}:
                     raise ValueError
                 bounded_text(entry.get("text"), 8000)
                 bounded_text(entry.get("at"), 100)
@@ -125,7 +152,7 @@ class JournalService:
                 if entry["id"] in seen:
                     raise ValueError
                 seen.add(entry["id"])
-                metadata(entry.get("source"), entry.get("evidence"), entry.get("next_time"))
+                metadata(entry.get("source"), entry.get("evidence"), entry.get("next_time"), entry.get("bookmark"))
                 if "goal" in entry:
                     from .goals import validate_goal
                     validate_goal(entry["goal"])
@@ -160,14 +187,15 @@ class JournalService:
             raise ChatError("This journal is full. Create a new journal; existing notes are kept.")
         write_json(path, data)
 
-    def add(self, journal_id, name, text, note_id=None, *, source=None, evidence=None, next_time=None, goal=None):
+    def add(self, journal_id, name, text, note_id=None, *, source=None, evidence=None, next_time=None,
+            goal=None, bookmark=None):
         try:
             bounded_text(text, 8000)
             bounded_text(name, 80, empty=True)
         except (ValueError, UnicodeError):
             raise ChatError("Write a note between 1 and 8,000 characters and a name up to 80 characters.") from None
         note_id = identifier(note_id) if note_id is not None else str(uuid.uuid4())
-        fields = {"text": text.strip(), **metadata(source, evidence, next_time)}
+        fields = {"text": text.strip(), **metadata(source, evidence, next_time, bookmark)}
         if goal is not None:
             from .goals import validate_goal
             fields['goal'] = validate_goal(goal)

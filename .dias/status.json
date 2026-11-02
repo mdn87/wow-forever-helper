@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-31T19:53:08Z",
+  "assessedAt": "2026-11-02T00:37:37Z",
   "confidence": "authoritative",
-  "currentMilestone": "Close out live-use observations for gear comparison and voice, then qualify the context probe.",
-  "remainingSummary": "The full gear workflow, live speech accuracy, and usage-study review remain open. PR #39 added context-probe groundwork with synthetic evidence only; real-client qualification is also open.",
-  "nextChipId": "live-use-closeout",
+  "currentMilestone": "Deferred until a later WoW session: close out real-use observations and qualify the context probe.",
+  "remainingSummary": "Automated tests now cover F09-F11, F15, F18 and F19 stage one; F18 attaches published records to companion-created Codex and Claude conversations (live synthetic check passed). Deferred to a later WoW session: visual and operator review, real Journalator exports and recordings, gear, speech, and context-probe qualification. MDT decoding needs codec qualification.",
+  "nextChipId": null,
   "source": {
-    "label": "PR #39 and handoff reconciliation",
-    "updatedAt": "2026-10-31"
+    "label": "Automated test pass with live-game checks still deferred",
+    "updatedAt": "2026-11-01"
   }
 }

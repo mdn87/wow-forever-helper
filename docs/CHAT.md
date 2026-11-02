@@ -100,11 +100,13 @@ Up to four quest chat tabs can remain open in one guide window. Each has its own
 
 Character status adds **Find better gear**. Choose an equipment slot and enter a build or goal, then request research against a fresh saved snapshot. The agent is asked to identify attainable upgrades, dungeon/location and boss or other source, requirements, and reasons based on stats rather than item level alone. Missing specialization or beta-specific evidence must be stated. Results and source URLs appear below the equipment report; nothing equips items or controls the game.
 
-Screen adviser offers **Capture WoW** on Windows, **Paste** from the clipboard, or **Open image** through a file picker. Paste avoids opening a picker when a screen snip or copied image is already available. Capture identifies one visible, non-minimized WoW window by executable and edition, then uses [Windows Graphics Capture](https://learn.microsoft.com/en-us/windows/apps/develop/media-authoring-processing/screen-capture) with a compositor timestamp check. It does not change game focus or fall back to desktop capture. Native capture runs in a hidden process with a ten-second timeout. Multiple matching game windows require an imported image instead. Preview the image before choosing **Ask agent**; this capture button never sends automatically. Imported images are copied into private storage without metadata, with limits of 64 MB and 40 megapixels. Fresh Retail tooltip capture was verified on 2026-10-29 after replacing a stale-frame HWND capture method. HDR fidelity and exclusive fullscreen remain unverified.
+Screen adviser offers **Capture WoW** on Windows, **Paste** from the clipboard, or **Open image** through a file picker. Paste avoids opening a picker when a screen snip or copied image is already available. Capture identifies one visible, non-minimized WoW window by executable and edition, then uses [Windows Graphics Capture](https://learn.microsoft.com/en-us/windows/apps/develop/media-authoring-processing/screen-capture) with a compositor timestamp check. It does not change game focus or fall back to desktop capture. Native capture runs in a hidden process with a ten-second timeout. Multiple matching game windows require an imported image instead. Preview the image before choosing **Ask agent**; this capture button never sends automatically. Imported images are copied into private storage without metadata, with limits of 64 MB and 40 megapixels. **Edit image** or **Menu → Edit reviewed image…** opens local crop, arrow, magnify, and solid mask tools for images up to 20 megapixels. Undo and reset affect only the preview. **Save edited copy** creates a new metadata-free PNG and selects it for review; the original stays saved. If a magnified inset exists, undo Magnify before masking so an enlarged copy cannot retain pixels outside the mask. Editing and saving never send a request. Fresh Retail tooltip capture was verified on 2026-10-29 after replacing a stale-frame HWND capture method. HDR fidelity and exclusive fullscreen remain unverified.
 
 **Live gear comparison…** is a separate explicit shortcut flow. Review a region and companion-created destination conversation, then use **Ctrl+Alt+F9**, with Shift held if needed, while WoW is active. It calculates validated stat differences, keeps both equipped ring/trinket choices separate, shows the frozen image and measured durations, and offers reviewed Journal saving. See [live comparison setup and limitations](LIVE_GEAR.md). Voice input continues to fill drafts only.
 
 Journal stores dated notes in separate local files. A thin gold border marks the note editor. **Add note** saves up to 8,000 characters per entry. A journal can hold up to 500,000 characters of entries within a 2 MB file limit; it refuses new entries when full instead of deleting earlier notes. **New** starts another journal; **Open journal** reopens a journal left behind after closing its window. Save the current note before switching journals. **Ask agent** prepares a summary request from the saved entries. **Menu → Copy latest agent reply into note** copies a reply into the note editor for you to review and save. Replies never overwrite the journal automatically. Chat retention does not control journal notes or unfinished note drafts.
+
+**Menu → Bookmark this moment…** saves a note with the time the action was saved. You can keep the selected conversation reference, selected context, or currently reviewed image, each separately optional. Image capture time is unknown unless you enter it with a time zone; a manual time correction is stored separately. Bookmarking does not capture, record, or send anything. Open **Resume session** to read the bookmark and choose its source conversation or another selected chat for an explicitly reviewed text follow-up. Saved image references stay local; follow-ups do not attach them.
 
 ### Save advice and resume its conversation
 
@@ -115,6 +117,8 @@ Saved evidence comes from the reply's managed request preparation, its original 
 Open the saved journal and choose **Resume session** to browse advice and manually mark Next time items done or open. **Continue conversation** reveals the original chat or matching quest tab, or opens a normal window bound to that saved session. It sends no request and preserves drafts. The eight-window limit still applies. Missing conversations, messages, or images leave the saved note readable; the helper does not choose a replacement conversation automatically.
 
 **Follow-up…** prepares a text request for the original conversation. To choose another conversation, select or explicitly create one in the Journal's Chat tab, then enable **For follow-up, use the Journal's selected chat instead**. **Refresh local report** reads compatible quest or character data locally and shows it separately from historical evidence; it does not establish that both snapshots describe the same character. **Use historical only** omits the refreshed report. Review the preview and press **Send**. Changing the target invalidates the preview. Each review attempts delivery once, and restart never resends it. Saved image references remain local metadata; this follow-up sends text only. Use Screen adviser to review and send an image explicitly.
+
+**Post-fight coaching…** opens a manual review for typed encounter observations and an explicitly selected image. Save or send a first attempt in a conversation, then select **Compare later attempt** to include the saved earlier notes; the later review must use that same conversation. This workflow does not parse Details! exports or combat logs. Encounter identity, event coverage, actor identity, and timestamps remain unknown unless the player supplies them. Aggregate totals cannot establish an exact cause of death.
 
 ## Window setup and presets
 
@@ -137,7 +141,7 @@ Journal files, images, presets, preparation bundles, guide caches, and companion
 
 A future journal could associate a manually started NVIDIA recording with a timestamped image every five seconds: 720 samples per hour. The proposed live path samples the game window separately, then links entries to the finished recording. Reading an actively written ordinary MP4 cannot be assumed to work: its packet index is often written at finalization, unlike a fragmented MP4. See [FFmpeg's container documentation](https://ffmpeg.org/ffmpeg-formats.html#Fragmentation). A private local probe on 2026-10-10 found that a growing NVIDIA recording could not be decoded before finalization; this is evidence for that recording, not a guarantee about all versions or modes.
 
-Before implementing continuous logging, define a disk budget, free-space reserve, frame retention, pause/resume behavior, and a bounded analysis queue. Five-second samples can miss events between frames. Local sample capture, agent analysis frequency, full-video retention, and optional audio transcription need separate controls. No recording settings are changed by the companion, and this proposed workflow is not implemented.
+Before implementing continuous logging, define a disk budget, free-space reserve, frame retention, pause/resume behavior, and a bounded analysis queue. Five-second samples can miss events between frames. Local sample capture, agent analysis frequency, full-video retention, and optional audio transcription need separate controls. No recording settings are changed by the companion. An [internal log and lifecycle foundation](RECORDING_LOG.md) and [explicit observation CLI](RECORDING_LOG.md#recording-observation-command) have synthetic stage-one tests, while real recording measurements are pending; the continuous logging workflow remains proposed.
 
 Claude Opus reviewed the proposed logger through Autowork on 2026-10-11 (high effort, 15 findings). The revised implementation requirements are:
 
@@ -283,6 +287,21 @@ Use Up/Down and Enter, double-click a result, or choose **Open selected**. Escap
 
 Search and navigation preserve current drafts and do not send requests, capture images, start research, focus WoW, or send game keys. Ctrl+K is intercepted before text-editing bindings so it cannot delete the rest of a draft line. Synthetic checks cover keyboard navigation, Unicode, repeated labels, missing sources, index refresh, restart, size limits, and both themes at 480 × 540.
 
+
+## Session economy analysis
+
+Open **Menu → Session economy analysis…**, or find it with **Ctrl+K**, to import
+English Journalator 171 / Auctionator 341 **Summary → By Type** CSV. Declare the
+edition, private profile/filter aliases, and reporting period, then prepare the
+normalized rows and integer-copper totals for review. Save the evidence in Journal
+or explicitly Send it to the selected conversation. An optional earlier-period
+comparison refuses overlapping periods and identical summaries; repeated imports
+never accumulate into a ledger.
+
+The export's `Profit` column is shown as net cash movement. Missing categories,
+transfers, refunds, filters, and period coverage remain uncertain. This scoped
+reader has synthetic parser and screen tests, including restart; theme layout,
+live provider delivery, and actual addon exports are deferred. See [the source contract and limits](ECONOMY_IMPORT.md).
 
 ## Build tutor and experiment notebook
 
