@@ -95,7 +95,7 @@ def test_replaced_file_receives_a_new_alias(source):
     video.write_bytes(b"first")
     observer = make_observer(source, clock)
     observer.poll()
-    video.unlink()
+    # Create the replacement while the original exists; deleting first lets Linux reuse the inode.
     replacement = source / "other.mp4"
     replacement.write_bytes(b"second-file")
     os.replace(replacement, video)
