@@ -1282,6 +1282,7 @@ def test_window_menu_recovers_minimized_window(manager_factory):
     second = manager.new_window(first)
     second.root.iconify()
     first.root.update()
+    assert first.windows_menu.index("end") == 1  # one entry per window; Quit lives only at the top level
     first.windows_menu.invoke(1)
     first.root.update()
     assert second.root.state() == "normal"

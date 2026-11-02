@@ -789,8 +789,6 @@ class WindowManager:
             for other in self.windows:
                 window.windows_menu.add_command(label=other.caption,
                                                  command=lambda w=other: self.reveal(w))
-            window.windows_menu.add_separator()
-            window.windows_menu.add_command(label="Quit companion (stops shortcut)", command=self.close)
 
     @property
     def can_reopen(self):
