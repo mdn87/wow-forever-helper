@@ -1,9 +1,11 @@
 # Session economy import
 
 Status: a narrow source-derived importer and reviewed discussion screen are
-implemented locally. Parser behavior, UI, restart, provider delivery, and actual
-addon exports remain unverified. Testing is deferred until the operator returns
-to WoW. Source research was performed on 2026-10-31; it is not runtime acceptance.
+implemented locally. Synthetic automated tests (2026-11-01) cover parser
+behavior, bounds, comparison refusals, and the screen's import, preview,
+single send, Journal save, and restart. Theme layout, live provider delivery, and
+actual addon exports remain unverified until the operator returns to WoW. Source
+research was performed on 2026-10-31; it is not runtime acceptance.
 
 ## Use
 

@@ -8,13 +8,13 @@
   "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-10-31T23:51:56Z",
+  "assessedAt": "2026-11-02T00:37:37Z",
   "confidence": "authoritative",
   "currentMilestone": "Deferred until a later WoW session: close out real-use observations and qualify the context probe.",
-  "remainingSummary": "Runtime, UI, and live-game checks remain deferred until the operator returns to WoW, including the new F09 category-summary importer. Gear, speech, context-probe qualification, and economy acceptance remain unverified. MDT decoding needs codec qualification.",
+  "remainingSummary": "Automated tests now cover F09-F11, F15, F18 and F19 stage one; F18 attaches published records to companion-created Codex and Claude conversations (live synthetic check passed). Deferred to a later WoW session: visual and operator review, real Journalator exports and recordings, gear, speech, and context-probe qualification. MDT decoding needs codec qualification.",
   "nextChipId": null,
   "source": {
-    "label": "Operator deferred testing until a later WoW session",
-    "updatedAt": "2026-10-31"
+    "label": "Automated test pass with live-game checks still deferred",
+    "updatedAt": "2026-11-01"
   }
 }

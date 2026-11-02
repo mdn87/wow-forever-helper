@@ -1,6 +1,6 @@
 # Recording-log foundation
 
-F19 has an internal Python log store and lifecycle controller, plus an explicit recording-observation CLI. Recording UI, native capture scheduling, video alignment, transcription, and agent analysis remain unfinished. Runtime behavior and crash recovery remain unverified: tests and live measurements were skipped at the operator's request.
+F19 has an internal Python log store and lifecycle controller, plus an explicit recording-observation CLI. Recording UI, native capture scheduling, video alignment, transcription, and agent analysis remain unfinished. Stage-one synthetic acceptance (2026-11-01) uses fake clock, free-space, capture, writer, and `ffprobe` helpers in `tests/recording_fakes.py`. It covers lifecycle transitions, late-result rejection, budgets, reserve exhaustion, damaged indexes, and crash recovery with a killed child process. Real recording growth and finalization measurements remain deferred until the operator has recordings to observe.
 
 ## Ownership and lifecycle
 

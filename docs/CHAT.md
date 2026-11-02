@@ -141,7 +141,7 @@ Journal files, images, presets, preparation bundles, guide caches, and companion
 
 A future journal could associate a manually started NVIDIA recording with a timestamped image every five seconds: 720 samples per hour. The proposed live path samples the game window separately, then links entries to the finished recording. Reading an actively written ordinary MP4 cannot be assumed to work: its packet index is often written at finalization, unlike a fragmented MP4. See [FFmpeg's container documentation](https://ffmpeg.org/ffmpeg-formats.html#Fragmentation). A private local probe on 2026-10-10 found that a growing NVIDIA recording could not be decoded before finalization; this is evidence for that recording, not a guarantee about all versions or modes.
 
-Before implementing continuous logging, define a disk budget, free-space reserve, frame retention, pause/resume behavior, and a bounded analysis queue. Five-second samples can miss events between frames. Local sample capture, agent analysis frequency, full-video retention, and optional audio transcription need separate controls. No recording settings are changed by the companion. An [internal log and lifecycle foundation](RECORDING_LOG.md) and [explicit observation CLI](RECORDING_LOG.md#recording-observation-command) are implemented with runtime acceptance unverified; the continuous logging workflow remains proposed.
+Before implementing continuous logging, define a disk budget, free-space reserve, frame retention, pause/resume behavior, and a bounded analysis queue. Five-second samples can miss events between frames. Local sample capture, agent analysis frequency, full-video retention, and optional audio transcription need separate controls. No recording settings are changed by the companion. An [internal log and lifecycle foundation](RECORDING_LOG.md) and [explicit observation CLI](RECORDING_LOG.md#recording-observation-command) have synthetic stage-one tests, while real recording measurements are pending; the continuous logging workflow remains proposed.
 
 Claude Opus reviewed the proposed logger through Autowork on 2026-10-11 (high effort, 15 findings). The revised implementation requirements are:
 
@@ -300,8 +300,8 @@ never accumulate into a ledger.
 
 The export's `Profit` column is shown as net cash movement. Missing categories,
 transfers, refunds, filters, and period coverage remain uncertain. This scoped
-reader is implemented but unverified: tests, UI checks, restart, provider delivery,
-and actual addon exports are deferred. See [the source contract and limits](ECONOMY_IMPORT.md).
+reader has synthetic parser and screen tests, including restart; theme layout,
+live provider delivery, and actual addon exports are deferred. See [the source contract and limits](ECONOMY_IMPORT.md).
 
 ## Build tutor and experiment notebook
 
