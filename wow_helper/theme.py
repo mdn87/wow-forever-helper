@@ -128,6 +128,21 @@ def _button_image(root, material, edge, *, brightness=1.0, pressed=False):
     return image
 
 
+def _load_texture(root, name):
+    import tkinter as tk
+    path = str(ASSETS / name)
+    try:
+        image = tk.PhotoImage(master=root, file=path)
+    except tk.TclError as error:
+        # Workaround: Tk 8.6.15 occasionally fails the first decode of these
+        # large PNGs with an empty error and no errorCode; an immediate reload
+        # succeeded each time it was observed. A described error is real.
+        if str(error):
+            raise
+        image = tk.PhotoImage(master=root, file=path)
+    return image.subsample(3)
+
+
 def _classic_theme(root):
     from tkinter import ttk
     owner = root._root()
@@ -137,8 +152,8 @@ def _classic_theme(root):
     _load_font(root)
     import tkinter as tk
     owner._companion_textures = {
-        "leather": tk.PhotoImage(master=root, file=str(ASSETS / "dark-leather.png")).subsample(3),
-        "red_leather": tk.PhotoImage(master=root, file=str(ASSETS / "red-leather.png")).subsample(3),
+        "leather": _load_texture(root, "dark-leather.png"),
+        "red_leather": _load_texture(root, "red-leather.png"),
         "top": _trim_image(root), "bottom": _trim_image(root, reverse=True),
         "left": _trim_image(root, vertical=True), "right": _trim_image(root, vertical=True, reverse=True),
     }
