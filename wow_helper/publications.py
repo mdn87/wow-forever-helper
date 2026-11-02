@@ -325,6 +325,16 @@ class PublicationService:
         except (OSError, ValueError, KeyError, TypeError, UnicodeError, RecursionError):
             raise ChatError("The private setup file is unavailable or does not match this checkout and grant.") from None
 
+    def session_tools(self, provider, session_id):
+        """Launch descriptor for the newest active grant of one companion-created session, or None."""
+        for grant in self.for_source(provider, session_id):
+            if grant["state"] == "active":
+                try:
+                    return self.private_setup(grant["grant_id"])
+                except ChatError:
+                    return None
+        return None
+
     def revoke(self, grant_id, record_id=None):
         grant_id = identifier(grant_id)
         with self._edit() as data:

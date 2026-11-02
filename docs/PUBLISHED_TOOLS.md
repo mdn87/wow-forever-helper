@@ -1,6 +1,6 @@
 # Explicit publications for local agent tools
 
-F18 has a Journal management screen, local publication store, management commands, and an MCP stdio server. They expose explicitly selected, frozen Journal evidence through opaque record IDs. Tests were skipped at the operator's request. UI behavior, authorization, protocol interoperability, provider setup, and actual provider conversation binding remain unverified. This is experimental tooling; it does not complete F18 or establish Codex/Claude integration support.
+F18 has a Journal management screen, local publication store, management commands, an MCP stdio server, and automatic attachment to companion-created conversations. They expose explicitly selected, frozen Journal evidence through opaque record IDs. Authorization, data isolation, and the screen's read-only behavior are covered by synthetic automated tests (2026-11-01). A synthetic live check passed for both Codex and Claude companion-created sessions. Attached terminal sessions are not supported. The screen's visual layout and the operator's own flow remain unverified.
 
 ## Select what a conversation may read
 
@@ -16,7 +16,7 @@ Open Journal's **Resume session**, select a saved note, then choose **Tool acces
 
 Opening the screen, switching grants, and refreshing the list publish nothing. Local access state refreshes every five seconds. Grant expiry or removal, changed setup, or unreadable state clears any setup shown in the screen and disables unavailable operations. The backend checks access again when a button is pressed. Closing the screen clears its displayed setup and cancels its refresh callback. Clipboard copies and data already retained by a provider cannot be erased by closing the screen or removing access.
 
-The screen uses the existing Journal window styling, a 480 × 600 minimum size, and separate tabs for review, access, and private setup. Theme layout, enlarged text, keyboard use, repeated open/close, publication failure handling, and authorization behavior have not been exercised. No interaction or visual acceptance is claimed.
+The screen uses the existing Journal window styling, a 480 × 600 minimum size, and separate tabs for review, access, and private setup. Automated tests cover read-only opening and refresh, explicit Show/Copy, and removal. Theme layout, enlarged text, and keyboard use have not been inspected; no visual acceptance is claimed.
 
 ## CLI management
 
@@ -54,9 +54,22 @@ Creation writes a private launch descriptor at `.runtime/chat/tool-access/GRANT_
 
 The publication state stores only a SHA-256 token digest; the private launch descriptor holds the capability token. Every protocol operation that returns tool information or records rechecks the grant. Token comparisons use a constant-time digest comparison. Credentials presented for a different grant do not select a different conversation or record list. Requests cannot supply an alternative storage path, provider, session, or source filename.
 
-The descriptor uses `pythonw.exe` on Windows and refuses to substitute a console Python executable. The provider must launch it with inherited stdin/stdout pipes. `PYTHONPATH` is set to this checkout, so launch does not depend on the provider's working directory. Actual windowless launch behavior and provider configuration have not been checked.
+The descriptor uses `pythonw.exe` on Windows and refuses to substitute a console Python executable. The provider must launch it with inherited stdin/stdout pipes. `PYTHONPATH` is set to this checkout, so launch does not depend on the provider's working directory.
 
-Provider configuration remains a separate integration step. This increment changes no global or per-provider settings and provides no automatic connection. A compatible client must attach the descriptor only to the intended conversation. The server authenticates a capability bound to a recorded destination; it cannot independently attest the native provider's current conversation. Copying a capability into another client or a global provider configuration expands who can use it. The intended provider label is not proof of caller identity, and this tool boundary does not restrict a provider's other existing filesystem permissions.
+## Provider attachment
+
+Conversations created by the companion (**New session**) run one provider CLI process per turn. Before each turn, the companion looks for the newest active grant whose provider and companion session ID match that conversation. If one exists, that turn's process alone receives a `wow_journal` MCP server from the grant's descriptor:
+
+- **Claude:** `--mcp-config` with an inline server definition and `--strict-mcp-config`, so no other configured MCP servers load; `mcp__wow_journal` is added to the allowed tools. Built-in tools stay limited to the existing read-only set.
+- **Codex:** `-c mcp_servers.wow_journal.*` overrides for that invocation only, with the existing read-only sandbox and `never` approval policy.
+
+The capability token is passed in the provider process's environment and forwarded to the tool server by name (Claude `${WOW_HELPER_TOOL_TOKEN}` expansion, Codex `env_vars`). It never appears in command-line arguments. Expired, removed, or damaged grants attach nothing, and the turn proceeds without tools. No global or per-provider settings file is changed.
+
+Attached sessions (an existing Codex thread or a Claude Code terminal reached through its inbox) are not supported. The companion does not launch those processes, so it cannot attach a server to them. **Copy setup** remains available for manual configuration at the operator's own risk. Copying a capability into another client or a global provider configuration expands who can use it.
+
+The server authenticates a capability bound to a recorded destination; it cannot independently attest the native provider's current conversation. The intended provider label is not proof of caller identity, and this tool boundary does not restrict a provider's other existing filesystem permissions.
+
+**Live synthetic check (2026-11-01, Claude Code 2.1.296, codex-cli 0.166.0):** a throwaway store held one synthetic note containing a random marker word. For each provider, a CLI invocation built by the companion's command builder listed and read the record and returned the marker. With a wrong token, both replied that the tool was unavailable and returned no marker. The check used a scratch server launcher pointed at the throwaway store rather than `.runtime/chat`.
 
 ## Tool protocol and record boundaries
 
@@ -79,4 +92,11 @@ Publication state is bounded to 4,000,000 bytes, 32 retained grants, 128 retaine
 
 ## What remains
 
-No real grants, publications, or provider requests were created during implementation. Syntax compilation and static diff/leak inspection are distinct from runtime acceptance. Journal management is implemented with UI behavior unverified. Meaningful authorization/data-isolation checks and separate Codex/Claude setup and capability qualification remain required before claiming support. Prepared evidence files and the existing explicit send workflow remain available.
+Synthetic automated tests cover:
+
+- the publication store and authorization: wrong, malformed and cross-grant tokens; removed and expired grants; record-ID traversal; size limits; damaged state
+- the MCP server, in-process plus one windowless subprocess round trip
+- the Tool access screen's read-only opening and refresh
+- provider attachment
+
+The screen's visual layout in both themes and the operator's own grant, publish and conversation flow remain unverified. Attached-session support is not planned. Prepared evidence files and the existing explicit send workflow remain available.
