@@ -7,6 +7,7 @@ import uuid
 
 from .chat import CHAT_STATE, ChatError, ChatService, read_json, write_json
 from .task_window import TaskWindow
+from .chat_window import MenuGroups
 from .activities import ActivityService, TYPES, profile_settings
 from .window_state import LayoutLock, MAX_WINDOWS, MIN_HEIGHT, MIN_WIDTH, display_workareas, window_bounds
 from .theme import palette, apply_theme, display_font, settings_icon, menu as themed_menu
@@ -16,6 +17,8 @@ from .interface import InterfaceDialog, WindowOpacity, interface_settings
 from .pinned_advice import AdviceCard, PLAY_MINIMUM, pinned_selection, validate_pin
 from .activity_layouts import SavedLayouts, layout_record
 from .wow_displays import DISPLAY_TYPES, ActivityDeck, QuestLogDisplay, display_state, show_display_setup
+
+RESTART_LABEL = "Restart companion (load updates)"
 
 LAYOUT_PATH = CHAT_STATE / "windows.json"
 
@@ -65,37 +68,52 @@ class CompanionWindow:
         options = self.menu_button = ttk.Menubutton(bar, text="Settings", image=settings_icon(self.root),
                                                    style="Settings.TMenubutton")
         options.pack(side="right", padx=(4, 0))
+        # Play-first grouping: in-play actions at the top, everything else in four submenus.
         self.options_menu = themed_menu(options)
-        self.windows_menu = themed_menu(self.options_menu)
         options.configure(menu=self.options_menu)
-        self.options_menu.add_checkbutton(label="Keep above other windows", variable=self.topmost,
-                                          command=self.set_topmost)
-        self.options_menu.add_checkbutton(label="Remember draft and recent chat", variable=self.remember,
-                                          command=manager.save_layout)
-        if self.kind == "play":
-            self.options_menu.entryconfigure("end", label="Pinned advice is always saved", state="disabled")
-        self.options_menu.add_command(label="Interface & transparency…", command=lambda: manager.show_interface(self))
-        self.options_menu.add_command(label="Activity layouts…", command=lambda: manager.show_activity_layouts(self))
-        self.options_menu.add_command(label="Activity history…", command=lambda: manager.show_activity_history(self))
-        self.options_menu.add_command(label="Usage study…", command=lambda: manager.show_usage_study(self))
-        self.options_menu.add_command(label="Voice input…  Keypad -", command=lambda: manager.show_voice_input(self))
+        self.tools_menu = themed_menu(self.options_menu)
+        self.conversation_menu = themed_menu(self.options_menu)
+        self.arrange_menu = themed_menu(self.options_menu)
+        self.windows_menu = themed_menu(self.arrange_menu)
+        self.preferences_menu = themed_menu(self.options_menu)
+        self.menus = MenuGroups(self.options_menu, self.tools_menu, self.conversation_menu,
+                                self.arrange_menu, self.preferences_menu)
         self.options_menu.add_command(label="Search companion…  Ctrl+K", command=lambda: manager.show_search(self))
-
-        self.options_menu.add_command(label="WoW companion displays…", command=lambda: show_display_setup(manager, self.root))
-        self.options_menu.add_command(label="Chat appearance…", command=lambda: self.view.show_appearance(),
-                                      state="disabled")
-        self.appearance_menu_index = self.options_menu.index("end")
         self.options_menu.add_separator()
-        self.options_menu.add_cascade(label="Windows", menu=self.windows_menu)
-        self.options_menu.add_command(label="New window", command=lambda: manager.new_window(self))
-        self.options_menu.add_command(label="Bring all windows to this screen", command=lambda: manager.arrange(self))
-        self.options_menu.add_command(label="Hide all windows", command=manager.hide_all, state="disabled")
-        self.hide_menu_index = self.options_menu.index("end")
-        self.options_menu.add_command(label="Close this window", command=lambda: manager.close_window(self))
+        self.options_menu.add_cascade(label="Tools", menu=self.tools_menu)
+        self.options_menu.add_cascade(label="Conversation", menu=self.conversation_menu)
+        self.options_menu.add_cascade(label="Windows", menu=self.arrange_menu)
+        self.options_menu.add_cascade(label="Preferences", menu=self.preferences_menu)
         self.options_menu.add_separator()
-        self.options_menu.add_command(label="Restart companion (load updates)", command=manager.restart, state="disabled")
-        self.restart_menu_index = self.options_menu.index("end")
+        self.options_menu.add_command(label=RESTART_LABEL, command=manager.restart, state="disabled")
         self.options_menu.add_command(label="Quit companion (stops shortcut)", command=manager.close)
+
+        self.conversation_menu.add_command(label="Activity history…", command=lambda: manager.show_activity_history(self))
+
+        self.arrange_menu.add_cascade(label="Open windows", menu=self.windows_menu)
+        self.arrange_menu.add_command(label="New window", command=lambda: manager.new_window(self))
+        self.arrange_menu.add_command(label="Bring all windows to this screen", command=lambda: manager.arrange(self))
+        self.arrange_menu.add_command(label="Hide all windows", command=manager.hide_all, state="disabled")
+        self.hide_menu_index = self.arrange_menu.index("end")
+        self.arrange_menu.add_command(label="Close this window", command=lambda: manager.close_window(self))
+        self.arrange_menu.add_separator()
+        self.arrange_menu.add_command(label="Activity layouts…", command=lambda: manager.show_activity_layouts(self))
+
+        self.preferences_menu.add_checkbutton(label="Keep above other windows", variable=self.topmost,
+                                              command=self.set_topmost)
+        self.preferences_menu.add_checkbutton(label="Remember draft and recent chat", variable=self.remember,
+                                              command=manager.save_layout)
+        if self.kind == "play":
+            self.preferences_menu.entryconfigure("end", label="Pinned advice is always saved", state="disabled")
+        self.preferences_menu.add_separator()
+        self.preferences_menu.add_command(label="Interface & transparency…", command=lambda: manager.show_interface(self))
+        self.preferences_menu.add_command(label="Chat appearance…", command=lambda: self.view.show_appearance(),
+                                          state="disabled")
+        self.appearance_menu_index = self.preferences_menu.index("end")
+        self.preferences_menu.add_command(label="Voice input…  Keypad -", command=lambda: manager.show_voice_input(self))
+        self.preferences_menu.add_command(label="WoW companion displays…", command=lambda: show_display_setup(manager, self.root))
+        self.preferences_menu.add_separator()
+        self.preferences_menu.add_command(label="Usage study…", command=lambda: manager.show_usage_study(self))
         self.notice = tk.StringVar(master=self.root)
         self.notice_label = tk.Label(surface, textvariable=self.notice, bg=palette(self.root).BACKGROUND, fg=palette(self.root).MUTED,
                                     anchor="w", justify="left", padx=8, pady=3, wraplength=400,
@@ -194,8 +212,8 @@ class CompanionWindow:
                                resume_conversation=self.manager.resume_conversation,
                                pin_advice=self.manager.pin_advice,
                                state=state, on_change=lambda: self.manager.changed(self),
-                               toolbar=self.toolbar, actions_menu=self.options_menu)
-        self.options_menu.entryconfigure(self.appearance_menu_index, state="normal")
+                               toolbar=self.toolbar, actions_menu=self.menus)
+        self.preferences_menu.entryconfigure(self.appearance_menu_index, state="normal")
         self.manager.changed(self)
 
     def open_preset(self):
@@ -214,6 +232,11 @@ class CompanionWindow:
             self.open_kind(data["kind"], {"profile": profile_settings(data["kind"], data.get("profile"))})
         except (OSError, ValueError):
             self.set_notice("That window preset could not be opened.")
+
+    @property
+    def restart_menu_index(self):
+        # Looked up by label: views insert their highlighted actions above it.
+        return self.options_menu.index(RESTART_LABEL)
 
     def set_topmost(self):
         self.root.update_idletasks()
@@ -756,7 +779,7 @@ class WindowManager:
     def refresh_menus(self):
         for window in self.windows:
             window.new_button.configure(state="disabled" if len(self.windows) >= MAX_WINDOWS else "normal")
-            window.options_menu.entryconfigure(
+            window.arrange_menu.entryconfigure(
                 window.hide_menu_index, state="normal" if self.can_reopen else "disabled",
                 label=(f"Hide all windows ({self.access.shortcut} reopens)" if self.can_reopen
                        else "Hide all windows (shortcut unavailable)"))

@@ -9,7 +9,7 @@ research was performed on 2026-10-31; it is not runtime acceptance.
 
 ## Use
 
-Open **Menu → Session economy analysis…**, or find it with **Ctrl+K**. Paste or
+Open **Settings → Tools → Session economy analysis…**, or find it with **Ctrl+K**. Paste or
 explicitly import one UTF-8 CSV from English **Journalator → Summary → By Type**,
 using Journalator 171 and Auctionator 341. Other addon versions, views, and locales
 are unsupported. Mismatched columns/categories, localized money strings, and

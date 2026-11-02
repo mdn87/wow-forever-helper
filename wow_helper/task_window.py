@@ -99,20 +99,21 @@ class TaskWindow(ChatWindow):
             self.book.add(self.panel, text=TYPES[kind][0])
             self.book.add(chat_root, text="Chat")
         super().__init__(chat_root, service, **kwargs)
-        self.actions_menu.add_separator()
-        self.actions_menu.add_command(label="Window setup…", command=self.show_setup)
-        self.actions_menu.add_command(label="Prepare opening request…", command=self.prepare_request)
-        self.actions_menu.add_command(label="Save window preset…", command=self.save_preset)
-        self.actions_menu.add_command(label="Load window preset…", command=self.load_preset)
-        self.actions_menu.add_command(label="Build tutor and experiments…", command=self.show_build_tutor)
-        self.actions_menu.add_command(label="Dungeon route walkthrough…", command=self.show_route_notebook)
-        self.actions_menu.add_command(label="Addon troubleshooting…", command=self.show_addon_troubleshooting)
-        self.actions_menu.add_command(label="Session economy analysis…", command=self.show_economy_notebook)
-        self.actions_menu.add_command(label="Post-fight coaching…", command=self.show_combat_coaching)
-        self.actions_menu.add_command(label="Goals and wishlist…", command=self.show_goals)
-        self.actions_menu.add_command(label="Live gear comparison…", command=self.show_live_gear)
-        self.actions_menu.add_command(label="Edit reviewed image…", command=self.edit_image)
-        self.actions_menu.add_command(label="Bookmark this moment…", command=self.bookmark_moment)
+        menus = self.menus
+        menus.top.insert_command(0, label="Bookmark this moment…", command=self.bookmark_moment)
+        menus.conversation.add_command(label="Prepare opening request…", command=self.prepare_request)
+        menus.windows.add_command(label="Window setup…", command=self.show_setup)
+        menus.windows.add_command(label="Save window preset…", command=self.save_preset)
+        menus.windows.add_command(label="Load window preset…", command=self.load_preset)
+        menus.tools.add_command(label="Live gear comparison…", command=self.show_live_gear)
+        menus.tools.add_command(label="Post-fight coaching…", command=self.show_combat_coaching)
+        menus.tools.add_command(label="Goals and wishlist…", command=self.show_goals)
+        menus.tools.add_command(label="Edit reviewed image…", command=self.edit_image)
+        menus.tools.add_separator()
+        menus.tools.add_command(label="Session economy analysis…", command=self.show_economy_notebook)
+        menus.tools.add_command(label="Addon troubleshooting…", command=self.show_addon_troubleshooting)
+        menus.tools.add_command(label="Build tutor and experiments…", command=self.show_build_tutor)
+        menus.tools.add_command(label="Dungeon route walkthrough…", command=self.show_route_notebook)
         if self.book is not None:
             self._build_panel(raw)
             if kind == "quests":
@@ -155,8 +156,8 @@ class TaskWindow(ChatWindow):
             self.gear_button = self._button(actions, "Find better gear", self.find_gear)
         if self.kind == "quests":
             self.quest_chat_button = self._button(actions, "Quest chat", self.open_quest_chat)
-            self.actions_menu.add_command(label="Pin selected quest step to Play…", command=self.pin_quest_step)
-            self.actions_menu.add_command(label="Research selected quest chain…", command=self.show_quest_chain)
+            self.menus.conversation.add_command(label="Pin selected quest step to Play…", command=self.pin_quest_step)
+            self.menus.tools.add_command(label="Research selected quest chain…", command=self.show_quest_chain)
         self.ask_button = self._button(actions, "Ask agent", lambda: self.prepare_request(review=False))
         self.setup_button = self._button(actions, "Setup", self.show_setup)
         footer = tk.Label(self.panel, textvariable=self.activity_notice, bg=palette(self.root).PANEL, fg=palette(self.root).ACCENT,
@@ -184,7 +185,7 @@ class TaskWindow(ChatWindow):
             style_text(self.note, self.appearance, composer=True)
             self.note.insert("1.0", raw.get("note_draft", "") if isinstance(raw.get("note_draft"), str) else "")
             self.note.bind("<<Modified>>", self._note_edited)
-            self.actions_menu.add_command(label="Copy latest agent reply into note", command=self.reply_to_note)
+            self.menus.conversation.add_command(label="Copy latest agent reply into note", command=self.reply_to_note)
         if self.kind == "quests":
             from .quest_tree import QuestTree
             options = tk.Frame(self.panel, bg=palette(self.root).PANEL, padx=8, pady=3)
@@ -244,7 +245,7 @@ class TaskWindow(ChatWindow):
     def _update_controls(self):
         super()._update_controls()
         if self.active_quest_chat():
-            self.actions_menu.entryconfigure(self.setup_menu_index, state="disabled")
+            self.menus.conversation.entryconfigure(self.setup_menu_index, state="disabled")
         for button in self.buttons:
             button.configure(state="disabled" if self.jobs - BACKGROUND_JOBS else "normal")
         if hasattr(self, "busy_bar"):

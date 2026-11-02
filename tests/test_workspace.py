@@ -1033,7 +1033,7 @@ def test_remember_can_be_disabled_and_clears_saved_chat_text(manager_factory):
     window.view.editor.insert("1.0", "Private unsent draft")
     manager.save_layout()
     assert "Private unsent draft" in manager.layout_path.read_text()
-    window.options_menu.invoke(1)
+    window.preferences_menu.invoke(1)
     data = json.loads(manager.layout_path.read_text())
     assert not data["windows"][0]["remember"]
     assert "messages" not in data["windows"][0]["chat"]
@@ -1165,13 +1165,13 @@ def test_compact_toolbar_and_composer_keep_actions_visible(manager_factory, size
     assert view.send_button.winfo_rooty() >= view.editor.winfo_rooty()
     assert view.send_button.winfo_rooty() + view.send_button.winfo_height() <= view.editor.winfo_rooty() + view.editor.winfo_height()
     choose(window, 1)
-    assert window.options_menu.entrycget(view.setup_menu_index, "state") == "normal"
-    window.options_menu.invoke(view.setup_menu_index)
+    assert view.menus.conversation.entrycget(view.setup_menu_index, "state") == "normal"
+    view.menus.conversation.invoke(view.setup_menu_index)
     dialog = next(child for child in view.root.winfo_children() if isinstance(child, manager.tk.Toplevel))
     assert dialog.title() == "Connect this Claude session"
     dialog.destroy()
     choose(window, 0)
-    assert window.options_menu.entrycget(view.setup_menu_index, "state") == "disabled"
+    assert view.menus.conversation.entrycget(view.setup_menu_index, "state") == "disabled"
 
 
 @pytest.mark.parametrize("selected", [False, True])
@@ -1184,7 +1184,7 @@ def test_appearance_is_independent_and_survives_restart_without_chat_retention(m
         choose(first, 0)
     first.view.editor.insert("1.0", "Synthetic private draft")
     first.remember.set(False)
-    first.options_menu.invoke(first.appearance_menu_index)
+    first.preferences_menu.invoke(first.appearance_menu_index)
     dialog = first.view._appearance_dialog
     for key, value in {"background": "#ffffff", "text": "#112233", "user_text": "#663300", "font_size": 18}.items():
         dialog.variables[key].set(value)
@@ -1259,7 +1259,7 @@ def test_appearance_dialog_and_largest_text_fit_at_minimum_size(manager_factory)
     manager = manager_factory()
     window = manager.windows[0]
     window.chrome.place("440x580+100+100")
-    window.options_menu.invoke(window.appearance_menu_index)
+    window.preferences_menu.invoke(window.appearance_menu_index)
     dialog = window.view._appearance_dialog
     dialog.chrome.place("440x480+100+100")
     dialog.variables["font_size"].set(36)
@@ -1309,6 +1309,39 @@ class Access:
         self.closed = True
 
 
+def menu_labels(menu):
+    return [menu.entrycget(i, "label") if menu.type(i) != "separator" else "-"
+            for i in range(menu.index("end") + 1)]
+
+
+def test_settings_menu_puts_play_actions_first_and_groups_the_rest(manager_factory):
+    manager = manager_factory()
+    window = manager.new_window(kind="quests"); settle(window.view)
+    assert menu_labels(window.options_menu) == [
+        "Bookmark this moment…", "Search companion…  Ctrl+K", "-",
+        "Tools", "Conversation", "Windows", "Preferences", "-",
+        "Restart companion (load updates)", "Quit companion (stops shortcut)"]
+    tools = menu_labels(window.tools_menu)
+    assert tools[:4] == ["Live gear comparison…", "Post-fight coaching…", "Goals and wishlist…", "Edit reviewed image…"]
+    assert {"Session economy analysis…", "Addon troubleshooting…", "Build tutor and experiments…",
+            "Dungeon route walkthrough…", "Research selected quest chain…"} <= set(tools)
+    assert {"Connect selected Claude session…", "Refresh open sessions", "Save selected reply to Journal…",
+            "Pin selected reply to Play…", "Prepare opening request…", "Activity history…",
+            "Pin selected quest step to Play…"} <= set(menu_labels(window.conversation_menu))
+    assert {"Open windows", "New window", "Bring all windows to this screen", "Close this window",
+            "Activity layouts…", "Window setup…", "Save window preset…", "Load window preset…"} <= set(
+        menu_labels(window.arrange_menu))
+    assert {"Keep above other windows", "Remember draft and recent chat", "Interface & transparency…",
+            "Chat appearance…", "Voice input…  Keypad -", "WoW companion displays…", "Usage study…"} <= set(
+        menu_labels(window.preferences_menu))
+    assert window.options_menu.entrycget(window.restart_menu_index, "label") == "Restart companion (load updates)"
+    assert window.arrange_menu.entrycget(window.hide_menu_index, "label").startswith("Hide all windows")
+    assert window.view.menus.conversation.entrycget(window.view.setup_menu_index, "label") == "Connect selected Claude session…"
+    window.options_menu.invoke(0)
+    assert window.view._bookmark_dialog is not None
+    assert not window.view.service.sent
+
+
 def test_hide_and_reopen_keep_all_windows_sessions_and_drafts(manager_factory):
     manager = manager_factory()
     first = manager.windows[0]
@@ -1321,7 +1354,7 @@ def test_hide_and_reopen_keep_all_windows_sessions_and_drafts(manager_factory):
     manager.enable_reopening(access)
     first.root.update()
     before = [window.snapshot() for window in manager.windows]
-    first.options_menu.invoke(first.hide_menu_index)
+    first.arrange_menu.invoke(first.hide_menu_index)
     first.root.update()
     assert not manager.closed
     assert all(window.root.state() == "withdrawn" for window in manager.windows)
@@ -1420,7 +1453,7 @@ def test_unavailable_shortcut_cannot_leave_last_window_hidden(manager_factory):
     manager.enable_reopening(access)
     window = manager.windows[0]
     assert "unavailable" in window.notice.get()
-    assert window.options_menu.entrycget(window.hide_menu_index, "state") == "disabled"
+    assert window.arrange_menu.entrycget(window.hide_menu_index, "state") == "disabled"
     manager.hide_all()
     assert window.root.state() == "normal"
     manager.close_window(window)
@@ -1942,7 +1975,7 @@ def test_provider_buttons_prepare_new_chats_and_startup_settings_are_respected(m
     packets = [json.loads(p.read_text()) for p in (tmp_path / "prepared").glob("*.json")]
     assert packets[0]["task"] == "Use this context to answer the user's message."
     assert packets[0]["skills"] and packets[0]["reports"]["quests"]
-    assert view.actions_menu.entrycget(view.setup_menu_index, "state") == "disabled"
+    assert view.menus.conversation.entrycget(view.setup_menu_index, "state") == "disabled"
     manager.close()
     restored = manager_factory(service=CreatingService, activity=lambda: activity)
     assert restored.windows[1].view.profile["startup_opening"] is False

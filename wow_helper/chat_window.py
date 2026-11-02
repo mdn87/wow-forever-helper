@@ -12,6 +12,18 @@ from .activity_history import ActivityHistory
 from .theme import palette, apply_theme, display_font, settings_icon, menu as themed_menu
 
 BACKGROUND_JOBS = {"history", "guides"}
+SETUP_LABEL = "Connect selected Claude session…"
+
+
+class MenuGroups:
+    """Where a view adds its menu entries; a standalone chat puts every group in one menu."""
+
+    def __init__(self, top, tools=None, conversation=None, windows=None, preferences=None):
+        self.top = top
+        self.tools = tools or top
+        self.conversation = conversation or top
+        self.windows = windows or top
+        self.preferences = preferences or top
 
 
 class ChatWindow:
@@ -95,18 +107,18 @@ class ChatWindow:
         selector = self.selector = tk.Frame(toolbar if toolbar is not None else root, bg=palette(self.root).PANEL,
                             padx=0 if toolbar is not None else 8, pady=0 if toolbar is not None else 5)
         selector.pack(side="left" if toolbar is not None else "top", fill="x", expand=toolbar is not None)
-        self.actions_menu = actions_menu if actions_menu is not None else themed_menu(selector)
+        self.menus = actions_menu if isinstance(actions_menu, MenuGroups) else MenuGroups(
+            actions_menu if actions_menu is not None else themed_menu(selector))
+        self.actions_menu = self.menus.top
         if actions_menu is None:
             self.menu_button = ttk.Menubutton(selector, text="Settings", image=settings_icon(root),
                                              style="Settings.TMenubutton", menu=self.actions_menu)
             self.menu_button.pack(side="right", padx=(4, 0))
             self.actions_menu.add_command(label="Chat appearance…", command=self.show_appearance)
             self.actions_menu.add_separator()
-        else:
+        elif not isinstance(actions_menu, MenuGroups):
             self.actions_menu.add_separator()
-        self.actions_menu.add_command(label="Connect selected Claude session…", command=self.claude_setup,
-                                      state="disabled")
-        self.setup_menu_index = self.actions_menu.index("end")
+        self.menus.conversation.add_command(label=SETUP_LABEL, command=self.claude_setup, state="disabled")
         self.refresh_button = ttk.Button(selector, text="↻", style="Window.TButton", command=self.refresh)
         self.refresh_button.pack(side="right", padx=(4, 0))
         self.provider_buttons = {}
@@ -115,9 +127,9 @@ class ChatWindow:
                                 command=lambda choice=provider: self.start_session(choice))
             button.pack(side="right", padx=(3, 0))
             self.provider_buttons[provider] = button
-        self.actions_menu.add_command(label="Refresh open sessions", command=self.refresh)
-        self.actions_menu.add_command(label="Save selected reply to Journal…", command=self.save_to_journal)
-        self.actions_menu.add_command(label="Pin selected reply to Play…", command=self.pin_to_play)
+        self.menus.conversation.add_command(label="Refresh open sessions", command=self.refresh)
+        self.menus.conversation.add_command(label="Save selected reply to Journal…", command=self.save_to_journal)
+        self.menus.conversation.add_command(label="Pin selected reply to Play…", command=self.pin_to_play)
         self.session_picker = ttk.Combobox(selector, state="readonly", width=1, font=("Segoe UI", 9))
         self.session_picker.set("Choose an open session…")
         self.session_picker.pack(side="left", fill="x", expand=True)
@@ -194,8 +206,13 @@ class ChatWindow:
         self.refresh_button.configure(state="disabled" if foreground else "normal")
         for button in self.provider_buttons.values():
             button.configure(state="disabled" if foreground or not hasattr(self.service, "create") else "normal")
-        self.actions_menu.entryconfigure(self.setup_menu_index,
+        self.menus.conversation.entryconfigure(self.setup_menu_index,
                                          state="normal" if self.selected and self.selected.provider == "claude" and not self.selected.managed else "disabled")
+
+    @property
+    def setup_menu_index(self):
+        # Looked up by label: task windows insert their highlighted actions above it.
+        return self.menus.conversation.index(SETUP_LABEL)
 
     def _edited(self, _event=None):
         if self.editor.edit_modified():
