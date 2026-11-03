@@ -111,6 +111,7 @@ class CompanionWindow:
                                           state="disabled")
         self.appearance_menu_index = self.preferences_menu.index("end")
         self.preferences_menu.add_command(label="Voice input…  Keypad -", command=lambda: manager.show_voice_input(self))
+        self.preferences_menu.add_command(label="Hands-free voice (Lugos Voice)…", command=lambda: manager.show_handsfree_voice(self))
         self.preferences_menu.add_command(label="WoW companion displays…", command=lambda: show_display_setup(manager, self.root))
         self.preferences_menu.add_separator()
         self.preferences_menu.add_command(label="Usage study…", command=lambda: manager.show_usage_study(self))
@@ -303,6 +304,8 @@ class CompanionWindow:
         self.closed = True
         if self.manager._voice_dialog and self.manager._voice_dialog.window is self:
             self.manager._voice_dialog.close()
+        if self.manager._handsfree_dialog and self.manager._handsfree_dialog.window is self:
+            self.manager._handsfree_dialog.close()
         self.root.unbind_class(self.search_tag, "<Control-k>")
         if self.manager._interface_dialog and self.manager._interface_dialog.parent is self.root:
             self.manager._interface_dialog.close()
@@ -350,6 +353,7 @@ class WindowManager:
         self._activity_dialog = None
         self._usage_dialog = None
         self._voice_dialog = None
+        self._handsfree_dialog = None
         self._interface_preview = None
         self.interface = interface_settings(None)
         self.next_number = 1
@@ -403,6 +407,16 @@ class WindowManager:
             self._voice_dialog = VoiceDialog(self, window)
         else:
             window.set_notice('Open a chat window to use voice input.')
+
+    def show_handsfree_voice(self, window):
+        from .voice_ui import HandsFreeDialog
+        if self._handsfree_dialog:
+            self._handsfree_dialog.root.lift()
+            self._handsfree_dialog.notice.set('Hands-free voice belongs to its original chat window. Close this panel before choosing another.')
+        elif window.view and hasattr(window.view, 'editor'):
+            self._handsfree_dialog = HandsFreeDialog(self, window)
+        else:
+            window.set_notice('Open a chat window to use hands-free voice.')
 
     @property
     def display_settings(self):
@@ -935,6 +949,8 @@ class WindowManager:
         self.closed = True
         if self._voice_dialog:
             self._voice_dialog.close()
+        if self._handsfree_dialog:
+            self._handsfree_dialog.close()
         if self._display_after is not None:
             self.root.after_cancel(self._display_after)
             self._display_after = None
