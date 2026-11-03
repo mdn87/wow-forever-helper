@@ -364,6 +364,16 @@ If Keypad - belongs to another app, the panel reports the conflict and its hold 
 
 Verification: synthetic tests cover held recording, persistent microphone connection, discarded idle/post-release samples, preserved drafts, no automatic sends, malformed WAV rejection, worker reuse, cancellation, timeout, missing-model setup, and bounded text. The operator confirmed hold-and-release input works but reported poor accuracy with the former Windows recognizer. In a four-phrase synthesized-speech comparison, Whisper recognized all words correctly after case/punctuation normalization, including critical strike, haste and Borean Tundra; punctuation still varied. The integrated worker took 2.3 seconds for the first phrase and 1.6–1.9 seconds for later phrases on the development machine. These are synthetic checks, not a live microphone accuracy score. Real speech with Whisper still needs operator validation. Live gear comparison and voice-command execution remain separate work.
 
+## Hands-free voice from Lugos Voice
+
+Push-to-talk fills a draft. Hands-free voice is the other mode: Lugos Voice, a separate listener, hears the wake phrase, the request, and "end turn", and the companion sends that finished turn to one chat with no draft review. Open **Settings → Preferences → Hands-free voice (Lugos Voice)…** from the chat you want, choose its session, and press **Connect this chat**. The panel shows which chat receives speech and the last turn it accepted.
+
+While a chat is connected, Lugos Voice sends every turn that its local controls and game commands did not take to the companion instead of Claude, and speaks the outcome (for example "Sent to WoW Helper."). The companion sends through the same path as **Send**, leaves the draft alone, and refuses a turn older than a minute, a repeated request ID, a turn addressed to an earlier connection, or a turn that arrives while the chat is still sending. Switching sessions, closing the panel or the window, or quitting disconnects, and Lugos Voice then routes as before. Replies appear in the chat window; nothing is read aloud by the companion. Chat stays conversation only and triggers no game input.
+
+The connection is a file inbox in ignored local storage; the companion opens no microphone or network port for it. The protocol is in [VOICE_BRIDGE.md](VOICE_BRIDGE.md).
+
+Verification: synthetic tests cover binding, freshness, duplicate and foreign-binding refusal, busy refusal, disconnect on session switch and window close, an unchanged draft, and a file round trip with the Lugos Voice sender. A live spoken turn through the installed listener is not yet verified.
+
 ## Personal goals and wishlist
 
 Open **Goals and wishlist…** from a chat or activity menu, or find **Personal goals and wishlist** through Ctrl+K. Choose **New goal**, then enter an item, mount, recipe, quest, or free-text goal and its edition. Goals belong to that window's Journal; Ctrl+K finds them across saved journals. Existing Journal notes can become goals through **Resume session → Edit / make goal**.
