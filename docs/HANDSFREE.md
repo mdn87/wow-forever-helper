@@ -6,7 +6,7 @@ This page is the command reference and the test script. User-facing setup is sum
 
 ## Setup
 
-1. Lugos Voice must be running a release that includes `listener/_wow_helper_bridge.py` and its `main_loop` hook (lugos-voice PRs 43 and 44).
+1. Lugos Voice must be running a release that includes `listener/_wow_helper_bridge.py` and its `main_loop` hook (lugos-voice PRs 43 and 51).
 2. In the companion window you want to drive, open **Settings → Preferences → Hands-free voice (Lugos Voice)…** and press **Connect this window**.
 3. Optional: tick **Connect this window automatically when the companion starts**. The next start reconnects that window without a click. The companion opens no microphone or network port for this; Lugos Voice does the listening.
 4. Choose a session in that window by voice ("switch to Raid prep", "new Codex chat") or by mouse.
