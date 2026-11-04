@@ -41,12 +41,18 @@ def spoken_label(label):
     return words(label.replace("…", " ").replace("...", " "))
 
 
-FILLER = re.compile(r"^(?:(?:please|okay|ok|hey|helper|companion|wow helper|can you|could you|would you)\s+)+")
+FILLER = re.compile(
+    r"^(?:(?:please|okay|ok|hey|lugos|helper|companion|wow helper|um|uh|so|just|quickly|now|"
+    r"can you|could you|would you|will you|would you mind|can i get you to|"
+    r"i want to|i wanna|i'd like to|i would like to|i need to|i need you to|i want you to|"
+    r"let's|lets|let us|go ahead and)\s+)+")
+TRAILER = re.compile(r"(?:\s+(?:please|for me|real quick|thanks|thank you))+$")
+# "in the browser" and the like may close any browser request.
+AT = r"(?: (?:in|on|with) (?:the |my |your |a )?(?:voice )?(?:browser|chrome)(?: window)?)?"
 
 
 def command_words(text):
-    phrase = FILLER.sub("", words(text))
-    return re.sub(r"\s+please$", "", phrase)
+    return TRAILER.sub("", FILLER.sub("", words(text)))
 
 
 def best(target, candidates):
@@ -223,22 +229,29 @@ class Interpreter:
         (r"(?:what can i say|voice help|help|list (?:voice )?commands)", "help"),
         (r"(?:stop|end|disconnect|turn off) hands ?free(?: voice)?|disconnect voice", "disconnect"),
         (r"(?:tell|ask|say to) (?:the )?(?:agent|chat|codex|claude) (.+)", "chat"),
-        (r"(?:open|start|launch|show) (?:the |my )?(?:voice )?browser", "browser_open"),
-        (r"(?:close|quit) (?:the |my )?(?:voice )?browser", "browser_close"),
-        (r"(?:look up|lookup|search wowhead for|wowhead|search for|find) (.+?) (?:on|in) classic(?: wowhead)?",
-         "browser_classic"),
-        (r"(?:look up|lookup|search wowhead for|wowhead|search for|find) (.+?)(?: on wowhead)?", "browser_search"),
-        (r"(?:google|search google for|search the web for|web search for|web search) (.+)", "browser_web"),
-        (r"(?:browse to|browser go to|go to website|open website|open the website|go to the site) (.+)", "browser_go"),
-        (r"(?:open|click|follow|show)(?: the)? (first|second|third|fourth|fifth|top|\d+)(?:st|nd|rd|th)? result",
+        (r"(?:open|open up|start|launch|show|bring up|pull up|get) (?:the |my |a |your )?(?:voice )?browser(?: window)?",
+         "browser_open"),
+        (r"(?:close|quit|shut) (?:down )?(?:the |my |your )?(?:voice )?browser(?: window)?", "browser_close"),
+        (r"(?:google|search google for|search the web for|web search for|web search|search online for) (.+?)" + AT,
+         "browser_web"),
+        (r"(?:look up|lookup|look for|search for|search wowhead for|search|wowhead|find|find me|check wowhead for|pull up) (.+?) (?:on|in) classic(?: wowhead)?" + AT, "browser_classic"),
+        (r"look (.+?) up(?: on wowhead)?" + AT, "browser_search"),
+        (r"(?:look up|lookup|look for|search for|search wowhead for|search|wowhead|find|find me|check wowhead for|pull up) (.+?)(?: (?:on|in) wowhead)?" + AT, "browser_search"),
+        (r"(?:browse to|browser go to|go to website|open website|open the website|go to the site) (.+?)" + AT,
+         "browser_go"),
+        (r"(?:open|open up|click|click on|follow|show me|go to|pick|take me to)(?: the)? (first|second|third|fourth|fifth|top|\d+)(?:st|nd|rd|th)? (?:result|one|link|hit)" + AT,
          "browser_result"),
-        (r"(?:open|click|follow) result (one|two|three|four|five|\d+)", "browser_result"),
-        (r"(?:open|click|follow) (?:the )?link(?: called| named| for)? (.+)", "browser_follow"),
-        (r"(?:scroll|page) (down|up)(?: a bit| more| the page| please)?|scroll to the (top|bottom)", "browser_scroll"),
-        (r"(?:go |browser )?(back|forward)(?: a page| one page)?", "browser_history"),
-        (r"(?:read|read me) (?:the |this )?(?:page|article|guide|browser|web page|site)", "browser_read"),
-        (r"(?:read more|keep reading|continue reading|go on|more)", "browser_more"),
-        (r"(?:what's|what is) (?:on )?(?:the |my )?browser(?: showing| on)?|browser status|where is the browser",
+        (r"(?:open|click|follow) result (one|two|three|four|five|\d+)" + AT, "browser_result"),
+        (r"(?:open|click|click on|follow) (?:the )?link(?: called| named| for| that says)? (.+?)" + AT, "browser_follow"),
+        (r"(?:scroll|page|go) (down|up)(?: a bit| a little| some| more| the page)?" + AT + "|scroll to the (top|bottom)",
+         "browser_scroll"),
+        (r"(?:go |browser )?(back|forward)(?: a page| one page| to the last page)?" + AT, "browser_history"),
+        (r"(?:previous|last) page", "browser_back"),
+        (r"(?:read|read me|read out|read aloud)(?: what's on| what is on)? (?:the |this )?(?:page|article|guide|browser|web page|site)"
+         r"(?: to me| aloud| out loud)?|what does (?:the |this )?page say", "browser_read"),
+        (r"(?:read more|keep reading|continue reading|read on|continue|keep going|go on|more|next part|what else)",
+         "browser_more"),
+        (r"(?:what's|what is) (?:on )?(?:the |my )?(?:browser|page)(?: showing| on)?|browser status|where is the browser",
          "browser_where"),
         (r"(?:cancel|never mind|nevermind|close(?: (?:this|the|that))?(?: (?:dialog|panel|popup|box|form))?)", "close"),
         (r"(?:press|click|hit|push|tap) (?:the )?(.+?)(?: button)?", "press"),
@@ -288,6 +301,9 @@ class Interpreter:
 
     def browser_history(self, step):
         return Outcome("browser", step)
+
+    def browser_back(self):
+        return Outcome("browser", "back")
 
     def browser_read(self):
         return Outcome("browser", "read")
