@@ -366,13 +366,11 @@ Verification: synthetic tests cover held recording, persistent microphone connec
 
 ## Hands-free voice from Lugos Voice
 
-Push-to-talk fills a draft. Hands-free voice is the other mode: Lugos Voice, a separate listener, hears the wake phrase, the request, and "end turn", and the companion sends that finished turn to one chat with no draft review. Open **Settings → Preferences → Hands-free voice (Lugos Voice)…** from the chat you want, choose its session, and press **Connect this chat**. The panel shows which chat receives speech and the last turn it accepted.
+Push-to-talk fills a draft. Hands-free voice runs the companion by speech: Lugos Voice, a separate listener, hears the wake phrase, the request, and "end turn", and hands the finished turn to the companion. A turn that names a companion action runs it: menu entries and settings, buttons and fields in the open dialog, chat sessions, the draft, a live gear comparison, and the teleport command. Anything else is sent to the selected chat without draft review. Lugos Voice speaks the companion's answer, such as "Keep above other windows on." or "Sent.", or asks which one you meant when a name matches two entries.
 
-While a chat is connected, Lugos Voice sends every turn that its local controls and game commands did not take to the companion instead of Claude, and speaks the outcome (for example "Sent to WoW Helper."). The companion sends through the same path as **Send**, leaves the draft alone, and refuses a turn older than a minute, a repeated request ID, a turn addressed to an earlier connection, or a turn that arrives while the chat is still sending. Switching sessions, closing the panel or the window, or quitting disconnects, and Lugos Voice then routes as before. Replies appear in the chat window; nothing is read aloud by the companion. Chat stays conversation only and triggers no game input.
+Open **Settings → Preferences → Hands-free voice (Lugos Voice)…** in the window you want and press **Connect this window**. Turn on **Connect this window automatically when the companion starts** to skip that step next time. The panel shows the connection, recent turns and what you can say; closing the panel keeps the connection. Closing the connected window, quitting, or saying "stop hands free" disconnects, and Lugos Voice then routes as before.
 
-The connection is a file inbox in ignored local storage; the companion opens no microphone or network port for it. The protocol is in [VOICE_BRIDGE.md](VOICE_BRIDGE.md).
-
-Verification: synthetic tests cover binding, freshness, duplicate and foreign-binding refusal, busy refusal, disconnect on session switch and window close, an unchanged draft, and a file round trip with the Lugos Voice sender. A live spoken turn through the installed listener is not yet verified.
+The full command list, safety rules and a test script are in [HANDSFREE.md](HANDSFREE.md). The file protocol is in [VOICE_BRIDGE.md](VOICE_BRIDGE.md).
 
 ## Personal goals and wishlist
 

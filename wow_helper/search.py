@@ -109,6 +109,30 @@ def search_index(manager):
     return rows[:MAX_RESULTS], list(dict.fromkeys(notices))
 
 
+def open_row(manager, window, row):
+    """Run one companion command row; shared by search and hands-free voice."""
+    target = row["target"]
+    view = window.view or getattr(window.display, "views", {}).get(getattr(window.display, "active", None))
+    if target in TYPES:
+        manager.open_search_window(target)
+    elif target == "interface":
+        manager.show_interface(window)
+    elif target == "layouts":
+        manager.show_activity_layouts(window)
+    elif target == "history":
+        manager.show_activity_history(window)
+    elif target in {"appearance", "setup"} and view:
+        (view.show_appearance if target == "appearance" else view.show_setup)()
+    elif target in {"build", "route", "addon", "economy", "fight", "chain", "goals"} and view:
+        if target == "chain" and (view.kind != "quests" or view.quest_tree.selected() is None):
+            raise ChatError("Select a quest in a Quest guide window before opening its chain.")
+        {"build": view.show_build_tutor, "route": view.show_route_notebook,
+         "addon": view.show_addon_troubleshooting,
+         "economy": view.show_economy_notebook, "fight": view.show_fight_question,
+         "chain": view.show_quest_chain, "goals": view.show_goals}[target]()
+    else:
+        raise ChatError("Open a chat or activity window to use that setting.")
+
 class SearchDialog:
     def __init__(self, manager, window):
         from tkinter import ttk
@@ -271,26 +295,7 @@ class SearchDialog:
             manager._layouts_dialog.selected.set(target)
             manager._layouts_dialog.preview()
         elif kind == "command":
-            view = self.window.view or getattr(self.window.display, "views", {}).get(getattr(self.window.display, "active", None))
-            if target in TYPES:
-                manager.open_search_window(target)
-            elif target == "interface":
-                manager.show_interface(self.window)
-            elif target == "layouts":
-                manager.show_activity_layouts(self.window)
-            elif target == "history":
-                manager.show_activity_history(self.window)
-            elif target in {"appearance", "setup"} and view:
-                (view.show_appearance if target == "appearance" else view.show_setup)()
-            elif target in {"build", "route", "addon", "economy", "fight", "chain", "goals"} and view:
-                if target == "chain" and (view.kind != "quests" or view.quest_tree.selected() is None):
-                    raise ChatError("Select a quest in a Quest guide window before opening its chain.")
-                {"build": view.show_build_tutor, "route": view.show_route_notebook,
-                 "addon": view.show_addon_troubleshooting,
-                 "economy": view.show_economy_notebook, "fight": view.show_fight_question,
-                 "chain": view.show_quest_chain, "goals": view.show_goals}[target]()
-            else:
-                raise ChatError("Open a chat or activity window to use that setting.")
+            open_row(manager, self.window, row)
         else:
             raise ChatError("That companion action is unavailable.")
         self.close()

@@ -306,6 +306,7 @@ class CompanionWindow:
             self.manager._voice_dialog.close()
         if self.manager._handsfree_dialog and self.manager._handsfree_dialog.window is self:
             self.manager._handsfree_dialog.close()
+        self.manager.handsfree.window_closed(self)
         self.root.unbind_class(self.search_tag, "<Control-k>")
         if self.manager._interface_dialog and self.manager._interface_dialog.parent is self.root:
             self.manager._interface_dialog.close()
@@ -328,7 +329,8 @@ class CompanionWindow:
 
 
 class WindowManager:
-    def __init__(self, root, *, service_factory=ChatService, activity_factory=None, layout_path=LAYOUT_PATH, areas=None):
+    def __init__(self, root, *, service_factory=ChatService, activity_factory=None, layout_path=LAYOUT_PATH, areas=None,
+                 handsfree_factory=None):
         import tkinter as tk
 
         self.tk, self.root = tk, root
@@ -354,6 +356,8 @@ class WindowManager:
         self._usage_dialog = None
         self._voice_dialog = None
         self._handsfree_dialog = None
+        from .handsfree import HandsFree
+        self.handsfree = handsfree_factory(self) if handsfree_factory else HandsFree(self)
         self._interface_preview = None
         self.interface = interface_settings(None)
         self.next_number = 1
@@ -388,6 +392,7 @@ class WindowManager:
             if not self.windows:
                 self.new_window(kind="chat")
             self.loading = False
+            self.handsfree.restore(layout.get("handsfree"))
             self.record_usage("companion", "start")
             self.refresh_menus()
             self.schedule_save()
@@ -922,7 +927,7 @@ class WindowManager:
         if self.layout_path is None:
             return True
         try:
-            data = {"version": 1, "interface": dict(self.interface),
+            data = {"version": 1, "interface": dict(self.interface), "handsfree": self.handsfree.settings(),
                     "windows": [window.snapshot() for window in self.windows]}
             write_json(self.layout_path, data)
         except (OSError, ChatError):
@@ -951,6 +956,7 @@ class WindowManager:
             self._voice_dialog.close()
         if self._handsfree_dialog:
             self._handsfree_dialog.close()
+        self.handsfree.close()
         if self._display_after is not None:
             self.root.after_cancel(self._display_after)
             self._display_after = None

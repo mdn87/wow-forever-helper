@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import json
 import time
 import uuid
+import weakref
 
 from .activities import FLAVORS, packet_preview
 from .appearance import style_text
@@ -46,6 +47,10 @@ def note_summary(entry):
     return "\n".join(lines)
 
 
+# Open dialogs, so hands-free voice can find the object behind a dialog window.
+OPEN_DIALOGS = weakref.WeakSet()
+
+
 class JournalDialog:
     def __init__(self, view, title):
         from tkinter import ttk
@@ -53,6 +58,7 @@ class JournalDialog:
         self.root = self.tk.Toplevel(view.root)
         self.root.withdraw()
         self.root.title(title)
+        OPEN_DIALOGS.add(self)
         self.chrome = WindowFrame(self.root, close=self.close, minimum=(440, 480))
         self.chrome.caption.set(title)
         self.chrome.place("650x720")

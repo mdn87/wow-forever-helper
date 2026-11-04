@@ -26,7 +26,7 @@ def test_fresh_request_for_current_binding_is_claimed_once(tmp_path):
     bridge = VoiceBridge(tmp_path, clock=clock)
     bridge.connect("Synthetic planning", "codex")
     request_id = write_request("  What should I do next?  ", storage=tmp_path, clock=clock)
-    assert bridge.pending() == [{"id": request_id, "text": "What should I do next?"}]
+    assert bridge.pending() == [{"id": request_id, "text": "What should I do next?", "spoken_at": clock.now}]
     assert not list((tmp_path / "inbox").iterdir())
     # The same id dropped again is never delivered twice.
     write_request("again", storage=tmp_path, clock=clock, request_id=request_id)
@@ -79,84 +79,3 @@ def test_sender_ignores_a_binding_whose_heartbeat_stopped(tmp_path):
     bridge.heartbeat()
     assert write_request("hello", storage=tmp_path, clock=clock)
 
-
-from test_workspace import manager_factory, SESSIONS, settle  # noqa: E402,F401
-
-
-def open_panel(manager, tmp_path, clock):
-    from wow_helper.voice_ui import HandsFreeDialog
-    window = manager.windows[0]
-    panel = manager._handsfree_dialog = HandsFreeDialog(
-        manager, window, bridge_factory=lambda: VoiceBridge(tmp_path / "bridge", clock=clock))
-    return window, window.view, panel
-
-
-def deliver(view, panel):
-    panel.poll()
-    settle(view)
-
-
-def test_panel_sends_a_spoken_turn_to_the_bound_chat_without_touching_the_draft(manager_factory, tmp_path):
-    clock = Clock()
-    manager = manager_factory()
-    window, view, panel = open_panel(manager, tmp_path, clock)
-    panel.connect()
-    assert not panel.bridge.connected  # Needs a chosen session first.
-    view._select_session(SESSIONS[0]); settle(view)
-    view.editor.insert("1.0", "Unsent draft")
-    panel.connect()
-    assert "Synthetic planning" in panel.bound.get()
-    request_id = write_request("Where is the flight master?", storage=tmp_path / "bridge", clock=clock)
-    deliver(view, panel)
-    assert view.service.sent == [(SESSIONS[0].key, "Where is the flight master?")]
-    assert view.editor.get("1.0", "end-1c") == "Unsent draft"
-    assert result(tmp_path / "bridge", request_id)["status"] == "sent"
-    panel.close()
-    assert not (tmp_path / "bridge" / "binding.json").exists()
-    assert manager._handsfree_dialog is None
-
-
-def test_switching_chats_disconnects_before_any_turn_is_sent(manager_factory, tmp_path):
-    clock = Clock()
-    manager = manager_factory()
-    window, view, panel = open_panel(manager, tmp_path, clock)
-    view._select_session(SESSIONS[0]); settle(view)
-    panel.connect()
-    request_id = write_request("For the first chat", storage=tmp_path / "bridge", clock=clock)
-    view._select_session(SESSIONS[1]); settle(view)
-    deliver(view, panel)
-    assert not panel.bridge.connected
-    assert view.service.sent == []
-    assert "chat changed" in panel.notice.get()
-    # The orphaned request stays unanswered; the sender reports no answer rather than a send.
-    assert not (tmp_path / "bridge" / "results" / (request_id + ".json")).exists()
-
-
-def test_busy_chat_refuses_the_turn_instead_of_queueing_it(manager_factory, tmp_path):
-    import threading
-    clock = Clock()
-    manager = manager_factory()
-    window, view, panel = open_panel(manager, tmp_path, clock)
-    view._select_session(SESSIONS[0]); settle(view)
-    panel.connect()
-    view.service.gate = threading.Event()
-    first = write_request("first", storage=tmp_path / "bridge", clock=clock)
-    panel.poll()
-    second = write_request("second", storage=tmp_path / "bridge", clock=clock)
-    panel.poll()
-    assert result(tmp_path / "bridge", second)["status"] == "rejected"
-    view.service.gate.set(); settle(view)
-    assert result(tmp_path / "bridge", first)["status"] == "sent"
-    assert view.service.sent == [(SESSIONS[0].key, "first")]
-
-
-def test_closing_the_window_closes_the_panel_and_binding(manager_factory, tmp_path):
-    clock = Clock()
-    manager = manager_factory()
-    window, view, panel = open_panel(manager, tmp_path, clock)
-    view._select_session(SESSIONS[0]); settle(view)
-    panel.connect()
-    manager.new_window()
-    manager.close_window(window)
-    assert manager._handsfree_dialog is None
-    assert not (tmp_path / "bridge" / "binding.json").exists()
