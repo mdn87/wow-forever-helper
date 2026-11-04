@@ -3,7 +3,8 @@
 A finished turn is matched as a whole utterance against a small grammar. A match
 operates the companion's own interface: Settings menu entries, the frontmost
 companion dialog's buttons, check boxes, choices, tabs and text fields, the bound
-chat's session and draft, and an armed gear comparison. Anything else is chat.
+chat's session and draft, an armed gear comparison, and the companion's own voice
+browser window (voice_browser). Anything else is chat.
 Nothing here sends game input; game commands are recognized by assist.resolve and
 executed by the hands-free controller through the existing assistive input path.
 """
@@ -17,14 +18,16 @@ MAX_SPOKEN = 1200
 HELP = ("Say a menu item, like open Journal or turn on keep above other windows. In a dialog, say press and a "
         "button name, check or uncheck a box, choose an option, show a tab, type some text, read it, send, or close. "
         "For chat, say switch to a session name, new Codex chat, type then send, read the reply, or just talk. "
-        "With the gear comparison open and its shortcut enabled, say compare. Say stop hands free to disconnect.")
+        "With the gear comparison open and its shortcut enabled, say compare. For the voice browser, say open the "
+        "browser, look up and a name, open the first result, read the page, read more, scroll down, or go back. "
+        "Say stop hands free to disconnect.")
 
 
 @dataclass(frozen=True)
 class Outcome:
-    kind: str        # "done", "refused", "chat", "game" or "disconnect"
-    detail: str = ""
-    text: str = ""   # the chat or game text for "chat" and "game"
+    kind: str        # "done", "refused", "chat", "game", "browser" or "disconnect"
+    detail: str = ""  # for "browser", the voice_browser action
+    text: str = ""   # the chat or game text, or the browser action's argument
 
 
 def words(text):
@@ -220,6 +223,23 @@ class Interpreter:
         (r"(?:what can i say|voice help|help|list (?:voice )?commands)", "help"),
         (r"(?:stop|end|disconnect|turn off) hands ?free(?: voice)?|disconnect voice", "disconnect"),
         (r"(?:tell|ask|say to) (?:the )?(?:agent|chat|codex|claude) (.+)", "chat"),
+        (r"(?:open|start|launch|show) (?:the |my )?(?:voice )?browser", "browser_open"),
+        (r"(?:close|quit) (?:the |my )?(?:voice )?browser", "browser_close"),
+        (r"(?:look up|lookup|search wowhead for|wowhead|search for|find) (.+?) (?:on|in) classic(?: wowhead)?",
+         "browser_classic"),
+        (r"(?:look up|lookup|search wowhead for|wowhead|search for|find) (.+?)(?: on wowhead)?", "browser_search"),
+        (r"(?:google|search google for|search the web for|web search for|web search) (.+)", "browser_web"),
+        (r"(?:browse to|browser go to|go to website|open website|open the website|go to the site) (.+)", "browser_go"),
+        (r"(?:open|click|follow|show)(?: the)? (first|second|third|fourth|fifth|top|\d+)(?:st|nd|rd|th)? result",
+         "browser_result"),
+        (r"(?:open|click|follow) result (one|two|three|four|five|\d+)", "browser_result"),
+        (r"(?:open|click|follow) (?:the )?link(?: called| named| for)? (.+)", "browser_follow"),
+        (r"(?:scroll|page) (down|up)(?: a bit| more| the page| please)?|scroll to the (top|bottom)", "browser_scroll"),
+        (r"(?:go |browser )?(back|forward)(?: a page| one page)?", "browser_history"),
+        (r"(?:read|read me) (?:the |this )?(?:page|article|guide|browser|web page|site)", "browser_read"),
+        (r"(?:read more|keep reading|continue reading|go on|more)", "browser_more"),
+        (r"(?:what's|what is) (?:on )?(?:the |my )?browser(?: showing| on)?|browser status|where is the browser",
+         "browser_where"),
         (r"(?:cancel|never mind|nevermind|close(?: (?:this|the|that))?(?: (?:dialog|panel|popup|box|form))?)", "close"),
         (r"(?:press|click|hit|push|tap) (?:the )?(.+?)(?: button)?", "press"),
         (r"(?:check|tick|turn on|enable|switch on) (.+)", "check_on"),
@@ -237,6 +257,46 @@ class Interpreter:
         (r"compare(?: gear| items| this| now| it| tooltips)?|capture(?: now| it| tooltips?)?", "compare"),
         (r"(?:open|show|run|start|launch|bring up|go to) (.+)", "open"),
     ]
+
+    # -- the voice browser; the hands-free controller runs these off the interface thread
+    def browser_open(self):
+        return Outcome("browser", "open")
+
+    def browser_close(self):
+        return Outcome("browser", "close")
+
+    def browser_search(self, query):
+        return Outcome("browser", "search", query)
+
+    def browser_classic(self, query):
+        return Outcome("browser", "classic", query)
+
+    def browser_web(self, query):
+        return Outcome("browser", "web", query)
+
+    def browser_go(self, site):
+        return Outcome("browser", "go", site)
+
+    def browser_result(self, which):
+        return Outcome("browser", "result", which)
+
+    def browser_follow(self, name):
+        return Outcome("browser", "follow", name)
+
+    def browser_scroll(self, direction, edge=None):
+        return Outcome("browser", "scroll", direction or edge)
+
+    def browser_history(self, step):
+        return Outcome("browser", step)
+
+    def browser_read(self):
+        return Outcome("browser", "read")
+
+    def browser_more(self):
+        return Outcome("browser", "read", "more")
+
+    def browser_where(self):
+        return Outcome("browser", "where")
 
     # -- general
     def help(self):

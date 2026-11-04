@@ -2,15 +2,19 @@
 
 The controller owns the voice bridge binding. Each turn is first matched against
 the spoken command grammar in voice_commands; a recognized game command goes
-through the existing assistive input checks; anything else is sent to the
+through the existing assistive input checks; a browser command drives the
+companion's own voice browser on a worker thread; anything else is sent to the
 window's selected chat. Every turn is answered in the bridge's results folder,
 which Lugos Voice speaks.
 """
 
+import queue
 import sqlite3
+import threading
 
 from .chat import ROOT
 from .voice_bridge import VoiceBridge
+from .voice_browser import Browser, BrowserError
 from .voice_commands import Interpreter
 
 POLL_MS = 250
@@ -39,10 +43,13 @@ def is_game_command(text):
 
 
 class HandsFree:
-    def __init__(self, manager, *, bridge_factory=VoiceBridge, assistant_factory=default_assistant):
+    def __init__(self, manager, *, bridge_factory=VoiceBridge, assistant_factory=default_assistant,
+                 browser_factory=Browser):
         self.manager = manager
         self.bridge = bridge_factory()
         self.assistant_factory = assistant_factory
+        self.browser_factory, self._browser = browser_factory, None
+        self.finished = queue.Queue()   # browser results, answered on the interface thread
         self.window = None
         self.auto = False
         self.history = []
@@ -129,6 +136,7 @@ class HandsFree:
             self.disconnect("The connected window closed, so hands-free voice disconnected.")
             return
         self.bridge.heartbeat()
+        self.answer_finished()
         for request in self.bridge.pending():
             self.handle(request)
             if not self.connected:
@@ -151,6 +159,8 @@ class HandsFree:
             self.send_chat(request_id, outcome.text)
         elif outcome.kind == "game":
             self.run_game(request_id, outcome.text, request.get("spoken_at"))
+        elif outcome.kind == "browser":
+            self.run_browser(request_id, text, outcome.detail, outcome.text)
         elif outcome.kind == "refused":
             self.bridge.report(request_id, "rejected", outcome.detail)
             self._note(text, "refused", outcome.detail)
@@ -198,3 +208,31 @@ class HandsFree:
         detail = result.get("message", "Key sent once; spell success is not verified.")
         self.bridge.report(request_id, "done", detail)
         self._note(text, "done", detail)
+
+    @property
+    def browser(self):
+        if self._browser is None:
+            self._browser = self.browser_factory()
+        return self._browser
+
+    def run_browser(self, request_id, text, action, argument):
+        """Drive the voice browser off the interface thread; poll() answers when it finishes."""
+        def work():
+            try:
+                result = ("done", self.browser.run(action, argument))
+            except BrowserError as error:
+                result = ("rejected", str(error))
+            except Exception:
+                result = ("failed", "The voice browser did not answer. Nothing else was changed.")
+            self.finished.put((request_id, text) + result)
+
+        threading.Thread(target=work, name="voice-browser", daemon=True).start()
+
+    def answer_finished(self):
+        while True:
+            try:
+                request_id, text, status, detail = self.finished.get_nowait()
+            except queue.Empty:
+                return
+            self.bridge.report(request_id, status, detail)
+            self._note(text, {"done": "done", "rejected": "refused"}.get(status, status), detail)
