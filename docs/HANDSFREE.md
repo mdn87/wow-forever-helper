@@ -36,13 +36,20 @@ A whole turn must match one of these forms; anything else is a chat message. Nam
 | "switch to Raid prep", "new Codex chat", "new Claude chat" | Changes the connected window's chat session or starts one. The next message names the chat when it changed. |
 | "compare" / "compare gear" | Starts one capture in an open Live gear comparison whose region was reviewed and whose shortcut is enabled. Hover the item first. |
 | "cast teleport to Orgrimmar on my mage" | The existing assistive teleport command, with its usual checks: enabled state, bound key, fresh request, one use per request ID, and WoW in front. |
+| "open the browser" / "close the browser" | Opens or closes the voice browser, a separate Chrome window the companion owns. It opens in the background, so the game keeps the foreground. Drag it to a side monitor once; Chrome remembers the spot. |
+| "look up frostbolt", "look up Thunder Bluff on classic", "search the web for …" | Searches Wowhead, Wowhead Classic or Bing in the voice browser and says the page title. |
+| "browse to wowhead dot com" | Opens a spoken address. Anything that is not an address is looked up on Wowhead. |
+| "open the first result", "open result 3", "follow the link Rank 2 trainer" | Opens a result from the search page, or the page link whose text matches. |
+| "read the page", then "read more" | Reads the page title and about 900 characters of its main text, then the next part. |
+| "scroll down" / "scroll up" / "scroll to the top", "go back" / "forward", "what's on the browser" | Moves the voice browser's page, or says what it shows. |
 | "tell the agent …" / "ask Codex …" | Sends the rest as a chat message even if it sounds like a command. |
 | "stop hands free" | Disconnects. |
 | anything else | Sent to the connected window's selected chat without draft review. |
 
 ## Safety rules
 
-- Commands operate only the companion's own windows. Chat messages never trigger game input. The teleport command is the only game input, and it keeps every existing assistive-input check.
+- Commands operate only the companion's own windows and its voice browser. Chat messages never trigger game input.
+- The voice browser uses its own Chrome profile in the ignored `.runtime/voice-browser` folder and a DevTools port open only to this PC (127.0.0.1:9231). It never types into pages, signs in, downloads, or activates a window. Every browser answer checks the foreground window; if it changed, the answer says so and the companion leaves focus alone. Don't sign in to anything in that window: any program on this PC can reach that port. The teleport command is the only game input, and it keeps every existing assistive-input check.
 - Turns older than a minute, repeated request IDs, malformed turns, and turns for an earlier connection are refused and answered.
 - Nothing runs because of a reply, a screenshot, or chat content. There are no retries, command sequences, or repeated keys.
 - Review flows still need an explicit spoken send after the review is prepared and visible.
@@ -50,6 +57,7 @@ A whole turn must match one of these forms; anything else is a chat message. Nam
 
 ## Known limits
 
+- The voice browser can't fill forms, press page buttons other than links, or pick from menus on a page. Some sites refuse automated browsers; Wowhead and Bing answered in testing.
 - File pickers (**Import…**, **Open image…**, **Open saved journal…**) are Windows dialogs and still need the mouse.
 - Speech recognition can mishear names; the panel's Recent turns list shows what was heard and what happened.
 - One window is connected at a time. Commands act on that window and on the frontmost companion dialog.
@@ -68,9 +76,10 @@ Each step lists what to say after the wake phrase, followed by "end turn", and t
 7. Open Live gear comparison, review a region and enable it by mouse. Hover an item in game and say "compare". Expect "Comparing…" and one result.
 8. With assistive input enabled and the key bound, say "cast teleport to Orgrimmar on my mage" with WoW in front. Expect the key-sent message. Spell success is not verified.
 9. Say something that sounds like a command but is not one, such as "open the door". Expect "Sent." (it is a chat message).
-10. "stop hands free". Expect the disconnect message, and later turns go back to Claude.
-11. Turn on auto-connect, quit, and start the companion. Expect the window connected without a click.
+10. Voice browser, with WoW in front: "open the browser", "look up frostbolt", "open the first result", "read the page", "read more", "scroll down", "go back". Expect each answer spoken, the Chrome window to change, and WoW to keep the keyboard the whole time (keep moving your character between turns).
+11. "stop hands free". Expect the disconnect message, and later turns go back to Claude.
+12. Turn on auto-connect, quit, and start the companion. Expect the window connected without a click.
 
 ## Verification
 
-Synthetic tests in `tests/test_handsfree.py` and `tests/test_voice_bridge.py` drive turns through the real file bridge against an isolated test desktop. They cover menu toggles and companion commands, dialog buttons, check boxes, close and read, typing and sending the draft, reading the reply, session switching with the chat named on the next message, chat fallback and the chat prefix, the full Ask about the last fight review by voice with one send, gear comparison gating, teleport with the turn's ID and time and its refusal, refusals for an empty draft and no session, disconnect by phrase and window close, saved auto-connect, and the panel. The Lugos Voice tests cover the spoken answers and a file round trip with the companion's bridge. A live spoken turn through the installed listener, real recognition accuracy, and in-game results are not yet verified.
+Synthetic tests in `tests/test_handsfree.py` and `tests/test_voice_bridge.py` drive turns through the real file bridge against an isolated test desktop. They cover menu toggles and companion commands, dialog buttons, check boxes, close and read, typing and sending the draft, reading the reply, session switching with the chat named on the next message, chat fallback and the chat prefix, the full Ask about the last fight review by voice with one send, gear comparison gating, every voice browser phrase, its DevTools calls against a fake page (no input emulation or window activation), the foreground-change report, teleport with the turn's ID and time and its refusal, refusals for an empty draft and no session, disconnect by phrase and window close, saved auto-connect, and the panel. The Lugos Voice tests cover the spoken answers and a file round trip with the companion's bridge. On 2026-11-04 the voice browser was also run on this PC against real Chrome and live Wowhead and Bing pages, without the listener: opening the window and nine commands (search, first result, read, scroll, link, back, status) left the foreground window unchanged throughout. The first design, where Chrome opened its own window, took the foreground, which is why Chrome now starts without one. A live spoken turn through the installed listener, real recognition accuracy, and in-game results are not yet verified.
