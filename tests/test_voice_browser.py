@@ -82,7 +82,7 @@ class FakeDevTools:
 
 
 @pytest.fixture
-def browser():
+def browser(tmp_path):
     page = FakePage()
     state = {"running": True, "pages": 1, "launched": [], "foreground": [100]}
 
@@ -97,7 +97,7 @@ def browser():
         state["launched"].append((args, options))
         state["running"] = True
 
-    tool = Browser(http=http, devtools=FakeDevTools(page), launcher=launcher, chrome="chrome.exe",
+    tool = Browser(profile=tmp_path / "profile", http=http, devtools=FakeDevTools(page), launcher=launcher, chrome="chrome.exe",
                    foreground=lambda: state["foreground"][-1], sleep=lambda _: None)
     tool.page_state, tool.state = page, state
     return tool
@@ -118,6 +118,16 @@ def test_spoken_browser_phrases_map_to_actions():
         "go back": ("back", ""), "forward": ("forward", ""),
         "read the page": ("read", ""), "keep reading": ("read", "more"),
         "what's on the browser": ("where", ""),
+        # Natural phrasing: lead-ins, the wake word, "for me", "in the browser" and question marks.
+        "can you look up frostbolt for me": ("search", "frostbolt"),
+        "Hey Lugos, could you please look up frostbolt in the browser?": ("search", "frostbolt"),
+        "look frostbolt up": ("search", "frostbolt"), "pull up orgrimmar flight master": ("search", "orgrimmar flight master"),
+        "I want you to search for the mage trainer on wowhead please": ("search", "the mage trainer"),
+        "can you google wow forever patch notes": ("web", "wow forever patch notes"),
+        "go ahead and open up the browser": ("open", ""), "let's open the first one": ("result", "first"),
+        "take me to the second result": ("result", "second"), "read me the page": ("read", ""),
+        "what does the page say": ("read", ""), "keep going": ("read", "more"),
+        "scroll down a little": ("scroll", "down"), "previous page": ("back", ""),
     }
     for phrase, (action, argument) in cases.items():
         outcome = interpreter.handle(phrase)

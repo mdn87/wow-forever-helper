@@ -15,7 +15,7 @@ Closing the panel keeps the connection. Saying "stop hands free", closing the co
 
 ## What you can say
 
-A whole turn must match one of these forms; anything else is a chat message. Names are matched loosely ("keep above" finds **Keep above other windows**). When two names are close, the answer is "Did you mean A or B?" and nothing runs.
+A whole turn must match one of these forms; anything else is a chat message. Everyday lead-ins and endings are ignored, so "can you look up frostbolt for me", "could you please open the first one in the browser" and "let's read the page" work. Questions such as "what is frostbolt" are chat messages for the agent. Names are matched loosely ("keep above" finds **Keep above other windows**). When two names are close, the answer is "Did you mean A or B?" and nothing runs.
 
 | Say | Effect |
 |---|---|
