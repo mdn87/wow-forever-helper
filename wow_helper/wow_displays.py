@@ -128,6 +128,7 @@ class ActivityDeck:
                               window_id=str(uuid.uuid5(uuid.UUID(self.window.id), kind)),
                               service_factory=self.manager.service_factory,
                               resume_conversation=self.manager.resume_conversation,
+                              open_session_keys=self.manager.open_session_keys,
                               pin_advice=self.manager.pin_advice, state=state, toolbar=toolbar,
                               on_change=lambda: self.manager.changed(self.window))
             self.views[kind], self.hosts[kind] = view, host

@@ -1,6 +1,7 @@
 """Searchable copy-only reference in the companion's native window style."""
 
 import webbrowser
+from urllib.parse import quote_plus
 
 from .command_library import CATEGORIES, describe, find_commands
 from .task_window import replace_text, text_box
@@ -38,9 +39,15 @@ class CommandLibraryDialog:
         intro.pack(fill="x", pady=(4, 10))
         tk.Label(body, text="Search by setting, effect, or symptom", bg=colors.PANEL,
                  fg=colors.TEXT, anchor="w").pack(fill="x")
+        search = ttk.Frame(body)
+        search.pack(fill="x", pady=(4, 8))
         self.query = tk.StringVar(master=self.root)
-        self.entry = ttk.Entry(body, textvariable=self.query)
-        self.entry.pack(fill="x", pady=(4, 8))
+        self.entry = ttk.Entry(search, textvariable=self.query)
+        self.entry.pack(side='left', fill='x', expand=True)
+        self.research_button = ttk.Button(search, text='Search online…', command=self.research)
+        self.research_button.pack(side='right', padx=(6, 0))
+        self.entry.bind('<Return>', self.research)
+        self.entry.bind('<KP_Enter>', self.research)
         self.category = tk.StringVar(master=self.root, value=CATEGORIES[0])
         self.category_choice = ttk.Combobox(body, textvariable=self.category,
                                            values=CATEGORIES, state="readonly")
@@ -72,8 +79,9 @@ class CommandLibraryDialog:
             button.grid(row=1, column=index, sticky="ew", padx=2)
         self.source_button = ttk.Button(footer, text="Open source", command=self.open_source)
         self.source_button.grid(row=2, column=0, sticky="ew", padx=2, pady=(6, 0))
-        self.research_button = ttk.Button(footer, text='Find new commands…', command=self.research)
-        self.research_button.grid(row=2, column=1, sticky='ew', padx=2, pady=(6, 0))
+        self.browser_button = ttk.Button(footer, text='Search in browser', command=self.search_in_browser)
+        self.browser_button.grid(row=2, column=1, sticky='ew', padx=2, pady=(6, 0))
+
         ttk.Button(footer, text="Close", command=self.close).grid(row=2, column=2, sticky="ew", padx=2, pady=(6, 0))
         footer.columnconfigure((0, 1, 2), weight=1, uniform="actions")
         preview_area = tk.Frame(body, bg=colors.PANEL)
@@ -102,12 +110,15 @@ class CommandLibraryDialog:
             key = current if any(entry.key == current for entry in self.matches) else self.matches[0].key
             self.results.selection_set(key)
             self.results.see(key)
-        self.notice.set(f"{len(self.matches)} commands · Copy a line to use it in game.")
+        self.notice.set(f"{len(self.matches)} library matches · Enter reviews an online search with your agent." if self.query.get().strip()
+                        else f"{len(self.matches)} library commands")
+        self.browser_button.state(['!disabled'] if self.query.get().strip() else ['disabled'])
         self.selected()
 
     def selected(self, _=None):
         entry = self.current()
-        replace_text(self.preview, describe(entry) if entry else "No matching commands. Clear the search or choose another category.")
+        replace_text(self.preview, describe(entry) if entry else
+                     "No matching commands in the library. Use Search online to ask your agent to look up the answer.")
         for button, field in ((self.copy_command, "command"), (self.copy_inspect, "inspect"),
                               (self.copy_restore, "restore"), (self.source_button, "source")):
             button.configure(state="normal" if entry and getattr(entry, field) else "disabled")
@@ -135,12 +146,42 @@ class CommandLibraryDialog:
                 opened = False
             self.notice.set("Opened source in your browser." if opened else "Could not open browser. The source URL is in the details.")
 
-    def research(self):
-        if self.research_dialog is None:
+    def search_in_browser(self):
+        from .voice_browser import SEARCH
+        question = self.query.get().strip()
+        if not question:
+            return
+        url = SEARCH['web'].format(quote_plus('World of Warcraft ' + question))
+        try:
+            opened = webbrowser.open(url)
+        except (OSError, webbrowser.Error):
+            opened = False
+        self.notice.set('Opened web results in your browser.' if opened else 'Could not open your browser.')
+
+    def research(self, _event=None):
+        opening = self.research_dialog is None or self.research_dialog.view.closed
+        if opening:
             from .command_research_ui import CommandResearchDialog
-            self.research_dialog = CommandResearchDialog(self)
-        else:
-            self.research_dialog.root.lift()
+            if self.research_dialog:
+                self.research_dialog.close()
+            window = self.window
+            if not window.view:
+                window = next((w for w in self.manager.windows if w.kind == 'chat' and w.view), None)
+                window = window or self.manager.new_window(self.window, kind='chat')
+            if window is None:
+                self.notice.set('Open a chat window to search online with an agent.')
+                return 'break'
+            self.research_dialog = CommandResearchDialog(self, window)
+        dialog = self.research_dialog
+        dialog.root.lift()
+        question = self.query.get().strip()
+        changed = question != dialog.query.get().strip()
+        if changed:
+            dialog.query.set(question)
+        if question and dialog.view.selected and (opening or changed):
+            dialog.prepare()
+        dialog.query_entry.focus_set()
+        return 'break'
 
     def close(self):
         if self.research_dialog is not None:

@@ -47,8 +47,12 @@ class QuestChat(ChatWindow):
                                         font=("Segoe UI", 9), width=1)
         self.quest_label.pack(side="left", fill="x", expand=True)
 
-    def attachable_sessions(self):
-        return [self.selected] if self.selected else []
+    empty_active_sessions = 'This quest tab uses its own conversation. Use a regular chat to attach another session.'
+
+    def attachable_sessions(self, discovered=None):
+        if discovered is None:
+            return [self.selected] if self.selected else []
+        return [s for s in discovered if self.selected and s.key == self.selected.key]
 
     def send_quest_request(self, body, request_id, on_delivery):
         """The reviewed quest action names its own destination before the click."""

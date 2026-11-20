@@ -42,6 +42,8 @@ Open floating companion windows connected to new or existing agent sessions. A n
 
 **Change model** applies to the next explicit request in this chat. Quick question requests low reasoning effort, Everyday help requests medium and Complex question requests high. Each preserves the chosen model. Use **Choose a different model** to see available models. Advanced contains manual settings and the managed CLI time limit. In an external Codex chat, an override requires an idle thread and changes later turns in the Codex app. External Claude chats offer commands you can copy into Claude.
 
+**Find active sessions** opens Advanced from a fresh window. In a connected chat, use **Change model → Advanced**. The list refreshes on entry and while Advanced is visible. Choose a row and press **Use session** to connect. It includes loaded Codex chats, live interactive Claude chats, and companion chats that are open or running. Each row shows the provider and status. Switching loads the chosen chat's model settings and keeps each chat's draft. A dedicated quest tab stays bound to its own conversation.
+
 **Account usage** shows the provider's last reported usage windows. Refreshing reads account metadata. If the provider explicitly reports included usage is unavailable, the companion keeps your draft. A one-time billing action appears when the provider reports available extra usage. Research has a separate three-attempt allowance across companion windows.
 
 Messages use separate colors for your text and the agent's text, with a faint divider between turns. There are no speaker-label rows or added paragraph spacing. Original line breaks inside each message remain intact. Delivery notices such as **QUEUED** stay inline with the outgoing message.

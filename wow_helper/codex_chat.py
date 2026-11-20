@@ -192,7 +192,7 @@ class CodexClient:
         page = self.rpc("thread/items/list", {
             "threadId": session_id, "limit": 100, "sortDirection": "desc",
         })
-        return [entry["item"] for entry in reversed(page.get("data", []))]
+        return [dict(entry["item"], turnId=entry.get("turnId", "")) for entry in reversed(page.get("data", []))]
 
     def models(self):
         found, cursor = [], None

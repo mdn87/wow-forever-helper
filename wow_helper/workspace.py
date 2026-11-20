@@ -220,6 +220,7 @@ class CompanionWindow:
                                activity=self.manager.activity_factory(), window_id=self.id,
                                service_factory=self.manager.service_factory,
                                resume_conversation=self.manager.resume_conversation,
+                               open_session_keys=self.manager.open_session_keys,
                                pin_advice=self.manager.pin_advice,
                                state=state, on_change=lambda: self.manager.changed(self),
                                toolbar=self.toolbar, actions_menu=self.menus)
@@ -767,24 +768,31 @@ class WindowManager:
         self.record_usage("pinned", "save")
         return window
 
+    def chat_views(self):
+        for window in self.windows:
+            views = [(None, window.view)] if window.view else []
+            if isinstance(window.display, ActivityDeck):
+                views.extend(window.display.views.items())
+            for activity, view in views:
+                for candidate in (view, *view.quest_chats.values()):
+                    yield window, activity, view, candidate
+
+    def open_session_keys(self):
+        return {chat.selected.key for _, _, _, chat in self.chat_views() if chat.selected}
+
     def resume_conversation(self, source):
         """Reveal or restore the exact saved session, without an opening request."""
         from .journal import metadata
         metadata(source=source)
         key = (source["provider"], source["session_id"])
-        for window in self.windows:
-            views = [(None, window.view)] if window.view else []
-            if isinstance(window.display, ActivityDeck):
-                views += list(window.display.views.items())
-            for activity, view in views:
-                for candidate in [view, *view.quest_chats.values()]:
-                    if candidate.selection_key == key:
-                        if activity:
-                            window.display.open_activity(activity)
-                        if view.book:
-                            view.book.select(candidate.root)
-                        self.reveal(window)
-                        return candidate
+        for window, activity, view, candidate in self.chat_views():
+            if candidate.selection_key == key:
+                if activity:
+                    window.display.open_activity(activity)
+                if view.book:
+                    view.book.select(candidate.root)
+                self.reveal(window)
+                return candidate
         if len(self.windows) >= MAX_WINDOWS:
             raise ChatError("Eight windows are open. Close one before opening this conversation; notes and drafts are kept.")
         if self.closed:

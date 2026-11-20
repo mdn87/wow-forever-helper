@@ -14,10 +14,12 @@ The CLI previews by default. Live delivery requires enabling input, explicitly e
 **Ctrl+K**, for searchable graphics tweaks, the sharpening-flicker fix, and addon
 commands. Each entry includes an explanation, evidence label, source and copy
 controls; settings also include read-value and reset commands where applicable.
-**Find new commands…** prepares one short research request for your selected agent
-session. **Change model** shows the model and effort for the next message. You can
-check provider account usage separately from the three research attempts shared by
-your companion windows.
+Typing filters saved commands. Press **Enter** or **Search online…** to review a web
+search with your agent, then **Send one search**. Its reply appears in the search window
+and the original chat. **Search in browser** opens ordinary web results without using an
+agent attempt. To attach an open Codex or Claude session, use **Find active sessions**
+in a fresh chat, or **Change model → Advanced**. Provider account usage and the three
+research attempts shared by your companion windows are shown separately.
 See [the command library](docs/COMMAND_LIBRARY.md).
 
 For **interactive chat and companion windows**, install the optional chat dependencies in a local environment and open the window:
