@@ -14,6 +14,7 @@ class CommandLibraryDialog:
         from tkinter import ttk
 
         self.manager, self.parent = manager, window.root
+        self.window, self.research_dialog = window, None
         tk = manager.tk
         self.root = tk.Toplevel(manager.root)
         self.root.withdraw()
@@ -71,6 +72,8 @@ class CommandLibraryDialog:
             button.grid(row=1, column=index, sticky="ew", padx=2)
         self.source_button = ttk.Button(footer, text="Open source", command=self.open_source)
         self.source_button.grid(row=2, column=0, sticky="ew", padx=2, pady=(6, 0))
+        self.research_button = ttk.Button(footer, text='Find new commands…', command=self.research)
+        self.research_button.grid(row=2, column=1, sticky='ew', padx=2, pady=(6, 0))
         ttk.Button(footer, text="Close", command=self.close).grid(row=2, column=2, sticky="ew", padx=2, pady=(6, 0))
         footer.columnconfigure((0, 1, 2), weight=1, uniform="actions")
         preview_area = tk.Frame(body, bg=colors.PANEL)
@@ -132,6 +135,15 @@ class CommandLibraryDialog:
                 opened = False
             self.notice.set("Opened source in your browser." if opened else "Could not open browser. The source URL is in the details.")
 
+    def research(self):
+        if self.research_dialog is None:
+            from .command_research_ui import CommandResearchDialog
+            self.research_dialog = CommandResearchDialog(self)
+        else:
+            self.research_dialog.root.lift()
+
     def close(self):
+        if self.research_dialog is not None:
+            self.research_dialog.close()
         self.manager._command_library_dialog = None
         self.root.destroy()

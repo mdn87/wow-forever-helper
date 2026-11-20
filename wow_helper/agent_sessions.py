@@ -60,13 +60,17 @@ def tool_environment(tools):
     return {**os.environ, TOOL_TOKEN: tools["env"][TOOL_TOKEN]} if tools else None
 
 
-def command(provider, native_id=None, *, effort="medium", schema=None, tools=None):
+def command(provider, native_id=None, *, effort="medium", model="", schema=None, tools=None):
     """Only fixed CLI commands; prompts go through stdin, never a shell."""
-    effort = effort if effort in {"low", "medium", "high"} else "medium"
+    from .model_settings import validate
+    validate(model, effort or '', 180)
     plain_env = {key: value for key, value in (tools or {}).get("env", {}).items() if key != TOOL_TOKEN}
     if provider == "codex":
-        args = [codex_executable(), "--search", "-a", "never", "-s", "read-only",
-                "-c", f'model_reasoning_effort="{effort}"']
+        args = [codex_executable(), "--search", "-a", "never", "-s", "read-only"]
+        if effort:
+            args += ["-c", f'model_reasoning_effort="{effort}"']
+        if model:
+            args += ["--model", model, "-c", 'service_tier="default"']
         if tools:
             prefix = "mcp_servers." + TOOL_SERVER
             table = ", ".join(f"{key} = {json.dumps(value)}" for key, value in plain_env.items())
@@ -85,8 +89,11 @@ def command(provider, native_id=None, *, effort="medium", schema=None, tools=Non
         args = claude_command() + ["-p", "--output-format", "stream-json", "--verbose",
                                    "--permission-mode", "dontAsk", "--permission-prompts", "none",
                                    "--tools", CLAUDE_TOOLS,
-                                   "--allowedTools", CLAUDE_TOOLS + (",mcp__" + TOOL_SERVER if tools else ""),
-                                   "--effort", effort]
+                                   "--allowedTools", CLAUDE_TOOLS + (",mcp__" + TOOL_SERVER if tools else "")]
+        if effort:
+            args += ["--effort", effort]
+        if model:
+            args += ["--model", model]
         if tools:
             server = {"type": "stdio", "command": tools["command"], "args": tools["args"],
                       "env": {**plain_env, TOOL_TOKEN: "${" + TOOL_TOKEN + "}"}}
@@ -220,7 +227,7 @@ class AgentSessions:
                 continue
         return found
 
-    def send(self, session, body, request_id, *, schema=None, effort="medium", timeout=600, display_body=None):
+    def send(self, session, body, request_id, *, schema=None, effort="medium", model="", timeout=600, display_body=None):
         folder, request_id = self.folder(session.id), identifier(request_id)
         path = folder / "requests" / (request_id + ".json")
         with state_lock(folder):
@@ -232,7 +239,7 @@ class AgentSessions:
             if meta.get("active"):
                 raise ChatError("This session has an unfinished request. Wait for it, or start a new conversation.")
             request = {"id": request_id, "body": body, "status": "queued", "at": time.time(),
-                       "heartbeat": time.time(), "schema": schema, "effort": effort,
+                       "heartbeat": time.time(), "schema": schema, "effort": effort, "model": model,
                        "timeout": max(30, min(int(timeout), 900))}
             if display_body is not None:
                 if not isinstance(display_body, str) or len(display_body) > 6000 or '\0' in display_body:
@@ -319,7 +326,7 @@ def run_turn(storage, session_id, request_id):
                       "If a tool is unavailable, say so. Finish after answering the request.\n\n"
                       + meta.get("startup", "") + "\n\nUSER REQUEST\n" + prompt)
         tools = session_tools(store.storage, meta["provider"], session_id)
-        args = command(meta["provider"], meta.get("native_id"), effort=request.get("effort"), schema=schema_path,
+        args = command(meta["provider"], meta.get("native_id"), effort=request.get("effort"), model=request.get("model", ""), schema=schema_path,
                        tools=tools)
         deadline = time.monotonic() + request["timeout"]
         errors = path.with_suffix(".stderr.log")

@@ -262,13 +262,38 @@ class ChatService:
             return "interrupted"
         return status
 
-    def send(self, session, body, request_id):
+    def model_options(self, session):
+        if session.provider == 'claude':
+            return [], 'Claude quota is unavailable here. Use /usage in Claude to check your plan.'
+        from .model_settings import usage_summary
+        client = CodexClient()
+        try:
+            models = client.models()
+            try:
+                usage = usage_summary(client.rpc('account/rateLimits/read', {}))
+            except ChatError:
+                usage = usage_summary({})
+            return models, usage
+        finally:
+            client.close()
+
+    def research(self, session, body, request_id, expected_settings):
+        from .model_settings import Preferences
+        preferences = Preferences(self.state)
+        if preferences.get(session) != expected_settings:
+            raise ChatError('Model settings changed. Review the research request again.')
+        preferences.reserve_research(request_id)
+        return self.send(session, body, request_id, model_settings=expected_settings)
+
+    def send(self, session, body, request_id, *, model_settings=None):
         body = body.strip()
         if not body or len(body) > MAX_MESSAGE or "\0" in body:
             raise ChatError(f"Enter a message between 1 and {MAX_MESSAGE} characters, without null characters.")
         session_id, request_id = identifier(session.id), identifier(request_id)
+        from .model_settings import Preferences
+        settings = Preferences(self.state).get(session) if model_settings is None else model_settings
         if session.managed:
-            return self.agents.send(session, body, request_id)
+            return self.agents.send(session, body, request_id, **settings)
         current, _ = self.discover()
         if session.key not in {item.key for item in current}:
             raise ChatError("That session is no longer available. Refresh and select an open session.")
@@ -290,8 +315,12 @@ class ChatService:
             raise ChatError("This message was already attempted. Check the terminal before sending again.") from None
         try:
             if session.provider == "codex":
-                self.codex.send(session_id, body)
-                status = "queued"
+                if settings['model']:
+                    self.codex.send_with_model(session_id, body, settings['model'], settings['effort'])
+                    status = 'started'
+                else:
+                    self.codex.send(session_id, body)
+                    status = 'queued'
             elif session.provider == "claude":
                 target = self.state / "claude" / session_id / "inbox" / (request_id + ".json")
                 write_json(target, {"id": request_id, "text": body, "created_at": time.time()})

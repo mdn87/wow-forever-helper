@@ -14,6 +14,10 @@ The CLI previews by default. Live delivery requires enabling input, explicitly e
 **Ctrl+K**, for searchable graphics tweaks, the sharpening-flicker fix, and addon
 commands. Each entry includes an explanation, evidence label, source and copy
 controls; settings also include read-value and reset commands where applicable.
+**Find new commands…** prepares one short research request for your selected agent
+session. **Model & usage…** lets supported conversations choose a model and effort,
+shows available quota information, and explains provider limitations. Research
+pauses after three attempts until you explicitly renew its local allowance.
 See [the command library](docs/COMMAND_LIBRARY.md).
 
 For **interactive chat and companion windows**, install the optional chat dependencies in a local environment and open the window:
