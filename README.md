@@ -10,6 +10,12 @@ The CLI previews by default. Live delivery requires enabling input, explicitly e
 
 ## Try it
 
+**Command library:** open **Settings → Tools → Command library**, or find it with
+**Ctrl+K**, for searchable graphics tweaks, the sharpening-flicker fix, and addon
+commands. Each entry includes an explanation, evidence label, source and copy
+controls; settings also include read-value and reset commands where applicable.
+See [the command library](docs/COMMAND_LIBRARY.md).
+
 For **interactive chat and companion windows**, install the optional chat dependencies in a local environment and open the window:
 
 ```console

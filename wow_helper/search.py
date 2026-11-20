@@ -11,6 +11,7 @@ from .journal_ui import note_summary
 MAX_RESULTS = 1000
 MAX_INDEX_BYTES = 8_000_000
 SETTINGS_ACTIONS = (("interface", "Interface and transparency"), ("layouts", "Activity layouts"),
+                    ("command_library", "Command library: graphics, console settings and junk selling"),
                     ("appearance", "Chat appearance"), ("setup", "Window setup"),
                     ("build", "Build tutor and experiments"), ("route", "Dungeon route walkthrough"),
                     ("addon", "Addon troubleshooting"),
@@ -119,6 +120,8 @@ def open_row(manager, window, row):
         manager.show_interface(window)
     elif target == "layouts":
         manager.show_activity_layouts(window)
+    elif target == "command_library":
+        manager.show_command_library(window)
     elif target == "history":
         manager.show_activity_history(window)
     elif target in {"appearance", "setup"} and view:
