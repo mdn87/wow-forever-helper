@@ -172,8 +172,18 @@ class HandsFree:
 
     def send_chat(self, request_id, text):
         view = self.interpreter().view()
+        def keep_question():
+            if view is None or view.closed:
+                return
+            current = view.editor.get("1.0", "end-1c")
+            if current != text and not current.endswith("\n" + text):
+                view.replace_draft("\n".join(filter(None, (current, text))))
+
         if view is None or view.selected is None:
-            detail = "No chat session is selected. Say switch to a session name, or new Codex chat."
+            if view:
+                keep_question()
+                view.choose_chat()
+            detail = "Choose a chat, then say send. Your spoken question is in the draft."
             self.bridge.report(request_id, "rejected", detail)
             self._note(text, "refused", detail)
             return
@@ -182,13 +192,16 @@ class HandsFree:
         detail = f"That went to {title[:60]}." if changed else ""
 
         def delivered(result, error):
+            if error and view.selection_key == key:
+                keep_question()
             self.bridge.report(request_id, "failed" if error else "sent", error or detail)
             self._note(text, "failed" if error else "sent", error or ("Sent. " + detail).strip())
 
         if view.send_message(text, request_id=request_id, on_delivery=delivered):
             self._last_chat = key
         else:
-            detail = "The chat is busy with another send; that turn was not sent."
+            keep_question()
+            detail = view.status.get() or "The chat is busy. Your question is in the draft."
             self.bridge.report(request_id, "rejected", detail)
             self._note(text, "refused", detail)
 

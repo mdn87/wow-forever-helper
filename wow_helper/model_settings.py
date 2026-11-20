@@ -1,4 +1,5 @@
 """Local per-conversation choices and a durable, app-wide research allowance."""
+from dataclasses import dataclass
 import json
 import re
 from pathlib import Path
@@ -14,6 +15,20 @@ def validate(model, effort, timeout):
     if effort not in EFFORTS or timeout not in (90, 180, 360, 600):
         raise ChatError('Choose a supported effort and time limit.')
     return {'model': model, 'effort': effort, 'timeout': timeout}
+
+
+@dataclass(frozen=True)
+class ModelChoice:
+    key: tuple
+    model: str
+    effort: str
+    timeout: int
+    revision: int
+    catalog_bound: bool = False
+
+    @property
+    def settings(self):
+        return {'model': self.model, 'effort': self.effort, 'timeout': self.timeout}
 
 
 class Preferences:
@@ -37,46 +52,85 @@ class Preferences:
         except (OSError, ValueError):
             raise ChatError('Local usage settings could not be read. Nothing was sent.') from None
 
-    def get(self, session):
+    def snapshot(self, session):
         value = self.read(self.path(session), {'model': '', 'effort': 'low' if session.managed else '', 'timeout': 180})
-        return validate(value.get('model'), value.get('effort'), value.get('timeout'))
+        revision = value.get('revision', 0)
+        if type(revision) is not int or revision < 0:
+            raise ChatError('Model settings could not be read.')
+        return ModelChoice(session.key, **validate(value.get('model'), value.get('effort'), value.get('timeout')),
+                           revision=revision, catalog_bound=value.get('catalog_bound') is True)
 
-    def save(self, session, *, model, effort, timeout):
+    def get(self, session):
+        return self.snapshot(session).settings
+
+    def save(self, session, *, model, effort, timeout, expected=None, catalog_bound=None):
+        from .agent_sessions import state_lock
         value = validate(model, effort, timeout)
         if session.provider == 'claude' and not session.managed:
             raise ChatError('Change the model in the attached Claude session with /model.')
         if session.provider == 'claude' and effort not in ('', 'low', 'medium', 'high'):
             raise ChatError('Choose low, medium, or high for Claude.')
-        write_json(self.path(session), value)
+        if not session.managed and not model and effort:
+            raise ChatError('Choose a Codex model before setting effort, or keep the thread settings.')
+        with state_lock(self.folder):
+            current = self.snapshot(session)
+            if expected is not None and expected != current:
+                raise ChatError('Model settings changed in another window. Reopen Change model.')
+            bound = current.catalog_bound if catalog_bound is None and model == current.model else bool(catalog_bound)
+            if current.settings != value or bound != current.catalog_bound:
+                write_json(self.path(session), {**value, 'revision': current.revision + 1, 'catalog_bound': bound})
         return value
 
     def _allowance(self):
         value = self.read(self.folder / 'research.json', {'remaining': 3, 'attempted': []})
         if type(value.get('remaining')) is not int or not 0 <= value['remaining'] <= 3 or not isinstance(value.get('attempted'), list):
             raise ChatError('The research allowance could not be read. Nothing was sent.')
+        if type(value.get('epoch', 0)) is not int:
+            raise ChatError('The research allowance could not be read.')
         return value
+
+    def allowance(self):
+        value = self._allowance()
+        return value['remaining'], value.get('epoch', 0)
 
     def remaining(self):
         return self._allowance()['remaining']
 
     def reserve_research(self, request_id):
         from .agent_sessions import state_lock
-        request_id = identifier(request_id)
         with state_lock(self.folder):
-            value = self._allowance()
-            if request_id in value['attempted']:
-                raise ChatError('This research was already attempted. Read the conversation before trying again.')
-            if value['remaining'] <= 0:
-                raise ChatError('Research allowance exhausted. Explicitly allow three more searches to continue.')
-            value['remaining'] -= 1
-            value['attempted'].append(request_id)
-            write_json(self.folder / 'research.json', value)
+            self._reserve(request_id)
+
+    def _reserve(self, request_id, expected_epoch=None):
+        request_id = identifier(request_id)
+        value = self._allowance()
+        if request_id in value['attempted']:
+            raise ChatError('This research was already attempted. Read the conversation before trying again.')
+        if expected_epoch is not None and value.get('epoch', 0) != expected_epoch:
+            raise ChatError('The research allowance was renewed. Review the request again.')
+        if value['remaining'] <= 0:
+            raise ChatError('Research allowance exhausted. Explicitly allow three more searches to continue.')
+        value['remaining'] -= 1
+        value['attempted'].append(request_id)
+        write_json(self.folder / 'research.json', value)
+
+    def authorize(self, session, expected, request_id, research_epoch=None, still_valid=None):
+        """Check what the player saw and reserve an attempt at the dispatch boundary."""
+        from .agent_sessions import state_lock
+        with state_lock(self.folder):
+            if self.snapshot(session) != expected:
+                raise ChatError('Model settings changed. Review the next message before sending.')
+            if still_valid and not still_valid():
+                raise ChatError('The draft or destination changed. Review the request again.')
+            if research_epoch is not None:
+                self._reserve(request_id, research_epoch)
 
     def renew(self):
         from .agent_sessions import state_lock
         with state_lock(self.folder):
             value = self._allowance()
             value['remaining'] = 3
+            value['epoch'] = value.get('epoch', 0) + 1
             write_json(self.folder / 'research.json', value)
 
 
@@ -100,22 +154,15 @@ def research_prompt(query, client):
 
 def choice_summary(session, settings):
     if session.provider == 'claude' and not session.managed:
-        return 'Attached Claude model / effort: controlled in Claude; use /model there.'
-    model = settings['model'] or ('CLI default (cost unknown)' if session.managed else 'attached session model')
-    effort = settings['effort'] or 'session default'
-    return f'{session.provider.title()} · {model} · effort: {effort}'
+        return 'Next message via Claude · model and effort set in Claude'
+    provider = session.provider.title()
+    model = settings['model'] or f'model set in {provider} (unknown)'
+    if session.provider == 'claude' and model in ('haiku', 'sonnet', 'opus'):
+        model += ' (alias)'
+    effort = (settings['effort'].capitalize() + ' effort') if settings['effort'] else f'effort set in {provider}'
+    return f'Next message via {provider} · {model} · {effort}'
 
 
 def usage_summary(data):
-    if data.get('ordinaryUsageAllowed') is False:
-        return 'Provider reports ordinary included usage is not allowed. Check your plan in Codex.'
-    buckets = data.get('rateLimitsByLimitId') or {'account': data.get('rateLimits', {})}
-    lines = []
-    for bucket in buckets.values():
-        for label in ('primary', 'secondary'):
-            item = bucket.get(label) or {}
-            if isinstance(item.get('usedPercent'), (int, float)):
-                mins = item.get('windowDurationMins')
-                window = f'{mins} min' if mins else label
-                lines.append(f'{bucket.get("limitName") or "Account"} · {window}: {item["usedPercent"]}% used')
-    return '\n'.join(lines) or 'Provider quota unavailable. Unknown does not mean unlimited.'
+    from .provider_usage import AccountUsage
+    return AccountUsage.from_codex(data).describe()

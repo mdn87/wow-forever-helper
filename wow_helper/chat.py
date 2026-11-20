@@ -204,6 +204,9 @@ class ChatService:
         self.state = Path(state)
         self.codex = codex or CodexClient()
         self.claude_home = claude_home
+        from .provider_usage import UsageScope
+        self.usage_scope = UsageScope.shared(self.state)
+        self._usage = {}
         from .agent_sessions import AgentSessions
         self.agents = AgentSessions(self.state / "agents")
 
@@ -262,30 +265,74 @@ class ChatService:
             return "interrupted"
         return status
 
+    def read_usage(self, session, model=''):
+        from .provider_usage import AccountUsage
+        key = session.key, model
+        sequence = self.usage_scope.begin()
+        try:
+            data = self.codex.rpc('account/rateLimits/read', {})
+            reading = AccountUsage.from_codex(data, model)
+        except (ChatError, OSError):
+            reading = self._usage.get(key, AccountUsage()).unavailable()
+        self.usage_scope.accept(sequence, reading)
+        if not self.usage_scope.current(reading):
+            raise ChatError('The provider account changed. Refresh account usage.')
+        if reading.account:
+            self._usage = {k: v for k, v in self._usage.items() if v.account == reading.account}
+        self._usage[key] = reading
+        return reading
+
     def model_options(self, session):
         if session.provider == 'claude':
-            return [], 'Claude quota is unavailable here. Use /usage in Claude to check your plan.'
-        from .model_settings import usage_summary
-        client = CodexClient()
+            return [], 'Check your account usage with /usage in Claude.'
+        from .model_settings import Preferences
         try:
-            models = client.models()
-            try:
-                usage = usage_summary(client.rpc('account/rateLimits/read', {}))
-            except ChatError:
-                usage = usage_summary({})
-            return models, usage
-        finally:
-            client.close()
+            models = self.codex.models()
+        except ChatError:
+            models = []
+        model = Preferences(self.state).get(session)['model']
+        return models, self.read_usage(session, model)
+
+    def send_reviewed(self, session, body, request_id, choice, *, research_epoch=None,
+                      still_valid=None, billing_consent=None):
+        from .model_settings import Preferences
+        from .provider_usage import BillingConsent, UsageDecision
+        prefs = Preferences(self.state)
+
+        def check():
+            if still_valid is not None and not still_valid():
+                raise ChatError('The draft or destination changed. Review your request again.')
+            if prefs.snapshot(session) != choice:
+                raise ChatError('Model settings changed. Review the next message before sending.')
+
+        check()
+        if session.provider == 'codex':
+            reading = self.read_usage(session, choice.model)
+            expected = BillingConsent.for_request(reading.account, request_id, choice, research_epoch, body)
+            if billing_consent and (not reading.fresh() or expected != billing_consent):
+                raise ChatError('Provider account or request changed. Review usage before sending.')
+            if reading.paused() and not (billing_consent and reading.extras):
+                raise UsageDecision(reading, expected if reading.extras else None)
+            if session.managed and choice.model and choice.catalog_bound:
+                self.codex.check_model(choice.model, choice.effort)
+
+        def authorize():
+            if session.provider == 'codex' and not self.usage_scope.current(reading):
+                raise ChatError('The provider account changed. Review the next message.')
+            if billing_consent and not reading.fresh():
+                raise ChatError('Provider usage is stale. Review it before sending.')
+            prefs.authorize(session, choice, request_id, research_epoch, still_valid)
+        return self.send(session, body, request_id, model_settings=choice.settings, before_dispatch=authorize)
 
     def research(self, session, body, request_id, expected_settings):
         from .model_settings import Preferences
-        preferences = Preferences(self.state)
-        if preferences.get(session) != expected_settings:
+        prefs = Preferences(self.state)
+        choice = prefs.snapshot(session)
+        if choice.settings != expected_settings:
             raise ChatError('Model settings changed. Review the research request again.')
-        preferences.reserve_research(request_id)
-        return self.send(session, body, request_id, model_settings=expected_settings)
+        return self.send_reviewed(session, body, request_id, choice, research_epoch=prefs.allowance()[1])
 
-    def send(self, session, body, request_id, *, model_settings=None):
+    def send(self, session, body, request_id, *, model_settings=None, before_dispatch=None):
         body = body.strip()
         if not body or len(body) > MAX_MESSAGE or "\0" in body:
             raise ChatError(f"Enter a message between 1 and {MAX_MESSAGE} characters, without null characters.")
@@ -293,6 +340,8 @@ class ChatService:
         from .model_settings import Preferences
         settings = Preferences(self.state).get(session) if model_settings is None else model_settings
         if session.managed:
+            if before_dispatch:
+                return self.agents.send(session, body, request_id, **settings, before_dispatch=before_dispatch)
             return self.agents.send(session, body, request_id, **settings)
         current, _ = self.discover()
         if session.key not in {item.key for item in current}:
@@ -305,6 +354,13 @@ class ChatService:
         if session.provider == "codex":
             # The attached provider has no companion-owned request body elsewhere.
             data["body"] = body
+        if receipt.exists():
+            raise ChatError("This message was already attempted. Check the terminal before sending again.")
+        turn = None
+        if session.provider == 'codex' and settings['model']:
+            turn = self.codex.prepare_turn(session_id, body, settings['model'], settings['effort'])
+        if before_dispatch:
+            before_dispatch()
         try:
             # Exclusive creation makes retries across processes and restarts refuse.
             with receipt.open("x", encoding="utf-8") as stream:
@@ -315,8 +371,8 @@ class ChatService:
             raise ChatError("This message was already attempted. Check the terminal before sending again.") from None
         try:
             if session.provider == "codex":
-                if settings['model']:
-                    self.codex.send_with_model(session_id, body, settings['model'], settings['effort'])
+                if turn is not None:
+                    self.codex.start_turn(turn)
                     status = 'started'
                 else:
                     self.codex.send(session_id, body)

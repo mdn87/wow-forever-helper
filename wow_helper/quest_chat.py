@@ -47,6 +47,16 @@ class QuestChat(ChatWindow):
                                         font=("Segoe UI", 9), width=1)
         self.quest_label.pack(side="left", fill="x", expand=True)
 
+    def attachable_sessions(self):
+        return [self.selected] if self.selected else []
+
+    def send_quest_request(self, body, request_id, on_delivery):
+        """The reviewed quest action names its own destination before the click."""
+        if not self.selection_key:
+            return self.start_session(self.default_provider, on_ready=lambda: self.send_message(
+                body, request_id=request_id, on_delivery=on_delivery))
+        return self.send_message(body, request_id=request_id, on_delivery=on_delivery)
+
     @property
     def quest_title(self):
         return str(self.context["quest"].get("title") or "Quest")[:100]

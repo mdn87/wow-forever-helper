@@ -167,6 +167,8 @@ def test_no_session_refuses_chat_and_disconnect_phrase_ends_binding(handsfree):
     manager, window, view, folder = handsfree
     view.selected = None
     assert say(manager, folder, "how do I get to the bank")["status"] == "rejected"
+    assert view._picker and view.editor.get("1.0", "end-1c") == "how do I get to the bank"
+    assert not view.service.sent
     assert say(manager, folder, "stop hands free")["status"] == "done"
     assert not manager.handsfree.connected
     assert not (folder / "binding.json").exists()
@@ -273,6 +275,6 @@ def test_dialog_choices_tabs_named_fields_and_new_chat(handsfree, monkeypatch, t
     assert shown["status"] == "done", shown
     say(manager, folder, "close")
     started = []
-    monkeypatch.setattr(view, "start_session", lambda provider=None, **_: started.append(provider))
+    monkeypatch.setattr(view, "start_session", lambda provider=None, **_: started.append(provider) or True)
     assert say(manager, folder, "new codex chat")["detail"] == "Starting a new Codex chat."
     assert started == ["codex"]

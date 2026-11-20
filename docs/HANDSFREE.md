@@ -22,7 +22,7 @@ A whole turn must match one of these forms; anything else is a chat message. Eve
 | "what can I say" / "help" | Speaks a short summary of these commands. |
 | "open Journal", "open activity history", "Interface and transparency" | Runs a Settings menu entry or a companion command (new Agent chat, Quest guide, Character status, Screen adviser and Journal windows; Ask about the last fight; Build tutor; Dungeon route walkthrough; Addon troubleshooting; Session economy analysis; Goals and wishlist; Activity layouts; Chat appearance; Window setup). A bare entry name works when it matches exactly. |
 | "turn on keep above other windows", "turn off remember draft" | Sets a menu check box. Says "already on" when nothing needs to change. |
-| "press read combat log", "click prepare review" | Presses a button in the frontmost companion dialog. In a plain chat window, "press Send" and "press Claude +" work too. |
+| "press read combat log", "click prepare review" | Presses a button in the frontmost companion dialog. In a plain chat window, "press Send" and "press Change model" work too. |
 | "check include player names", "uncheck …" | Sets a check box in the dialog. |
 | "choose Retail", "select Classic Forever beta" | Picks a radio button or drop-down value in the dialog. Outside a dialog, picks a chat session by title. |
 | "show the digest tab" | Selects a tab in the dialog or window. |

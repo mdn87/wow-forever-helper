@@ -15,9 +15,9 @@ The CLI previews by default. Live delivery requires enabling input, explicitly e
 commands. Each entry includes an explanation, evidence label, source and copy
 controls; settings also include read-value and reset commands where applicable.
 **Find new commands…** prepares one short research request for your selected agent
-session. **Model & usage…** lets supported conversations choose a model and effort,
-shows available quota information, and explains provider limitations. Research
-pauses after three attempts until you explicitly renew its local allowance.
+session. **Change model** shows the model and effort for the next message. You can
+check provider account usage separately from the three research attempts shared by
+your companion windows.
 See [the command library](docs/COMMAND_LIBRARY.md).
 
 For **interactive chat and companion windows**, install the optional chat dependencies in a local environment and open the window:
@@ -28,7 +28,7 @@ python -m venv .venv
 .venv/Scripts/python -m wow_helper chat
 ```
 
-The companion starts with one chat window. Its compact top row holds **+ New**, the session selector, **Codex +**, **Claude +**, refresh, and the **⚙** menu. Use a provider button to prepare a new conversation, or select an existing session. Press **Enter** or **Send ↵** to send; **Shift+Enter** adds a line. Sending without a selected session starts a new conversation. **⚙ → Chat appearance…** saves this window's colors, font, and text size. **+ New** opens another window at the same size with a chooser. Classic-inspired leather buttons, brass trim, and dark panels include a matching Windows title bar. Drag the bar to move, or an edge or corner grip to resize. Windows, session choices, drafts, and recent conversations return on the next launch. Existing externally launched Claude sessions use **⚙ → Connect selected Claude session…**; companion-created sessions connect directly. See [interactive chat](docs/CHAT.md).
+The companion starts with one chat window. Choose **Start a new chat** for Codex or Claude, or **Use an existing chat**. If you type first, Enter opens the chooser and keeps the question in the composer. Check **Next message**, then press **Enter** or **Send ↵**. **Shift+Enter** adds a line. **⚙ → Chat appearance…** saves this window's colors, font, and text size. **+ New** opens another window at the same size with a chooser. Classic-inspired leather buttons, brass trim, and dark panels include a matching Windows title bar. Drag the bar to move, or an edge or corner grip to resize. Windows, session choices, drafts, and recent conversations return on the next launch. Existing externally launched Claude sessions use **⚙ → Connect selected Claude session…**; companion-created sessions connect directly. See [interactive chat](docs/CHAT.md).
 
 The chat windows are a separate desktop application. The **WoW Companion** addon still only exports data; it does not display a chatbox inside WoW. Launch the desktop companion separately and use WoW in windowed or windowed fullscreen mode.
 

@@ -1722,6 +1722,11 @@ def test_quest_creation_failure_stays_in_the_new_tab_and_can_be_retried(manager_
     child.service.create = lambda *args, **kwargs: CreatingService.create(child.service, *args, **kwargs)
     child.editor.insert("1.0", "Retry with the saved quest context")
     child.send()
+    assert child._picker and not child._picker.keys
+    child._picker.create("codex")
+    settle(child)
+    assert child.service.sent == []
+    child.send()
     settle(child)
     assert len(child.service.created) == len(child.service.sent) == 1
 
@@ -1933,7 +1938,7 @@ def test_setup_tabs_keep_controls_visible_at_minimum_size(manager_factory):
                 assert button.winfo_rooty() + button.winfo_height() < dialog.save_button.winfo_rooty()
 
 
-def test_first_message_creates_one_session_and_preserves_text_typed_during_startup(manager_factory, tmp_path):
+def test_first_send_opens_chooser_and_creation_requires_another_explicit_send(manager_factory, tmp_path):
     activity = SyntheticActivities(tmp_path)
     gate = threading.Event()
     class Slow(CreatingService):
@@ -1946,14 +1951,19 @@ def test_first_message_creates_one_session_and_preserves_text_typed_during_start
     try:
         view.send()
         view.send()
+        assert view._picker and not view.service.created and not view.service.sent
+        view._picker.providers['codex'].invoke()
         view.editor.insert("end", " plus an unsent thought")
         assert view.pending_creation and not view.service.sent
     finally:
         gate.set()
     settle(view)
-    assert len(view.service.created) == len(view.service.sent) == 1
-    assert view.service.sent[0][1] == "First request"
+    assert len(view.service.created) == 1 and view.service.sent == []
     assert view.editor.get("1.0", "end-1c") == "First request plus an unsent thought"
+    view.send()
+    settle(view)
+    assert len(view.service.sent) == 1
+    assert view.service.sent[0][1] == "First request plus an unsent thought"
     assert view.selected.managed and view.selected.provider == "codex"
     assert view.pending_creation is None
 
@@ -1968,7 +1978,8 @@ def test_provider_buttons_prepare_new_chats_and_startup_settings_are_respected(m
     setup = view._setup_dialog
     setup.startup["startup_opening"].set(False)
     setup.save()
-    view.provider_buttons["claude"].invoke()
+    view.new_chat_button.invoke()
+    view._picker.providers["claude"].invoke()
     settle(view)
     assert view.selected.provider == "claude" and view.selected.managed
     assert view.service.sent == []
@@ -1990,6 +2001,7 @@ def test_failed_new_session_keeps_draft_and_never_sends(manager_factory, tmp_pat
     view = manager.windows[0].view
     view.editor.insert("1.0", "Keep my first message")
     view.send()
+    view._picker.providers['codex'].invoke()
     settle(view)
     assert "CLI unavailable" in view.status.get()
     assert view.editor.get("1.0", "end-1c") == "Keep my first message"
@@ -2007,6 +2019,7 @@ def test_selection_change_during_creation_prevents_unintended_send(manager_facto
     view.editor.insert("1.0", "For the new chat only")
     try:
         view.send()
+        view._picker.providers['codex'].invoke()
         view.session_picker.current(1)
         view.select()
     finally:
@@ -2026,6 +2039,7 @@ def test_restart_during_creation_keeps_draft_but_never_resends(manager_factory, 
     view = manager.windows[0].view
     view.editor.insert("1.0", "Preserve across startup interruption")
     view.send()
+    view._picker.providers['codex'].invoke()
     try:
         manager.close()
     finally:

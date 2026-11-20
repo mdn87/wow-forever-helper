@@ -1,4 +1,5 @@
 """One reviewed research request to the conversation already selected by the user."""
+import threading
 import uuid
 
 from .chat import ChatError
@@ -13,6 +14,8 @@ class CommandResearchDialog:
         from tkinter import ttk
         self.library, self.view = library, library.window.view
         self.closed, self.review = False, None
+        self.valid = threading.Event()
+        self.last_state = self.timer = None
         tk = library.manager.tk
         self.root = tk.Toplevel(library.root)
         self.root.title('Find new commands')
@@ -32,7 +35,8 @@ class CommandResearchDialog:
               'Results appear in that conversation; suggestions are not automatically added to the library or run in WoW.')
         label('What should the command do?')
         self.query = tk.StringVar(self.root, library.query.get())
-        ttk.Entry(body, textvariable=self.query).pack(fill='x', pady=(0, 8))
+        self.query_entry = ttk.Entry(body, textvariable=self.query)
+        self.query_entry.pack(fill='x', pady=(0, 8))
         label('Client / version (optional; helps avoid commands for the wrong client)')
         self.client = tk.StringVar(self.root, 'WoW Forever; exact build unknown')
         ttk.Entry(body, textvariable=self.client).pack(fill='x', pady=(0, 8))
@@ -41,10 +45,16 @@ class CommandResearchDialog:
                                      anchor='w', justify='left')
         destination_label.pack(fill='x', pady=(0, 8))
         body.bind('<Configure>', lambda e: destination_label.configure(wraplength=max(180, e.width - 28)), add='+')
-        ttk.Button(body, text='Model & usage…', command=self.view.show_model_settings).pack(anchor='w')
-        label('Short search: request up to 3 candidates, 2 searches and 400 words. '
-              'The agent may use more tokens than the reply length. This is not a hard token or dollar cap. '
-              'Attached sessions retain their existing permissions and provider settings.')
+        choices = tk.Frame(body, bg=colors.PANEL)
+        choices.pack(fill='x', pady=(0, 5))
+        self.chat_button = ttk.Button(choices, text='Change chat', command=self.choose_chat)
+        self.chat_button.pack(side='left')
+        self.model_button = ttk.Button(choices, text='Change model', command=self.choose_model)
+        self.model_button.pack(side='left', padx=5)
+        self.local_usage = tk.StringVar(self.root)
+        tk.Label(body, textvariable=self.local_usage, bg=colors.PANEL, fg=colors.TEXT, anchor='w').pack(fill='x')
+        label('One search requests up to 3 commands, 2 web searches and 400 words. Longer chats can use more '
+              'context. Actual provider usage varies.')
         footer = tk.Frame(body, bg=colors.PANEL)
         footer.pack(side='bottom', fill='x', pady=(10, 0))
         self.notice = tk.StringVar(self.root)
@@ -63,75 +73,98 @@ class CommandResearchDialog:
         self.preview = text_box(tk, body, bg=colors.EDITOR, fg=colors.TEXT, font=('Segoe UI', 10))
         self.query.trace_add('write', self.invalidate)
         self.client.trace_add('write', self.invalidate)
-        self.update_destination()
-        self.allowance()
+        self.watch()
         self.chrome.apply_native()
 
-    def update_destination(self):
-        session = self.view.selected
-        if not session:
-            self.destination.set('No selected session. Choose one in the conversation first.')
-            return
-        try:
-            self.destination.set(f'To: {session.title[:70]}\n' + choice_summary(session, self.view.model_preferences().get(session)))
-        except (ChatError, OSError):
-            self.destination.set('Model settings unavailable. Review cannot proceed until settings can be read.')
+    def returned(self):
+        if not self.closed:
+            self.sync()
+            self.root.lift()
+            self.query_entry.focus_set()
 
-    def allowance(self):
+    def choose_chat(self):
+        self.view.choose_chat(self.root, self.returned)
+
+    def choose_model(self):
+        self.view.show_model_settings(self.root, self.returned)
+
+    def sync(self):
+        session = self.view.selected
+        prefs = self.view.model_preferences()
         try:
-            remaining = self.view.model_preferences().remaining()
-            self.notice.set(f'{remaining} research sends left across companion windows. Failed or uncertain attempts also count. '
-                            'Ordinary chat and activity requests are outside this allowance.')
-            self.renew_button.configure(state='normal' if remaining == 0 else 'disabled')
+            remaining, epoch = prefs.allowance()
+            choice = prefs.snapshot(session) if session else None
+            state = self.view.selection_revision, choice, epoch, remaining == 0
+            if self.last_state is not None and self.last_state != state and self.review:
+                self.invalidate()
+                self.notice.set('Chat, model or research allowance changed. Review the request again.')
+            self.last_state = state
+            self.destination.set(f'{session.title[:70]}\n' + choice_summary(session, choice.settings)
+                                 if session else 'Choose the chat that should receive this search.')
+            self.model_button.state(['!disabled'] if session else ['disabled'])
+            self.local_usage.set(f'Companion research attempts · {remaining} of 3 left across windows')
+            self.renew_button.state(['!disabled'] if remaining == 0 else ['disabled'])
+            return choice, remaining, epoch
         except (ChatError, OSError):
-            self.notice.set('Research allowance unavailable. Nothing can be sent until it can be read.')
-            self.renew_button.configure(state='disabled')
+            self.invalidate()
+            self.local_usage.set('Companion research allowance unavailable')
+            self.renew_button.state(['disabled'])
+            return None, 0, None
+
+    def watch(self):
+        if not self.closed:
+            self.sync()
+            self.timer = self.root.after(750, self.watch)
 
     def invalidate(self, *_):
+        self.valid.clear()
         self.review = None
         self.send_button.configure(state='disabled')
+        replace_text(self.preview, '')
 
     def prepare(self):
         self.invalidate()
         try:
             if self.view.closed or self.library.window.view is not self.view:
                 raise ChatError('The conversation window changed. Close and reopen Find new commands.')
-            self.update_destination()
+            settings, remaining, epoch = self.sync()
             if not self.view.selected:
-                raise ChatError('Choose an existing conversation before researching commands.')
-            preferences = self.view.model_preferences()
-            if preferences.remaining() == 0:
-                self.allowance()
+                self.choose_chat()
+                return
+            if not remaining or not settings:
                 return
             body = research_prompt(self.query.get(), self.client.get())
-            settings = preferences.get(self.view.selected)
-            self.review = (self.view.selected.key, settings, body, str(uuid.uuid4()))
+            self.valid = threading.Event()
+            self.valid.set()
+            self.review = (self.view.selection_revision, settings, epoch, body, str(uuid.uuid4()))
             replace_text(self.preview, self.destination.get() + '\n\n' + body)
             self.send_button.configure(state='normal')
-            self.allowance()
+            self.notice.set('Review the exact request below before sending.')
         except (ChatError, OSError) as error:
             self.notice.set(str(error) if isinstance(error, ChatError) else 'Could not prepare research. Nothing was sent.')
 
     def send(self):
         if not self.review:
             return
-        key, settings, body, request_id = self.review
+        revision, settings, epoch, body, request_id = self.review
         try:
-            if (self.view.closed or self.library.window.view is not self.view or not self.view.selected
-                    or self.view.selected.key != key or self.view.model_preferences().get(self.view.selected) != settings):
+            current, remaining, current_epoch = self.sync()
+            if (self.view.closed or self.library.window.view is not self.view or revision != self.view.selection_revision
+                    or settings != current or epoch != current_epoch or not remaining):
                 self.invalidate()
-                raise ChatError('Conversation or model settings changed. Review the request again.')
+                raise ChatError('Chat, model or allowance changed. Review the request again.')
             def delivered(result, error):
                 if self.closed:
                     return
-                self.allowance()
-                self.notice.set((error + ' No automatic retry.') if error else
-                                'Search sent once. Read the selected conversation for results; your draft was preserved.')
-            if self.view.send_message(body, request_id=request_id, research_settings=settings, on_delivery=delivered):
-                self.invalidate()
-                self.notice.set('Attempting one search. Read the conversation for delivery and reply status.')
+                self.sync()
+                self.notice.set(error if error else 'Search sent once. Read the chosen chat for results.')
+            if self.view.send_message(body, request_id=request_id, choice=settings, research_epoch=epoch,
+                                      still_current=self.valid.is_set, on_delivery=delivered, decision_parent=self.root):
+                self.review = None
+                self.send_button.configure(state='disabled')
+                self.notice.set('Checking the selected chat and provider usage…')
             else:
-                self.notice.set('The conversation is busy. Wait for the current action to finish.')
+                self.notice.set(self.view.status.get())
         except (ChatError, OSError) as error:
             self.notice.set(str(error) if isinstance(error, ChatError) else 'Research could not be sent.')
 
@@ -139,11 +172,17 @@ class CommandResearchDialog:
         try:
             self.view.model_preferences().renew()
             self.invalidate()
-            self.allowance()
+            self.sync()
         except (ChatError, OSError):
             self.notice.set('Could not renew the research allowance. Nothing was sent.')
 
     def close(self):
         self.closed = True
+        self.valid.clear()
+        if self.timer:
+            self.root.after_cancel(self.timer)
+        for dialog in (self.view._picker, getattr(self.view, '_model_dialog', None), self.view._usage_dialog):
+            if dialog and dialog.root.master is self.root:
+                dialog.close()
         self.library.research_dialog = None
         self.root.destroy()

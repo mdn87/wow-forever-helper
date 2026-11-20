@@ -20,10 +20,11 @@ class ResponseWait:
     started: float = field(default_factory=lambda: time.time())
     previous_ids: frozenset = field(default_factory=frozenset)
     user_id: str | None = None
+    recover_draft: bool = False
 
     def snapshot(self):
         return {"request_id": self.request_id, "body": self.body, "started": self.started,
-                "previous_ids": sorted(self.previous_ids)[-200:], "user_id": self.user_id}
+                "previous_ids": sorted(self.previous_ids)[-200:], "user_id": self.user_id, "recover_draft": self.recover_draft}
 
     @classmethod
     def restore(cls, raw):
@@ -41,7 +42,7 @@ class ResponseWait:
         ids = frozenset(i[:200] for i in ids[:200] if isinstance(i, str)) if isinstance(ids, list) else frozenset()
         user_id = raw.get("user_id")
         return cls(request_id, raw["body"][:6000], started, ids,
-                   user_id[:200] if isinstance(user_id, str) else None)
+                   user_id[:200] if isinstance(user_id, str) else None, raw.get("recover_draft") is True)
 
     def observe(self, messages, status=None, claimed=()):
         """Managed turns have a completion receipt; attached CLIs expose replies only."""
