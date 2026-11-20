@@ -25,10 +25,8 @@ def test_review_then_send_once_preserves_draft_and_decrements_allowance(manager_
     manager, view, dialog = setup(manager_factory, tmp_path)
     view.editor.insert('1.0', 'Keep this draft')
     assert not view.service.sent
-    dialog.send()
-    assert not view.service.sent
-    dialog.prepare()
     assert 'ground brightness' in dialog.preview.get('1.0', 'end')
+    assert Preferences(tmp_path).remaining() == 3
     dialog.send(); dialog.send()
     settle(view)
     assert len(view.service.sent) == 1

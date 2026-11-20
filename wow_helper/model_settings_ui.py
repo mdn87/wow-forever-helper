@@ -14,14 +14,9 @@ ALIASES = {'haiku': 'Fast responses for straightforward questions.',
 
 class ModelSettingsDialog:
     def __init__(self, view, parent=None, on_close=None):
-        from tkinter import ttk
-        self.view, self.session, self.on_close = view, view.selected, on_close
-        self.selection = view.selection_revision
-        self.external_claude = not self.session.managed and self.session.provider == 'claude'
-        self.external_codex = not self.session.managed and self.session.provider == 'codex'
-        self.closed, self.models, self.reading = False, [], None
-        self.known_models = set()
-        self.usage_timer = None
+        self.view, self.on_close = view, on_close
+        self.closed = False
+        self.body = self.session_panel = self.usage_timer = None
         tk = view.tk
         self.root = tk.Toplevel(parent or view.root)
         self.root.title('Change model')
@@ -30,8 +25,20 @@ class ModelSettingsDialog:
         self.root.bind('<Escape>', lambda _: self.close())
         self.chrome = WindowFrame(self.root, title='Change model', close=self.close, minimum=(430, 475))
         self.chrome.place('620x580')
+        self.show_session(advanced=view.selected is None)
+        self.chrome.apply_native()
+
+    def show_session(self, *, advanced=False):
+        from tkinter import ttk
+        from .active_sessions_ui import ActiveSessions
+        self.clear_session()
+        view, tk = self.view, self.view.tk
+        self.session, self.selection = view.selected, view.selection_revision
+        self.external_claude = bool(self.session and not self.session.managed and self.session.provider == 'claude')
+        self.external_codex = bool(self.session and not self.session.managed and self.session.provider == 'codex')
+        self.models, self.known_models, self.reading = [], set(), None
         self.colors = colors = palette(self.root)
-        body = tk.Frame(self.chrome.content, bg=colors.PANEL, padx=12, pady=8)
+        body = self.body = tk.Frame(self.chrome.content, bg=colors.PANEL, padx=12, pady=8)
         body.pack(fill='both', expand=True)
         self.base = view.displayed_choice
         if self.base and self.base.catalog_bound:
@@ -44,8 +51,9 @@ class ModelSettingsDialog:
         self.description = tk.StringVar(self.root)
         self.usage = tk.StringVar(self.root, 'Usage unavailable. Refresh to check the provider.')
         self.notice = tk.StringVar(self.root)
-        self.label(body, self.session.title[:80])
-        self.label(body, variable=self.proposal)
+        if self.session:
+            self.label(body, self.session.title[:80])
+            self.label(body, variable=self.proposal)
         footer = tk.Frame(body, bg=colors.PANEL)
         footer.pack(side='bottom', fill='x')
         self.label(footer, variable=self.notice)
@@ -58,9 +66,18 @@ class ModelSettingsDialog:
             frame = tk.Frame(self.tabs, bg=colors.PANEL, padx=10, pady=8)
             self.tabs.add(frame, text=label)
             return frame
-        main = page('Next message')
-        models = self.models_page = page('Models') if not self.external_claude else None
-        advanced = self.advanced = page('Advanced') if not self.external_claude else None
+        main = page('Next message') if self.session else None
+        models = self.models_page = page('Models') if self.session and not self.external_claude else None
+        self.advanced = page('Advanced')
+        self.session_panel = ActiveSessions(self, self.advanced)
+        if advanced:
+            self.tabs.select(self.advanced)
+        if not self.session:
+            self.save_button.pack_forget()
+            self.save_button.state(['disabled'])
+            self.session_panel.tab_changed()
+            return
+        advanced = self.advanced
         usage = page('Account usage')
         self.presets = {}
         self.model_choice = ttk.Combobox(models or main, textvariable=self.model, state='disabled')
@@ -91,16 +108,20 @@ class ModelSettingsDialog:
                 self.label(advanced, 'Sending an override requires an idle thread, uses standard speed and changes '
                            'later turns in the Codex app. Inherit uses the thread’s then-current settings.')
                 ttk.Button(advanced, text='Choose advertised model', command=self.choose_model).pack(anchor='w', pady=3)
-            else:
-                self.label(advanced, 'Manual model ID')
-                ttk.Entry(advanced, textvariable=self.model).pack(fill='x')
-            self.label(advanced, 'Manual effort')
-            self.effort_choice = ttk.Combobox(advanced, textvariable=self.effort, state='readonly', values=EFFORTS)
-            self.effort_choice.pack(fill='x')
+            fields = ttk.Frame(advanced)
+            fields.pack(fill='x', pady=(4, 0))
+            fields.columnconfigure(1, weight=1)
+            def field(row, label, widget):
+                ttk.Label(fields, text=label).grid(row=row, column=0, sticky='w', padx=(0, 6), pady=2)
+                widget.grid(row=row, column=1, sticky='ew', pady=2)
+                return widget
             if self.session.managed:
-                self.label(advanced, 'CLI time limit (seconds)')
-                ttk.Combobox(advanced, textvariable=self.timeout, values=('90', '180', '360', '600'),
-                             state='readonly').pack(fill='x')
+                self.manual_model = field(0, 'Manual model ID', ttk.Entry(fields, textvariable=self.model, width=1))
+            self.effort_choice = field(1, 'Manual effort', ttk.Combobox(
+                fields, textvariable=self.effort, width=1, state='readonly', values=EFFORTS))
+            if self.session.managed:
+                self.timeout_choice = field(2, 'CLI time limit (seconds)', ttk.Combobox(
+                    fields, textvariable=self.timeout, width=1, values=('90', '180', '360', '600'), state='readonly'))
         self.label(usage, 'Your provider account usage')
         ttk.Button(usage, text='Refresh account usage', command=self.load).pack(anchor='w', pady=(2, 6))
         frame = tk.Frame(usage, bg=colors.PANEL)
@@ -114,7 +135,6 @@ class ModelSettingsDialog:
         for var in (self.model, self.effort, self.timeout):
             var.trace_add('write', self.changed)
         self.changed()
-        self.chrome.apply_native()
         self.render_usage()
         self.load()
 
@@ -197,7 +217,7 @@ class ModelSettingsDialog:
 
     def current(self):
         return (not self.closed and not self.view.closed and self.view.selection_revision == self.selection
-                and self.view.selection_key == self.session.key)
+                and (self.view.selected.key if self.view.selected else None) == (self.session.key if self.session else None))
 
     def render_usage(self):
         self.usage_timer = None
@@ -215,8 +235,9 @@ class ModelSettingsDialog:
         self.usage_timer = self.root.after(15000, self.render_usage)
 
     def load(self):
+        session, revision = self.session, self.selection
         def done(result, error):
-            if not self.current():
+            if not self.current() or self.selection != revision:
                 return
             if error:
                 if self.reading:
@@ -232,14 +253,14 @@ class ModelSettingsDialog:
             self.changed()
             self.root.after_cancel(self.usage_timer)
             self.render_usage()
-        if not self.view._submit('model-options', lambda: self.view.service.model_options(self.session), on_result=done):
+        if not self.view._submit('model-options', lambda: self.view.service.model_options(session), on_result=done):
             self.notice.set('The current request is in progress. You can refresh usage when it finishes.')
 
     def save(self):
         if not self.current():
             self.notice.set('The selected chat changed. Reopen Change model.')
             return
-        if self.external_claude or self.issue:
+        if not self.session or self.external_claude or self.issue:
             return
         try:
             model = self.model.get().strip()
@@ -253,12 +274,20 @@ class ModelSettingsDialog:
         self.base = self.view.displayed_choice
         self.notice.set('Saved for next messages.')
 
+    def clear_session(self):
+        if self.usage_timer:
+            self.root.after_cancel(self.usage_timer)
+            self.usage_timer = None
+        if self.session_panel:
+            self.session_panel.close()
+        if self.body:
+            self.body.destroy()
+
     def close(self):
         if self.closed:
             return
         self.closed = True
-        if self.usage_timer:
-            self.root.after_cancel(self.usage_timer)
+        self.clear_session()
         self.view._model_dialog = None
         self.root.destroy()
         if self.on_close and not self.view.closed:

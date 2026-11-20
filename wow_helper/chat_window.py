@@ -13,7 +13,7 @@ from .response_wait import ResponseWait, elapsed
 from .activity_history import ActivityHistory
 from .theme import palette, apply_theme, display_font, settings_icon, menu as themed_menu
 
-BACKGROUND_JOBS = {"history", "guides"}
+BACKGROUND_JOBS = {"history", "guides", "active-sessions"}
 SETUP_LABEL = "Connect selected Claude session…"
 
 
@@ -32,7 +32,7 @@ class ChatWindow:
     """One independent conversation, usable in a window or a workspace panel."""
 
     def __init__(self, root, service=None, *, embedded=False, selection=None, on_change=None,
-                 state=None, toolbar=None, actions_menu=None, pin_advice=None):
+                 state=None, toolbar=None, actions_menu=None, pin_advice=None, open_session_keys=None):
         import tkinter as tk
         from tkinter import ttk
 
@@ -42,6 +42,7 @@ class ChatWindow:
                                                        getattr(self.service, "state", None)))
         self._activity_pending = {}
         self.on_change = on_change or (lambda: None)
+        self.open_session_keys = open_session_keys or (lambda: set())
         state = state if isinstance(state, dict) else {}
         self.default_provider = state.get("provider") if state.get("provider") in {"codex", "claude"} else "codex"
         self.pending_creation = state.get("launch") if isinstance(state.get("launch"), dict) else None
@@ -60,6 +61,7 @@ class ChatWindow:
         self.inflight = None
         self.sending_wait = None
         self.response_waits = {}
+        self.reply_watchers = {}
         self._showing_wait = False
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="chat")
         self.results = queue.Queue()
@@ -229,7 +231,7 @@ class ChatWindow:
         self.send_button.configure(state="normal" if (self.selected or can_choose) and not foreground else "disabled")
         self.refresh_button.configure(state="disabled" if foreground else "normal")
         self.new_chat_button.configure(text='Change chat' if self.selected or self.desired_key else 'Start a new chat')
-        self.model_button.configure(state='normal' if self.selected else 'disabled')
+        self.model_button.configure(state='normal', text='Change model' if self.selected else 'Find active sessions')
         if self.saved_drafts.get(self.selection_key):
             self.saved_button.pack(after=self.draft_anchor, anchor='w', pady=(0, 2))
         else:
@@ -265,8 +267,15 @@ class ChatWindow:
         if self.saved_drafts.get(self.selection_key):
             self._draft_dialog = SavedDraftDialog(self)
 
-    def attachable_sessions(self):
-        return self.sessions
+    empty_active_sessions = 'No active sessions found. Open Codex or Claude and refresh.'
+
+    def attachable_sessions(self, discovered=None):
+        return self.sessions if discovered is None else discovered
+
+    def active_sessions(self, discovered):
+        connected = self.open_session_keys() | {self.selected.key if self.selected else None}
+        return [s for s in self.attachable_sessions(discovered)
+                if not s.managed or s.key in connected or s.status in {'queued', 'running'}]
 
     def choose_chat(self, parent=None, on_close=None):
         from .conversation_picker import ConversationPicker
@@ -465,7 +474,8 @@ class ChatWindow:
     def _history(self, *, pending=False):
         session = self.selected
         if pending:
-            candidates = [s for s in self.sessions if self.response_waits.get(s.key)
+            watched = {key for key, _ in self.reply_watchers}
+            candidates = [s for s in self.sessions if (self.response_waits.get(s.key) or s.key in watched)
                           and (not session or s.key != session.key)]
             if session:
                 candidates.insert(0, session)
@@ -473,10 +483,11 @@ class ChatWindow:
                 session = candidates[self._history_cursor % len(candidates)]
                 self._history_cursor += 1
         if session:
-            waits = list(self.response_waits.get(session.key, []))
+            requests = {wait.request_id for wait in self.response_waits.get(session.key, [])}
+            requests.update(request for key, request in self.reply_watchers if key == session.key)
             def read():
-                statuses = {wait.request_id: self.service.response_status(session, wait.request_id)
-                            for wait in waits} if hasattr(self.service, "response_status") else {}
+                statuses = {request: self.service.response_status(session, request)
+                            for request in requests} if hasattr(self.service, "response_status") else {}
                 return self.service.history(session), statuses
             self._submit("history", read, session.key)
 
@@ -535,6 +546,9 @@ class ChatWindow:
             else:
                 remaining.append(wait)
         self.response_waits[key] = remaining
+        for (source, request), callback in tuple(self.reply_watchers.items()):
+            if source == key:
+                callback(messages, statuses.get(request))
         if changed:
             self.on_change()
 
@@ -669,9 +683,6 @@ class ChatWindow:
         return "break"
 
     def show_model_settings(self, parent=None, on_close=None):
-        if not self.selected:
-            self.status.set('Select or start a conversation before choosing its model.')
-            return
         from .model_settings_ui import ModelSettingsDialog
         dialog = getattr(self, '_model_dialog', None)
         if dialog is not None and dialog.current():
@@ -929,6 +940,7 @@ class ChatWindow:
             return
         self.closed = True
         self.job_callbacks.clear()
+        self.reply_watchers.clear()
         if self._dispatch_valid:
             self._dispatch_valid.clear()
         for dialog in (self._picker, self._draft_dialog, self._usage_dialog):

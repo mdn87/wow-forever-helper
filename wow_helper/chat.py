@@ -76,6 +76,8 @@ class Message:
     role: str
     text: str
     at: float = 0
+    turn_id: str = ""
+    phase: str = ""
 
 
 def text_content(content):
@@ -101,7 +103,8 @@ def codex_messages(items):
         else:
             continue
         if isinstance(body, str) and body.strip():
-            messages.append(Message(str(item.get("id", "")), role, body))
+            messages.append(Message(str(item.get("id", "")), role, body,
+                                    turn_id=item.get("turnId") or "", phase=item.get("phase") or ""))
     return messages
 
 

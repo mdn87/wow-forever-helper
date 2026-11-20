@@ -35,15 +35,20 @@ client-data dump or copied guide text. Add entries with an original explanation,
 category, exact command, evidence label, limitations and source. Tests cover
 search, filtering, copying, empty results, requirements and companion navigation.
 
-## Find new commands with your agent
+## Search beyond the library
 
-Open **Find new commands…** in the library. Use **Change chat** to choose or start a conversation while keeping your question. Enter the effect you want and, if known, your exact client version.
-**Review request** shows the destination, requested model and effort, and complete prompt.
-**Send one search** sends that request once through the selected conversation,
-without replacing your unsent chat draft. Changing the question, destination or
-saved model settings requires a new review. Results appear in the conversation;
-you can save useful replies to the Journal. Suggestions are not automatically
-added to the curated library or executed in the game.
+Type a setting, symptom or question in the library. Typing filters the saved commands locally.
+Press **Enter** or click **Search online…** to review the same question with your agent.
+This works with any number of local matches. **Search in browser** opens web results in
+your default browser and uses zero companion research attempts.
+
+Choose a destination with **Change chat** or **Find active sessions**. Add the client version
+if you know it. The review shows the exact prompt, model and effort. **Send one search**
+asks the selected agent to search the web and answer with sources. The reply appears in
+the search window and its chat. **View chat** opens the original conversation, including
+replies from attached hosts that lack enough information to match an answer to the search.
+Editing the question, destination or saved model settings requires a fresh review. Your
+unsent chat draft stays in the composer.
 
 The prompt asks for up to three candidates, two web searches, sources,
 compatibility evidence, caveats and read/reset commands, in under 400 words.
