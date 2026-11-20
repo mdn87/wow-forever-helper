@@ -43,7 +43,7 @@ class VoiceBridge:
     def connect(self, label, provider):
         binding_id = str(uuid.uuid4())
         self.binding = {"version": VERSION, "binding_id": binding_id, "label": str(label)[:80],
-                        "provider": provider if provider in {"codex", "claude"} else "unknown",
+                        "provider": provider if provider in {"codex", "claude", "companion"} else "unknown",
                         "connected_at": self.clock(), "heartbeat": self.clock()}
         for folder in ("inbox", "claimed", "results"):
             (self.storage / folder).mkdir(parents=True, exist_ok=True)
@@ -83,7 +83,7 @@ class VoiceBridge:
 
     def report(self, request_id, status, detail=""):
         write_json(self.storage / "results" / (request_id + ".json"),
-                   {"version": VERSION, "id": request_id, "status": status, "detail": str(detail)[:300], "at": self.clock()})
+                   {"version": VERSION, "id": request_id, "status": status, "detail": str(detail)[:1200], "at": self.clock()})
 
     def pending(self):
         """Claim up to BATCH inbox requests. Invalid ones are answered as rejected here."""
@@ -114,7 +114,7 @@ class VoiceBridge:
             if problem:
                 self.report(request_id, "rejected", problem)
             else:
-                accepted.append({"id": request_id, "text": message["text"].strip()})
+                accepted.append({"id": request_id, "text": message["text"].strip(), "spoken_at": message["spoken_at"]})
         return accepted
 
     def _read(self, path):

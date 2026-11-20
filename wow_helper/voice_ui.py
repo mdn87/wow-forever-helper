@@ -124,98 +124,69 @@ class VoiceDialog(JournalDialog):
         self.root.destroy()
 
 
-class HandsFreeDialog(JournalDialog):
-    """Binds one chat to Lugos Voice. Each spoken turn is sent there without draft review."""
 
-    def __init__(self, manager, window, *, bridge_factory=None):
-        from .voice_bridge import VoiceBridge
+class HandsFreeDialog(JournalDialog):
+    """Status and controls for the manager's hands-free controller."""
+
+    def __init__(self, manager, window):
+        from .voice_commands import HELP
         self.manager, self.window = manager, window
-        self.bridge = (bridge_factory or VoiceBridge)()
-        self.target = None
-        self.after = None
+        self.controller = manager.handsfree
         super().__init__(window.view, 'Hands-free voice · Lugos Voice')
-        self.notice.set('Connect this chat to send each finished Lugos Voice turn here directly, without draft review.')
-        info = self.label(self.surface, 'Say the wake phrase, speak, then say "end turn".\n'
-                          'Lugos Voice listens; this panel only accepts its finished turns.\n'
-                          'Turns older than a minute, repeats and turns for another chat are refused.\n'
-                          'Switching chats, closing this panel or the window disconnects.\n'
-                          'Chat is conversation only; it never triggers game input.')
+        self.controller.exclude.add(str(self.root))
+        info = self.label(self.surface, 'Say the wake phrase, speak, then say "end turn". Lugos Voice listens; '
+                          'this companion only receives its finished turns and answers each one aloud. '
+                          'Spoken commands run companion menus, dialogs and chat. Anything else is sent to the '
+                          "connected window's selected chat without draft review. Turns older than a minute and "
+                          'repeats are refused. Chat never triggers game input; only the recognized teleport '
+                          'command uses assistive input, with its usual checks.')
         info.configure(wraplength=390, justify='left'); info.pack(fill='x', padx=8, pady=8)
-        self.bound = self.tk.StringVar(master=self.root, value='Not connected.')
+        self.bound = self.tk.StringVar(master=self.root)
         bound = self.label(self.surface, '')
         bound.configure(textvariable=self.bound); bound.pack(fill='x', padx=8, pady=(0, 6))
-        self.connect_button = self.ttk.Button(self.surface, text='Connect this chat', command=self.connect)
+        self.connect_button = self.ttk.Button(self.surface, text='Connect this window', command=self.connect)
         self.connect_button.pack(fill='x', padx=8)
-        self.disconnect_button = self.ttk.Button(self.surface, text='Disconnect', command=self.disconnect, state='disabled')
+        self.disconnect_button = self.ttk.Button(self.surface, text='Disconnect', command=self.disconnect)
         self.disconnect_button.pack(fill='x', padx=8, pady=6)
-        self.label(self.surface, 'Last spoken turn').pack(anchor='w', padx=8, pady=(8, 0))
+        self.auto = self.tk.BooleanVar(master=self.root, value=self.controller.auto)
+        self.ttk.Checkbutton(self.surface, text='Connect this window automatically when the companion starts',
+                             variable=self.auto, command=lambda: self.controller.set_auto(self.auto.get())
+                             ).pack(anchor='w', padx=8)
+        self.label(self.surface, 'Recent turns').pack(anchor='w', padx=8, pady=(8, 0))
         self.transcript = self.text(self.surface)
-        self.after = self.root.after(250, self.poll)
+        self.label(self.surface, 'What you can say').pack(anchor='w', padx=8, pady=(8, 0))
+        self.help = self.text(self.surface, HELP)
+        self.controller.listeners.append(self.refresh)
+        self.refresh()
         self.show()
 
-    def set_status(self, text):
-        self.notice.set(text)
-        if not self.window.closed:
-            self.window.set_notice(text)
+    def refresh(self):
+        from .task_window import replace_text
+        if not self.root.winfo_exists():
+            return
+        controller = self.controller
+        if controller.connected:
+            self.bound.set(f'Connected to: {controller.window.caption or "companion window"}')
+        else:
+            self.bound.set('Not connected.')
+        self.connect_button.configure(state='disabled' if controller.connected and controller.window is self.window
+                                      else 'normal')
+        self.disconnect_button.configure(state='normal' if controller.connected else 'disabled')
+        lines = [f'{status}: {text}  →  {detail}' if text else f'{status}: {detail}'
+                 for text, status, detail in reversed(controller.history)]
+        replace_text(self.transcript, '\n'.join(lines))
+        if controller.history:
+            self.notice.set(controller.history[-1][2][:300])
 
     def connect(self):
-        view = self.window.view
-        if self.bridge.connected or self.window.closed or not view:
-            return
-        session = view.selected
-        if session is None:
-            self.set_status('Choose an open session in this chat first.'); return
-        self.target = (view, session.key, view.selection_revision)
-        self.bridge.connect(session.title or 'Untitled chat', session.provider)
-        self.bound.set(f'Connected to: {(session.title or "Untitled chat")[:60]} ({session.provider})')
-        self.connect_button.configure(state='disabled')
-        self.disconnect_button.configure(state='normal')
-        self.set_status('Hands-free voice connected. Finished Lugos Voice turns send to this chat.')
+        self.controller.connect(self.window)
 
-    def disconnect(self, reason='Hands-free voice disconnected.'):
-        was = self.bridge.connected
-        self.bridge.disconnect()
-        self.target = None
-        self.bound.set('Not connected.')
-        self.connect_button.configure(state='normal')
-        self.disconnect_button.configure(state='disabled')
-        if was:
-            self.set_status(reason)
-
-    def _target_changed(self):
-        view, key, revision = self.target
-        return (self.window.closed or self.window.view is not view or view.selection_key != key
-                or view.selection_revision != revision or view.selected is None)
-
-    def poll(self):
-        self.after = None
-        if self.bridge.connected:
-            if self._target_changed():
-                self.disconnect('The chat changed, so hands-free voice disconnected. Reconnect to choose this chat.')
-            else:
-                self.bridge.heartbeat()
-                for request in self.bridge.pending():
-                    self.deliver(request)
-        self.after = self.root.after(250, self.poll)
-
-    def deliver(self, request):
-        from .task_window import replace_text
-        request_id, text = request['id'], request['text']
-        replace_text(self.transcript, text)
-        view = self.target[0]
-
-        def delivered(result, error):
-            self.bridge.report(request_id, 'failed' if error else 'sent', error or result)
-
-        if view.send_message(text, request_id=request_id, on_delivery=delivered):
-            self.set_status('Spoken turn sent to this chat. Reply appears here as usual.')
-        else:
-            self.bridge.report(request_id, 'rejected', 'The chat is busy with another send.')
-            self.set_status('A spoken turn arrived while this chat was busy. It was not sent; text kept in the panel.')
+    def disconnect(self):
+        self.controller.disconnect()
 
     def close(self):
-        if self.after:
-            self.root.after_cancel(self.after)
-        self.disconnect()
+        if self.refresh in self.controller.listeners:
+            self.controller.listeners.remove(self.refresh)
+        self.controller.exclude.discard(str(self.root))
         self.manager._handsfree_dialog = None
         self.root.destroy()
