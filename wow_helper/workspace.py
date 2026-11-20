@@ -131,6 +131,7 @@ class CompanionWindow:
         else:
             self.kind = "chooser"
             self.show_chooser()
+        self.refresh_command_library_menu()
         hidden = self.display and (record.get("display_hidden") or
                                   self.display_area is not None and self.display_area not in manager.areas)
         if not hidden:
@@ -199,6 +200,14 @@ class CompanionWindow:
         self.display = (ActivityDeck if kind == "activities" else QuestLogDisplay)(self, state)
         self.manager.changed(self)
 
+    def refresh_command_library_menu(self):
+        # Keep the reference below the view's in-play tools, including after a chooser opens a view.
+        try:
+            self.tools_menu.delete("Command library…")
+        except self.manager.tk.TclError:
+            pass
+        self.tools_menu.add_command(label="Command library…", command=lambda: self.manager.show_command_library(self))
+
     def open_kind(self, kind, state=None):
         if self.view is not None or self.closed:
             return
@@ -215,6 +224,7 @@ class CompanionWindow:
                                state=state, on_change=lambda: self.manager.changed(self),
                                toolbar=self.toolbar, actions_menu=self.menus)
         self.preferences_menu.entryconfigure(self.appearance_menu_index, state="normal")
+        self.refresh_command_library_menu()
         self.manager.changed(self)
 
     def open_preset(self):
@@ -311,6 +321,8 @@ class CompanionWindow:
             self.manager._interface_dialog.close()
         if self.manager._layouts_dialog and self.manager._layouts_dialog.parent is self.root:
             self.manager._layouts_dialog.close()
+        if self.manager._command_library_dialog and self.manager._command_library_dialog.parent is self.root:
+            self.manager._command_library_dialog.close()
         if self.manager._search_dialog and self.manager._search_dialog.parent is self.root:
             self.manager._search_dialog.close()
         if self.manager._activity_dialog and self.manager._activity_dialog.parent is self.root:
@@ -349,6 +361,7 @@ class WindowManager:
         self._restart_process = None
         self._interface_dialog = None
         self._layouts_dialog = None
+        self._command_library_dialog = None
         self._search_dialog = None
         self._activity_dialog = None
         self._usage_dialog = None
@@ -437,6 +450,14 @@ class WindowManager:
         else:
             self._layouts_dialog.root.deiconify()
             self._layouts_dialog.root.lift()
+
+    def show_command_library(self, window):
+        from .command_library_ui import CommandLibraryDialog
+        if self._command_library_dialog is None:
+            self._command_library_dialog = CommandLibraryDialog(self, window)
+        else:
+            self._command_library_dialog.root.deiconify()
+            self._command_library_dialog.root.lift()
 
     def show_search(self, window):
         self.record_usage("search", "open")
