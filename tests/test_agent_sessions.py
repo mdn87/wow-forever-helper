@@ -16,6 +16,22 @@ def uid(number):
     return str(uuid.UUID(int=number))
 
 
+@pytest.mark.parametrize('provider', ['codex', 'claude'])
+def test_explicit_model_is_used_when_resuming_without_fallback(store, monkeypatch, provider):
+    session = store.create(provider)
+    meta_path = store.folder(session.id) / 'session.json'
+    meta = read_json(meta_path)
+    meta['native_id'] = uid(32)
+    write_json(meta_path, meta)
+    store.send(session, 'Synthetic question', uid(33), model='example-small', effort='low', timeout=90)
+    processes = fake_cli(monkeypatch, [])
+    agents.run_turn(store.storage, session.id, uid(33))
+    args = processes[0].args
+    assert args[args.index('--model') + 1] == 'example-small'
+    assert uid(32) in args
+    assert not any('fallback' in argument for argument in args)
+
+
 @pytest.fixture
 def store(tmp_path, monkeypatch):
     monkeypatch.setattr(agents, "codex_executable", lambda: "synthetic-codex")

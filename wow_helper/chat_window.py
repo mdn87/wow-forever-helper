@@ -93,7 +93,7 @@ class ChatWindow:
                     ids = item.get("previous_ids", [])
                     ids = frozenset(i[:200] for i in ids[:200] if isinstance(i, str)) if isinstance(ids, list) else frozenset()
                     status = item.get("status")
-                    if status not in ("queued", "waiting for Claude to poll", "delivery unconfirmed"):
+                    if status not in ("queued", "started", "waiting for Claude to poll", "delivery unconfirmed"):
                         status = "delivery unconfirmed"
                     self.sent.setdefault(self.desired_key, []).append((item["body"][:6000], status, ids))
         root.configure(bg=palette(self.root).PANEL)
@@ -128,6 +128,7 @@ class ChatWindow:
             button.pack(side="right", padx=(3, 0))
             self.provider_buttons[provider] = button
         self.menus.conversation.add_command(label="Refresh open sessions", command=self.refresh)
+        self.menus.conversation.add_command(label="Model & usage…", command=self.show_model_settings)
         self.menus.conversation.add_command(label="Save selected reply to Journal…", command=self.save_to_journal)
         self.menus.conversation.add_command(label="Pin selected reply to Play…", command=self.pin_to_play)
         self.session_picker = ttk.Combobox(selector, state="readonly", width=1, font=("Segoe UI", 9))
@@ -146,6 +147,9 @@ class ChatWindow:
         self.subtitle_label = tk.Label(conversation, textvariable=self.subtitle, anchor="w", fg=palette(self.root).ACCENT,
                                       bg=palette(self.root).PANEL, font=("Segoe UI", 8))
         self.subtitle_label.pack(fill="x", pady=(0, 3))
+        self.model_summary = tk.StringVar(master=root, value='Model & usage · select a conversation')
+        self.model_button = ttk.Button(conversation, textvariable=self.model_summary, command=self.show_model_settings)
+        self.model_button.pack(fill='x', pady=(0, 3))
         transcript_frame = tk.Frame(conversation, bg=palette(self.root).PANEL)
         transcript_frame.pack(fill="both", expand=True)
         self.transcript = tk.Text(transcript_frame, wrap="word", state="disabled", bg=palette(self.root).PANEL,
@@ -301,6 +305,7 @@ class ChatWindow:
         if self.selected and session.key == self.selected.key:
             self.selected = session
             self.subtitle.set(self._description(session))
+            self.refresh_model_summary()
             return
         self.selection_revision += 1
         if self.selection_key:
@@ -308,6 +313,7 @@ class ChatWindow:
         elif session.key not in self.drafts:
             self.drafts[session.key] = self.editor.get("1.0", "end-1c")
         self.selected = session
+        self.refresh_model_summary()
         self.desired_key = session.key
         self.session_title = session.title
         self.last_messages = None
@@ -555,7 +561,29 @@ class ChatWindow:
         self.send_message(self.editor.get("1.0", "end-1c").strip(), clear_draft=True)
         return "break"
 
-    def send_message(self, body, *, request_id=None, on_delivery=None, clear_draft=False):
+    def show_model_settings(self):
+        if not self.selected:
+            self.status.set('Select or start a conversation before choosing its model.')
+            return
+        from .model_settings_ui import ModelSettingsDialog
+        dialog = getattr(self, '_model_dialog', None)
+        if dialog is not None:
+            dialog.root.lift()
+            return
+        self._model_dialog = ModelSettingsDialog(self)
+
+    def model_preferences(self):
+        from .model_settings import Preferences
+        return Preferences(getattr(self.service, 'state', None) or getattr(getattr(self, 'activity', None), 'storage', CHAT_STATE))
+
+    def refresh_model_summary(self):
+        from .model_settings import choice_summary
+        try:
+            self.model_summary.set(choice_summary(self.selected, self.model_preferences().get(self.selected)) + ' · Change…')
+        except (ChatError, OSError):
+            self.model_summary.set('Model settings unavailable · Review…')
+
+    def send_message(self, body, *, request_id=None, on_delivery=None, clear_draft=False, research_settings=None):
         """Send an explicit prepared request without replacing an unsent draft."""
         if self.jobs - BACKGROUND_JOBS:
             return False
@@ -565,6 +593,8 @@ class ChatWindow:
             self.status.set(f"Keep messages under {MAX_MESSAGE:,} characters, without null characters.")
             return False
         if not self.selected:
+            if research_settings is not None:
+                return False
             if body.strip() and not self.desired_key:
                 return self.start_session(on_ready=lambda: self.send_message(
                     body, request_id=request_id, on_delivery=on_delivery, clear_draft=clear_draft))
@@ -574,7 +604,9 @@ class ChatWindow:
         if not body:
             return False
         previous_ids = frozenset(self.observed.get(session.key, set()))
-        if self._submit("send", lambda: self.service.send(session, body, request_id), (session.key, body, previous_ids)):
+        action = (lambda: self.service.send(session, body, request_id)) if research_settings is None else (
+            lambda: self.service.research(session, body, request_id, research_settings))
+        if self._submit("send", action, (session.key, body, previous_ids)):
             from .usage_study import record
             record(getattr(getattr(self, "activity", None), "storage", getattr(self.service, "state", None)),
                    getattr(self, "kind", "quests" if hasattr(self, "context") else "chat"), "send")
@@ -723,6 +755,8 @@ class ChatWindow:
         self.closed = True
         self.job_callbacks.clear()
         self._send_callback = None
+        if getattr(self, '_model_dialog', None) is not None:
+            self._model_dialog.close()
         if self._appearance_dialog is not None:
             self._appearance_dialog.close()
         if self._pin_dialog is not None:

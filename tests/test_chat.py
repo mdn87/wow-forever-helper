@@ -59,6 +59,26 @@ def service(tmp_path, monkeypatch):
     return ChatService(tmp_path / "chat", FakeCodex())
 
 
+def test_selected_model_routes_explicitly_and_research_settings_are_checked(service):
+    from wow_helper.model_settings import Preferences
+    selected = service.discover()[0][0]
+    store = Preferences(service.state)
+    before = store.get(selected)
+    settings = store.save(selected, model='example-small', effort='low', timeout=90)
+    attempts = []
+    service.codex.send_with_model = lambda *args: attempts.append(args)
+    with pytest.raises(ChatError, match='changed'):
+        service.research(selected, 'Synthetic question', REQUEST, before)
+    assert store.remaining() == 3 and not attempts
+    assert service.research(selected, 'Synthetic question', REQUEST, settings) == 'started'
+    assert attempts == [(selected.id, 'Synthetic question', 'example-small', 'low')]
+    assert not service.codex.sent
+    assert store.remaining() == 2
+    with pytest.raises(ChatError, match='already'):
+        service.research(selected, 'Synthetic question', REQUEST, settings)
+    assert len(attempts) == 1 and store.remaining() == 2
+
+
 def test_discovery_and_text_only_codex_history(service):
     sessions, notices = service.discover()
     assert notices == []

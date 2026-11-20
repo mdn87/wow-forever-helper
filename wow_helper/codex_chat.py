@@ -96,7 +96,7 @@ class PipeSocket:
 
 
 class CodexClient:
-    """Single-worker read-only RPC connection; sends use the CLI's queue command."""
+    """Single-worker reads and explicit sends; model overrides use turn/start."""
 
     def __init__(self):
         self.ws = None
@@ -154,8 +154,9 @@ class CodexClient:
         raise ChatError("Codex did not respond in time. Refresh to reconnect.")
 
     def rpc(self, method, params):
-        # This connection deliberately cannot execute tools, resume, or grant approvals.
-        if method not in {"thread/loaded/list", "thread/read", "thread/items/list", "thread/turns/list"}:
+        # Generic RPC is read-only. Explicit user sends have a separate boundary.
+        if method not in {"thread/loaded/list", "thread/read", "thread/items/list", "thread/turns/list",
+                          "model/list", "account/rateLimits/read"}:
             raise ChatError("Unsupported chat operation.")
         try:
             if self.ws is None:
@@ -192,6 +193,38 @@ class CodexClient:
             "threadId": session_id, "limit": 100, "sortDirection": "desc",
         })
         return [entry["item"] for entry in reversed(page.get("data", []))]
+
+    def models(self):
+        found, cursor = [], None
+        for _ in range(10):
+            page = self.rpc('model/list', {'limit': 100, 'cursor': cursor})
+            found.extend(item for item in page.get('data', []) if not item.get('hidden'))
+            cursor = page.get('nextCursor')
+            if not cursor:
+                break
+        return found
+
+    def send_with_model(self, session_id, message, model, effort):
+        """One explicit turn with settings; never queue/retry after an uncertain RPC."""
+        from .model_settings import validate
+        validate(model, effort, 180)
+        selected = next((m for m in self.models() if m.get('model') == model), None)
+        if not selected or (effort and effort not in {e.get('reasoningEffort') for e in selected.get('supportedReasoningEfforts', [])}):
+            raise ChatError('That model or effort is unavailable. Refresh Model & usage; nothing was sent.')
+        thread = self.rpc('thread/read', {'threadId': session_id, 'includeTurns': False})['thread']
+        if thread.get('status', {}).get('type') != 'idle':
+            raise ChatError('Wait for the attached Codex session to become idle before changing its model.')
+        params = {'threadId': session_id, 'input': [{'type': 'text', 'text': message}],
+                  'model': model, 'effort': effort or selected['defaultReasoningEffort'], 'serviceTier': 'default'}
+        try:
+            # Keep arbitrary mutation out of rpc(). No resume, tool execution,
+            # approval, sandbox, authentication, or global configuration changes.
+            result = self._rpc('turn/start', params)
+            if not result.get('turn', {}).get('id'):
+                raise ChatError('Missing turn acknowledgement.')
+        except Exception:
+            self.close()
+            raise ChatError('Model-selected delivery is unconfirmed. Check Codex before sending again; no fallback was attempted.') from None
 
     def send(self, session_id, message):
         try:
