@@ -204,18 +204,27 @@ class CodexClient:
                 break
         return found
 
-    def send_with_model(self, session_id, message, model, effort):
-        """One explicit turn with settings; never queue/retry after an uncertain RPC."""
+    def check_model(self, model, effort):
+        """Validate the selected pair against the current read-only catalog."""
         from .model_settings import validate
         validate(model, effort, 180)
         selected = next((m for m in self.models() if m.get('model') == model), None)
         if not selected or (effort and effort not in {e.get('reasoningEffort') for e in selected.get('supportedReasoningEfforts', [])}):
             raise ChatError('That model or effort is unavailable. Refresh Model & usage; nothing was sent.')
+        return effort or selected['defaultReasoningEffort']
+
+    def prepare_turn(self, session_id, message, model, effort):
+        effort = self.check_model(model, effort)
         thread = self.rpc('thread/read', {'threadId': session_id, 'includeTurns': False})['thread']
         if thread.get('status', {}).get('type') != 'idle':
             raise ChatError('Wait for the attached Codex session to become idle before changing its model.')
-        params = {'threadId': session_id, 'input': [{'type': 'text', 'text': message}],
-                  'model': model, 'effort': effort or selected['defaultReasoningEffort'], 'serviceTier': 'default'}
+        return {'threadId': session_id, 'input': [{'type': 'text', 'text': message}],
+                'model': model, 'effort': effort, 'serviceTier': 'default'}
+
+    def send_with_model(self, session_id, message, model, effort):
+        self.start_turn(self.prepare_turn(session_id, message, model, effort))
+
+    def start_turn(self, params):
         try:
             # Keep arbitrary mutation out of rpc(). No resume, tool execution,
             # approval, sandbox, authentication, or global configuration changes.

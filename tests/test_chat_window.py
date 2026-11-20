@@ -279,7 +279,8 @@ def test_closing_chat_closes_appearance_dialog(window):
     assert not dialog.root.winfo_exists()
 
 
-def test_history_poll_keeps_controls_available_and_accepts_one_send(window):
+@pytest.mark.parametrize('edit_before_dispatch', (False, True))
+def test_history_poll_keeps_controls_available_and_checks_queued_draft(window, edit_before_dispatch):
     choose(window, 0)
     gate, started = threading.Event(), threading.Event()
     calls = []
@@ -300,16 +301,20 @@ def test_history_poll_keeps_controls_available_and_accepts_one_send(window):
         window.editor.insert("1.0", "Hello")
         window.send()
         window.send()  # A second click must not queue the same draft again.
-        window.editor.insert("end", " and keep typing")
+        if edit_before_dispatch:
+            window.editor.insert("end", " and keep typing")
         window.root.update()
-        assert window.editor.get("1.0", "end-1c") == "Hello and keep typing"
         assert str(window.send_button["state"]) == "disabled"
         assert calls == []  # The provider connection remains single-worker.
     finally:
         gate.set()
         settle(window)
+    if edit_before_dispatch:
+        assert calls == []
+        assert window.editor.get("1.0", "end-1c") == "Hello and keep typing"
+        return
     assert calls == [(window.selected.key, "Hello")]
-    assert window.editor.get("1.0", "end-1c") == "Hello and keep typing"
+    assert window.editor.get("1.0", "end-1c") == ""
     assert "QUEUED" in window.transcript.get("1.0", "end")
     window._show([Message("synthetic-existing", "user", "Hello"),
                   Message("synthetic-delivered", "user", "Hello")])

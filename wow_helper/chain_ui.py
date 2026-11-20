@@ -167,6 +167,7 @@ class ChainDialog(JournalDialog):
             context = quest_context(self.quest, self.snapshot['report'], {}, self.edition, self.snapshot['snapshot_at'])
             target = self.view._add_quest_chat(str(uuid.uuid4()), context)
         self.target, self.session_key = target, target.selection_key
+        self.session_provider = target.default_provider
         chain = self.annotated()
         packet = {'window': 'Quest chain · ' + self.quest['title'], 'edition': self.edition,
                   'task': 'Explain this selected quest chain, missing prerequisites, and possible next quests. Distinguish sourced claims from recorded completion and uncertainty.',
@@ -187,7 +188,8 @@ class ChainDialog(JournalDialog):
         if self.packet is None or self.attempted:
             return
         target = self.target
-        if target.closed or target.selection_key != self.session_key:
+        if (target.closed or target.selection_key != self.session_key
+                or (not self.session_key and target.default_provider != self.session_provider)):
             self.notice.set('The quest conversation changed or closed. Prepare a new discussion.'); return
         try:
             message = self.view.activity.request_message(self.packet, self.request_id)
@@ -198,7 +200,7 @@ class ChainDialog(JournalDialog):
             target.context['chain_delivery'] = 'uncertain' if error else result
             if not target.closed:
                 target.on_change()
-        if target.send_message(message, request_id=self.request_id, on_delivery=delivered):
+        if target.send_quest_request(message, self.request_id, delivered):
             self.attempted = True
             target.context['chain'] = packet['reports']['quest_chain']['data']
             target.context['chain_delivery'] = 'attempted; delivery not yet confirmed'

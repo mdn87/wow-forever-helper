@@ -351,13 +351,16 @@ class Interpreter:
         candidates = self._buttons(top) if top is not None else []
         view = self.view()
         if view is not None and top is None:
-            candidates += [(text_of(b), b) for b in (view.send_button, *getattr(view, "provider_buttons", {}).values())
+            candidates += [(text_of(b), b) for b in (view.send_button, view.new_chat_button, view.model_button)
                            if visible(b)]
         if not candidates:
             return None  # Leave "press ..." to a menu entry of that name, then chat.
         button, close = best(target, candidates)
         if button is None:
             return Outcome("refused", "Did you mean " + " or ".join(close) + "?") if close else None
+        if (spoken_label(text_of(button)) == 'send once with provider billing settings'
+                and target != 'send once with provider billing settings'):
+            return Outcome("refused", "Say the full billing action to use extra provider usage, or say keep draft.")
         if not enabled(button):
             return Outcome("refused", f"{spoken_label(text_of(button)).capitalize()} is unavailable right now.")
         self.later(button.invoke)
@@ -508,6 +511,8 @@ class Interpreter:
         top = self.dialog()
         if top is not None:
             for label, button in self._buttons(top):
+                if spoken_label(label) == 'send once with provider billing settings':
+                    return Outcome("refused", "Choose Keep draft or explicitly name the billing action.")
                 if spoken_label(label).startswith("send"):
                     if not enabled(button):
                         return Outcome("refused", "Send is unavailable until the review is prepared.")
@@ -518,10 +523,11 @@ class Interpreter:
         if view is None or not view.editor.get("1.0", "end-1c").strip():
             return Outcome("refused", "The draft is empty. Say type and your message first, or just talk.")
         if view.selected is None:
-            return Outcome("refused", "No session is selected. Say switch to a session name or new Codex chat.")
+            view.choose_chat()
+            return Outcome("refused", "Your draft is here. Say switch to a chat name or new Codex chat, then send.")
         draft = view.editor.get("1.0", "end-1c").strip()
         if not view.send_message(draft, clear_draft=True):
-            return Outcome("refused", "The chat is busy; the draft was kept.")
+            return Outcome("refused", view.status.get() or "The draft was kept.")
         return Outcome("done", "Draft sent.")
 
     def clear_draft(self):
@@ -576,20 +582,37 @@ class Interpreter:
         view = self.view()
         if view is None:
             return Outcome("refused", "This window has no chat.")
-        view.start_session(provider)
+        if view._picker:
+            view._picker.create(provider)
+        elif not view.start_session(provider):
+            return Outcome("refused", "Wait for the current action before starting a chat.")
         return Outcome("done", f"Starting a new {provider.capitalize()} chat.")
 
     def switch(self, target):
         view = self.view()
-        if view is None or not view.sessions:
+        sessions = view.attachable_sessions() if view else []
+        if not sessions:
             return None
-        session, close = best(target, [(s.title, s) for s in view.sessions])
+        from collections import Counter
+        from .conversation_picker import session_labels
+        counts = Counter(spoken_label(s.title) for s in sessions)
+        candidates = [(s.title, s) for s in sessions]
+        matches = [s for title, s in candidates if spoken_label(title) == target]
+        if len(matches) > 1:
+            view.choose_chat()
+            return Outcome("refused", "More than one chat has that title. Choose one by provider and its identifying details.")
+        if len(counts) < len(candidates):
+            candidates = [(s.title if counts[spoken_label(s.title)] == 1 else label, s)
+                          for label, s in zip(session_labels(sessions), sessions)]
+        session, close = best(target, candidates)
         if close:
             return Outcome("refused", "Did you mean " + " or ".join(close) + "?")
         if session is None:
             return None
         view.session_picker.current(view.sessions.index(session))
         view._select_session(session)
+        if view._picker:
+            view._picker.close()
         return Outcome("done", f"Now talking to {session.title[:60]}.")
 
     # -- menus and companion commands

@@ -66,7 +66,9 @@ def test_selected_model_routes_explicitly_and_research_settings_are_checked(serv
     before = store.get(selected)
     settings = store.save(selected, model='example-small', effort='low', timeout=90)
     attempts = []
-    service.codex.send_with_model = lambda *args: attempts.append(args)
+    service.codex.rpc = lambda *_: {}
+    service.codex.prepare_turn = lambda *args: args
+    service.codex.start_turn = attempts.append
     with pytest.raises(ChatError, match='changed'):
         service.research(selected, 'Synthetic question', REQUEST, before)
     assert store.remaining() == 3 and not attempts

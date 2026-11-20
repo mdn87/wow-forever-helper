@@ -55,6 +55,35 @@ def test_changed_model_or_session_invalidates_review(manager_factory, tmp_path):
     assert not view.service.sent
 
 
+def test_research_chooser_preserves_question_and_rejects_old_review_after_renewal(manager_factory, tmp_path):
+    manager = manager_factory()
+    view = manager.windows[0].view
+    view.service.state = tmp_path
+    manager.show_command_library(manager.windows[0])
+    library = manager._command_library_dialog
+    library.query.set('ground brightens when walking')
+    library.research_button.invoke()
+    dialog = library.research_dialog
+    dialog.prepare()
+    picker = view._picker
+    assert picker and not view.service.sent
+    picker.rows.selection_set(0)
+    picker.choose()
+    settle(view)
+    assert dialog.query.get() == 'ground brightens when walking'
+    dialog.prepare()
+    Preferences(tmp_path).renew()
+    dialog.send()
+    assert not view.service.sent and Preferences(tmp_path).remaining() == 3
+    assert dialog.query.get() == 'ground brightens when walking'
+    dialog.prepare()
+    target = view.selected
+    view._select_session(view.sessions[1])
+    view._select_session(target)
+    dialog.send()
+    assert not view.service.sent and dialog.review is None
+
+
 def test_three_searches_pause_until_explicit_renewal(manager_factory, tmp_path):
     _, view, dialog = setup(manager_factory, tmp_path)
     for _ in range(3):
@@ -75,6 +104,8 @@ def test_model_controls_save_next_send_and_disable_attached_claude(manager_facto
     view.show_model_settings()
     dialog = view._model_dialog
     settle(view)
+    dialog.override.set(True)
+    dialog.toggle_override()
     dialog.model.set('example-small'); dialog.effort.set('low'); dialog.save()
     assert Preferences(tmp_path).get(view.selected)['model'] == 'example-small'
     assert not view.service.sent
@@ -85,6 +116,6 @@ def test_model_controls_save_next_send_and_disable_attached_claude(manager_facto
     view._select_session(view.sessions[1]); settle(view)
     view.show_model_settings(); settle(view)
     dialog = view._model_dialog
-    assert str(dialog.save_button['state']) == 'disabled'
+    assert dialog.save_button.instate(['disabled'])
     assert str(dialog.model_choice['state']) == 'disabled'
     assert not view.service.sent

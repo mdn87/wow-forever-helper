@@ -2,11 +2,13 @@
 
 from concurrent.futures import ThreadPoolExecutor
 import queue
+import threading
 import uuid
 
 from .chat import CHAT_STATE, ChatError, ChatService, MAX_MESSAGE, claude_connection_text
 from .appearance import AppearanceDialog, append_turn, appearance_settings, style_text
 from .window_state import history_state, restored_history, saved_selection
+from .provider_usage import UsageDecision
 from .response_wait import ResponseWait, elapsed
 from .activity_history import ActivityHistory
 from .theme import palette, apply_theme, display_font, settings_icon, menu as themed_menu
@@ -62,6 +64,7 @@ class ChatWindow:
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="chat")
         self.results = queue.Queue()
         self.sessions = []
+        self._session_keys = {}
         self.selected = None
         self.jobs = set()
         self.job_callbacks = {}
@@ -70,7 +73,18 @@ class ChatWindow:
         self.closed = False
         self._scroll_after_id = None
         self.last_messages = None
-        self.drafts = {}
+        self.drafts, self.saved_drafts, self.draft_revisions = {}, {}, {}
+        stored = state.get("conversation_drafts", [])
+        for row in stored[-12:] if isinstance(stored, list) else ():
+            key = saved_selection(row)
+            if key:
+                for field, dest in (("draft", self.drafts), ("saved", self.saved_drafts)):
+                    if isinstance(row.get(field), str) and row[field]:
+                        dest[key] = row[field][:32_000]
+        self._picker = self._draft_dialog = self._usage_dialog = None
+        self._dispatch_valid = self.displayed_choice = None
+        self._held_enter = False
+        self._sent_revision = None
         self.sent = {}
         self.history_cache = {}
         self.observed = {}
@@ -121,18 +135,15 @@ class ChatWindow:
         self.menus.conversation.add_command(label=SETUP_LABEL, command=self.claude_setup, state="disabled")
         self.refresh_button = ttk.Button(selector, text="↻", style="Window.TButton", command=self.refresh)
         self.refresh_button.pack(side="right", padx=(4, 0))
-        self.provider_buttons = {}
-        for provider, label in (("claude", "Claude +"), ("codex", "Codex +")):
-            button = ttk.Button(selector, text=label, style="Agent.TButton",
-                                command=lambda choice=provider: self.start_session(choice))
-            button.pack(side="right", padx=(3, 0))
-            self.provider_buttons[provider] = button
+        self.new_chat_button = ttk.Button(selector, text="Start a new chat", style="Agent.TButton",
+                                          command=self.choose_chat)
+        self.new_chat_button.pack(side="right", padx=(3, 0))
         self.menus.conversation.add_command(label="Refresh open sessions", command=self.refresh)
         self.menus.conversation.add_command(label="Model & usage…", command=self.show_model_settings)
         self.menus.conversation.add_command(label="Save selected reply to Journal…", command=self.save_to_journal)
         self.menus.conversation.add_command(label="Pin selected reply to Play…", command=self.pin_to_play)
         self.session_picker = ttk.Combobox(selector, state="readonly", width=1, font=("Segoe UI", 9))
-        self.session_picker.set("Choose an open session…")
+        self.session_picker.set("Use an existing chat…")
         self.session_picker.pack(side="left", fill="x", expand=True)
         self.session_picker.bind("<<ComboboxSelected>>", self.select)
 
@@ -147,9 +158,17 @@ class ChatWindow:
         self.subtitle_label = tk.Label(conversation, textvariable=self.subtitle, anchor="w", fg=palette(self.root).ACCENT,
                                       bg=palette(self.root).PANEL, font=("Segoe UI", 8))
         self.subtitle_label.pack(fill="x", pady=(0, 3))
-        self.model_summary = tk.StringVar(master=root, value='Model & usage · select a conversation')
-        self.model_button = ttk.Button(conversation, textvariable=self.model_summary, command=self.show_model_settings)
-        self.model_button.pack(fill='x', pady=(0, 3))
+        route = tk.Frame(conversation, bg=palette(root).PANEL)
+        route.pack(fill='x', pady=(0, 3))
+        self.model_summary = tk.StringVar(master=root, value='Choose a chat for your next message')
+        self.model_button = ttk.Button(route, text='Change model', command=self.show_model_settings, state='disabled')
+        self.model_button.pack(side='right')
+        summary = tk.Label(route, textvariable=self.model_summary, anchor='w', justify='left',
+                           bg=palette(root).PANEL, fg=palette(root).TEXT, wraplength=280)
+        summary.pack(side='left', fill='x', expand=True)
+        summary.bind('<Configure>', lambda e: summary.configure(wraplength=max(80, e.width - 6)))
+        self.saved_button = ttk.Button(conversation, text='View saved draft', command=self.show_saved_draft)
+        self.draft_anchor = route
         transcript_frame = tk.Frame(conversation, bg=palette(self.root).PANEL)
         transcript_frame.pack(fill="both", expand=True)
         self.transcript = tk.Text(transcript_frame, wrap="word", state="disabled", bg=palette(self.root).PANEL,
@@ -173,6 +192,7 @@ class ChatWindow:
         self.editor.pack(side="left", fill="both", expand=True)
         for key in ("Return", "KP_Enter"):
             self.editor.bind(f"<{key}>", self.send)
+            self.editor.bind(f"<KeyRelease-{key}>", self._release_enter)
             self.editor.bind(f"<Control-{key}>", self.send)
             self.editor.bind(f"<Shift-{key}>", self.insert_newline)
         self.editor.bind("<<Modified>>", self._edited)
@@ -205,11 +225,15 @@ class ChatWindow:
 
     def _update_controls(self):
         foreground = bool(self.jobs - BACKGROUND_JOBS)
-        can_start = not self.desired_key and hasattr(self.service, "create")
-        self.send_button.configure(state="normal" if (self.selected or can_start) and not foreground else "disabled")
+        can_choose = not self.desired_key and (self.sessions or hasattr(self.service, "create"))
+        self.send_button.configure(state="normal" if (self.selected or can_choose) and not foreground else "disabled")
         self.refresh_button.configure(state="disabled" if foreground else "normal")
-        for button in self.provider_buttons.values():
-            button.configure(state="disabled" if foreground or not hasattr(self.service, "create") else "normal")
+        self.new_chat_button.configure(text='Change chat' if self.selected or self.desired_key else 'Start a new chat')
+        self.model_button.configure(state='normal' if self.selected else 'disabled')
+        if self.saved_drafts.get(self.selection_key):
+            self.saved_button.pack(after=self.draft_anchor, anchor='w', pady=(0, 2))
+        else:
+            self.saved_button.pack_forget()
         self.menus.conversation.entryconfigure(self.setup_menu_index,
                                          state="normal" if self.selected and self.selected.provider == "claude" and not self.selected.managed else "disabled")
 
@@ -221,13 +245,48 @@ class ChatWindow:
     def _edited(self, _event=None):
         if self.editor.edit_modified():
             self.editor.edit_modified(False)
-            if self.selection_key:
-                self.drafts[self.selection_key] = self.editor.get("1.0", "end-1c")
+            key = self.selection_key
+            self.draft_revisions[key] = self.draft_revisions.get(key, 0) + 1
+            if key:
+                self.drafts[key] = self.editor.get("1.0", "end-1c")
+            if self._dispatch_valid and self._clear_sent_draft:
+                self._dispatch_valid.clear()
             self.on_change()
+
+    def replace_draft(self, body):
+        self.editor.delete('1.0', 'end')
+        self.editor.insert('1.0', body)
+        self._edited()
+
+    def show_saved_draft(self):
+        from .conversation_picker import SavedDraftDialog
+        if self._draft_dialog:
+            self._draft_dialog.close()
+        if self.saved_drafts.get(self.selection_key):
+            self._draft_dialog = SavedDraftDialog(self)
+
+    def attachable_sessions(self):
+        return self.sessions
+
+    def choose_chat(self, parent=None, on_close=None):
+        from .conversation_picker import ConversationPicker
+        if self._picker:
+            self._picker.root.lift()
+            return
+        self._picker = ConversationPicker(self, parent or self.root, on_close)
 
     def snapshot(self, remember=True):
         key = self.selection_key
         data = {"appearance": dict(self.appearance), "provider": self.default_provider}
+        if remember:
+            drafts = dict(self.drafts)
+            if key:
+                drafts[key] = self.editor.get("1.0", "end-1c")
+            keys = list(dict.fromkeys([*self.saved_drafts, *drafts]))
+            data["conversation_drafts"] = [
+                {"provider": k[0], "id": k[1], "draft": drafts.get(k, "")[:32_000],
+                 "saved": self.saved_drafts.get(k, "")[:32_000]} for k in keys
+                if drafts.get(k) or self.saved_drafts.get(k)][-12:]
         if self.pending_creation:
             data["launch"] = self.pending_creation
         if not key:
@@ -285,6 +344,8 @@ class ChatWindow:
         def work():
             try:
                 self.results.put((kind, context, action(), None))
+            except UsageDecision as decision:
+                self.results.put((kind, context, None, decision))
             except ChatError as error:
                 self.results.put((kind, context, None, str(error)))
             except Exception:
@@ -297,9 +358,12 @@ class ChatWindow:
             self.status.set("Refreshing open sessions…")
 
     def select(self, _event=None):
-        index = self.session_picker.current()
-        if 0 <= index < len(self.sessions):
-            self._select_session(self.sessions[index])
+        key = self._session_keys.get(self.session_picker.get())
+        session = next((s for s in self.sessions if s.key == key), None)
+        if session:
+            self._select_session(session)
+            if self._picker:
+                self._picker.close()
 
     def _select_session(self, session):
         if self.selected and session.key == self.selected.key:
@@ -307,11 +371,21 @@ class ChatWindow:
             self.subtitle.set(self._description(session))
             self.refresh_model_summary()
             return
+        self._edited()
         self.selection_revision += 1
-        if self.selection_key:
-            self.drafts[self.selection_key] = self.editor.get("1.0", "end-1c")
-        elif session.key not in self.drafts:
-            self.drafts[session.key] = self.editor.get("1.0", "end-1c")
+        if self._dispatch_valid:
+            self._dispatch_valid.clear()
+        if self._draft_dialog:
+            self._draft_dialog.close()
+        previous = self.selection_key
+        current = self.editor.get("1.0", "end-1c")
+        if previous:
+            self.drafts[previous] = current
+        elif current:
+            existing = self.drafts.get(session.key)
+            if existing and existing != current:
+                self.saved_drafts[session.key] = existing
+            self.drafts[session.key] = current
         self.selected = session
         self.refresh_model_summary()
         self.desired_key = session.key
@@ -319,6 +393,9 @@ class ChatWindow:
         self.last_messages = None
         self.editor.delete("1.0", "end")
         self.editor.insert("1.0", self.drafts.get(session.key, ""))
+        self.editor.edit_modified(False)
+        if session in self.sessions:
+            self.session_picker.current(self.sessions.index(session))
         self.title.set(session.title[:65].replace("\n", " "))
         self.subtitle.set("Saved history · refreshing conversation" if self.history_cache.get(session.key)
                           else self._description(session))
@@ -334,7 +411,7 @@ class ChatWindow:
     def session_started(self, preparation):
         """Task windows use this to display reports loaded during startup."""
 
-    def start_session(self, provider=None, *, on_ready=None):
+    def start_session(self, provider=None, *, on_ready=None, picker=None):
         if not hasattr(self.service, "create") or self.jobs - BACKGROUND_JOBS:
             return False
         provider = provider or self.default_provider
@@ -343,16 +420,23 @@ class ChatWindow:
             self.pending_creation = None
             if error:
                 self.status.set(error)
+                if picker and not picker.closed:
+                    picker.creating = False
+                    picker.notice.set(error)
+                    for button in picker.providers.values():
+                        button.state(['!disabled'])
             else:
                 session, preparation = result
-                self.sessions.append(session)
+                self.sessions = [s for s in self.sessions if s.key != session.key] + [session]
                 self._session_labels()
-                if revision != self.selection_revision:
+                if revision != self.selection_revision or (picker and picker.closed):
                     self.status.set("The new conversation is available in the list. Selection changed, so nothing was sent.")
                     return
                 self.session_picker.current(self.sessions.index(session))
                 self._select_session(session)
                 self.session_started(preparation)
+                if picker and not picker.closed:
+                    picker.close()
                 self.status.set("New " + ("Codex" if provider == "codex" else "Claude") + " conversation. The first request starts its CLI.")
                 if on_ready:
                     on_ready()
@@ -366,9 +450,12 @@ class ChatWindow:
         return False
 
     def _session_labels(self):
-        self.session_picker.configure(values=[
-            f"{'Codex' if s.provider == 'codex' else 'Claude'} · {s.title[:45].replace(chr(10), ' ')} · {s.project[:20]} · {s.id[:8]}"
-            for s in self.sessions])
+        from .conversation_picker import session_labels
+        labels = session_labels(self.sessions)
+        self._session_keys = {label: s.key for label, s in zip(labels, self.sessions)}
+        self.session_picker.configure(values=labels)
+        if self._picker:
+            self._picker.populate()
 
     @staticmethod
     def _description(session):
@@ -425,12 +512,26 @@ class ChatWindow:
                 if not self._record_activity(key, wait, finished):
                     remaining.append(wait)
                     continue
+                recovery = ''
+                if finished == 'failed' and wait.recover_draft:
+                    current = self.editor.get('1.0', 'end-1c') if key == self.selection_key else self.drafts.get(key, '')
+                    if not current:
+                        self.drafts[key] = wait.body
+                        if key == self.selection_key:
+                            self.replace_draft(wait.body)
+                        recovery = ' · Draft restored'
+                    elif current != wait.body and not self.saved_drafts.get(key):
+                        self.saved_drafts[key] = wait.body
+                        self._update_controls()
+                        recovery = ' · View saved draft'
+                    elif current != wait.body:
+                        recovery = ' · Review the request in Activity history'
                 if key == self.selection_key:
                     label = {"completed": "Response complete", "received": "Response received",
                              "acknowledged": "Response acknowledged",
                              "failed": "Response failed", "cancelled": "Response cancelled",
                              "interrupted": "Response interrupted"}[finished]
-                    self.status.set(f"{label} · {elapsed(wait.started)}")
+                    self.status.set(f"{label} · {elapsed(wait.started)}{recovery}")
             else:
                 remaining.append(wait)
         self.response_waits[key] = remaining
@@ -477,8 +578,7 @@ class ChatWindow:
         self.transcript.configure(state="normal")
         self.transcript.delete("1.0", "end")
         if not messages and not pending:
-            self.transcript.insert("end", "Your conversation appears here.\n\nChoose an existing session, or use Codex + / Claude +. "
-                                   "Sending with no session selected starts a new " + self.default_provider.title() + " conversation.", "note")
+            self.transcript.insert("end", "Your conversation appears here.", "note")
         self.reply_ranges = []
         for message in messages:
             append_turn(self.transcript, message.text, message.role)
@@ -557,20 +657,32 @@ class ChatWindow:
         if not self.closed:
             self.transcript.yview_moveto(1.0)
 
+    def _release_enter(self, _event=None):
+        self._held_enter = False
+
     def send(self, _event=None):
+        if _event is not None and self._held_enter:
+            return "break"
+        if _event is not None:
+            self._held_enter = True
         self.send_message(self.editor.get("1.0", "end-1c").strip(), clear_draft=True)
         return "break"
 
-    def show_model_settings(self):
+    def show_model_settings(self, parent=None, on_close=None):
         if not self.selected:
             self.status.set('Select or start a conversation before choosing its model.')
             return
         from .model_settings_ui import ModelSettingsDialog
         dialog = getattr(self, '_model_dialog', None)
-        if dialog is not None:
+        if dialog is not None and dialog.current():
+            if parent:
+                dialog.root.transient(parent.winfo_toplevel())
+                dialog.on_close = on_close
             dialog.root.lift()
             return
-        self._model_dialog = ModelSettingsDialog(self)
+        if dialog is not None:
+            dialog.close()
+        self._model_dialog = ModelSettingsDialog(self, parent, on_close)
 
     def model_preferences(self):
         from .model_settings import Preferences
@@ -579,39 +691,88 @@ class ChatWindow:
     def refresh_model_summary(self):
         from .model_settings import choice_summary
         try:
-            self.model_summary.set(choice_summary(self.selected, self.model_preferences().get(self.selected)) + ' · Change…')
+            self.displayed_choice = self.model_preferences().snapshot(self.selected)
+            self.model_summary.set(choice_summary(self.selected, self.displayed_choice.settings))
         except (ChatError, OSError):
-            self.model_summary.set('Model settings unavailable · Review…')
+            self.displayed_choice = None
+            self.model_summary.set('Model settings unavailable')
 
-    def send_message(self, body, *, request_id=None, on_delivery=None, clear_draft=False, research_settings=None):
-        """Send an explicit prepared request without replacing an unsent draft."""
-        if self.jobs - BACKGROUND_JOBS:
-            return False
-        if not body.strip():
+    def send_message(self, body, *, request_id=None, on_delivery=None, clear_draft=False,
+                     choice=None, research_epoch=None, still_current=None, billing_consent=None, decision_parent=None):
+        """Freeze the visible route and text before putting work on the provider thread."""
+        if self.jobs - BACKGROUND_JOBS or self._usage_dialog or self._picker or not body.strip():
             return False
         if len(body) > MAX_MESSAGE or "\0" in body:
             self.status.set(f"Keep messages under {MAX_MESSAGE:,} characters, without null characters.")
             return False
         if not self.selected:
-            if research_settings is not None:
-                return False
-            if body.strip() and not self.desired_key:
-                return self.start_session(on_ready=lambda: self.send_message(
-                    body, request_id=request_id, on_delivery=on_delivery, clear_draft=clear_draft))
+            self.choose_chat()
+            self.status.set('Choose a chat, then press Send. Your draft is here.')
             return False
+        self._edited()
         session = self.selected
-        request_id = request_id or str(uuid.uuid4())
-        if not body:
+        choice = choice or self.displayed_choice
+        prefs = self.model_preferences()
+        try:
+            if choice != prefs.snapshot(session):
+                self.refresh_model_summary()
+                self.status.set('Model settings changed. Check Next message and press Send again.')
+                return False
+        except (ChatError, OSError):
+            self.status.set('Model settings unavailable. Your draft is here.')
             return False
+        if still_current and not still_current():
+            self.status.set('This request changed. Review it again.')
+            return False
+        request_id = request_id or str(uuid.uuid4())
         previous_ids = frozenset(self.observed.get(session.key, set()))
-        action = (lambda: self.service.send(session, body, request_id)) if research_settings is None else (
-            lambda: self.service.research(session, body, request_id, research_settings))
+        valid = threading.Event()
+        valid.set()
+        selection = self.selection_revision
+        draft_revision = self.draft_revisions.get(session.key, 0)
+
+        def valid_now():
+            return valid.is_set() and (still_current is None or still_current())
+
+        def action():
+            if hasattr(self.service, 'send_reviewed'):
+                return self.service.send_reviewed(session, body, request_id, choice, research_epoch=research_epoch,
+                                                 still_valid=valid_now,
+                                                 billing_consent=billing_consent)
+            prefs.authorize(session, choice, request_id, research_epoch, valid_now)
+            return self.service.send(session, body, request_id)
+
+        def usage_pause(decision):
+            from .usage_dialog import UsageDialog
+            def kept():
+                if on_delivery:
+                    on_delivery(None, 'Request paused. Your provider usage settings apply.')
+            def resume():
+                self._edited()
+                if (self.closed or selection != self.selection_revision or not valid.is_set() or
+                        (clear_draft and self.draft_revisions.get(session.key, 0) != draft_revision)):
+                    self.status.set('The draft or destination changed. Review the request again.')
+                    kept()
+                    return
+                if not self.send_message(body, request_id=request_id, on_delivery=on_delivery,
+                                         clear_draft=clear_draft, choice=choice, research_epoch=research_epoch,
+                                         still_current=still_current, billing_consent=decision.consent,
+                                         decision_parent=decision_parent):
+                    kept()
+            if not valid_now() or (decision_parent and not decision_parent.winfo_exists()):
+                kept()
+                return
+            self._usage_dialog = UsageDialog(self, decision, resume, kept, decision_parent)
+
         if self._submit("send", action, (session.key, body, previous_ids)):
             from .usage_study import record
             record(getattr(getattr(self, "activity", None), "storage", getattr(self.service, "state", None)),
                    getattr(self, "kind", "quests" if hasattr(self, "context") else "chat"), "send")
             self.inflight = (session.key, body, previous_ids)
-            self.sending_wait = ResponseWait(request_id, body, previous_ids=previous_ids)
+            self._dispatch_valid = valid
+            self._usage_pause = usage_pause
+            self._sent_revision = draft_revision
+            self.sending_wait = ResponseWait(request_id, body, previous_ids=previous_ids, recover_draft=clear_draft)
             self.response_waits.setdefault(session.key, []).append(self.sending_wait)
             self._update_response_timer()
             self._send_callback = on_delivery
@@ -664,11 +825,15 @@ class ChatWindow:
             pass
         else:
             self.jobs.discard(kind)
+            pause = error if isinstance(error, UsageDecision) else None
+            if pause:
+                error = str(pause)
             if kind == "send":
                 context = self.inflight or context
                 self.inflight = None
                 if error and self.sending_wait:
-                    self._record_activity(context[0], self.sending_wait, "failed")
+                    if not pause:
+                        self._record_activity(context[0], self.sending_wait, "failed")
                     waits = self.response_waits.get(context[0], [])
                     if self.sending_wait in waits:
                         waits.remove(self.sending_wait)
@@ -692,26 +857,29 @@ class ChatWindow:
                             self.status.set(error)
                 else:
                     self.status.set(error)
+                    if kind == 'send' and self.selected:
+                        self.refresh_model_summary()
             elif kind == "sessions":
                 self.sessions, notices = result
                 previous = self.selection_key
                 self._session_labels()
                 match = next((s for s in self.sessions if s.key == previous), None)
                 self.status.set(" · ".join(notices) if notices else
-                                (f"{len(self.sessions)} sessions. Choose one or start a new conversation." if self.sessions else "Send a message to start a new conversation, or choose Codex + / Claude +."))
+                                (f"{len(self.sessions)} sessions. Choose one or start a new conversation." if self.sessions else "Start a new chat to choose a provider."))
                 if match:
                     self.session_picker.current(self.sessions.index(match))
                     self._select_session(match)
                 elif previous:
                     if self.selected:
                         self.drafts[self.selected.key] = self.editor.get("1.0", "end-1c")
-                    self.selected = None
+                    self.selected = self.displayed_choice = None
+                    self.model_summary.set('Choose an available chat for your next message')
                     self.session_picker.set("Saved session unavailable — choose another or refresh")
                     self.title.set(self.session_title or "Session disconnected")
                     self.subtitle.set("Saved history · session unavailable · sending disabled")
                     self.on_change()
                 else:
-                    self.session_picker.set("Choose an open session…")
+                    self.session_picker.set("Use an existing chat…")
             elif kind == "history":
                 messages, statuses = result
                 self._observe_responses(context, messages, statuses)
@@ -723,18 +891,25 @@ class ChatWindow:
             elif kind == "send":
                 key, body, previous_ids = context
                 self.sent.setdefault(key, []).append((body, result, previous_ids))
+                self._edited()
+                clear = self._clear_sent_draft and self.draft_revisions.get(key, 0) == self._sent_revision
                 if self.selected and self.selected.key == key:
-                    if self._clear_sent_draft and self.editor.get("1.0", "end-1c").strip() == body:
+                    if clear and self.editor.get("1.0", "end-1c").strip() == body:
                         self.editor.delete("1.0", "end")
                         self.drafts[key] = ""
                     self.last_messages = None
                     self._show(self.history_cache.get(key, []))
-                elif self._clear_sent_draft and self.drafts.get(key, "").strip() == body:
+                elif clear and self.drafts.get(key, "").strip() == body:
                     self.drafts[key] = ""
                 self.status.set("Message " + result + ". This does not yet confirm an agent reply.")
-            if kind == "send" and self._send_callback:
+            if kind == 'send' and pause:
+                self._send_callback = None
+                self._usage_pause(pause)
+            elif kind == "send" and self._send_callback:
                 delivered, self._send_callback = self._send_callback, None
                 delivered(result, error)
+            if kind == 'send' and not pause:
+                self._dispatch_valid = None
             self._update_controls()
             if kind not in BACKGROUND_JOBS:
                 self.on_change()
@@ -754,6 +929,11 @@ class ChatWindow:
             return
         self.closed = True
         self.job_callbacks.clear()
+        if self._dispatch_valid:
+            self._dispatch_valid.clear()
+        for dialog in (self._picker, self._draft_dialog, self._usage_dialog):
+            if dialog:
+                dialog.close()
         self._send_callback = None
         if getattr(self, '_model_dialog', None) is not None:
             self._model_dialog.close()

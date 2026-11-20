@@ -379,7 +379,7 @@ class TaskWindow(ChatWindow):
         # Wait for initial session discovery, then perform this explicit request once.
         # The callback is deliberately not persisted or replayed after a restart.
         def opened(_result, _error):
-            view.send_message(OPENING)
+            view.start_session(on_ready=lambda: view.send_message(OPENING))
         view.job_callbacks["sessions"] = opened
         self.on_change()
 
@@ -796,7 +796,7 @@ class TaskWindow(ChatWindow):
             return
         if not self.selected:
             if self.desired_key:
-                self.activity_notice.set("The saved session is unavailable. Choose a session or use Codex + / Claude +.")
+                self.activity_notice.set("The saved session is unavailable. Choose an available chat or start a new chat.")
             elif self.kind == "screen" and not self.image_name:
                 self.activity_notice.set("Capture, paste, or open an image first.")
             else:

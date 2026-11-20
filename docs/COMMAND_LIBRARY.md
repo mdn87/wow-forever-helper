@@ -37,9 +37,8 @@ search, filtering, copying, empty results, requirements and companion navigation
 
 ## Find new commands with your agent
 
-Select a conversation in the companion, then open **Find new commands…** in the
-library. Enter the effect you want and, if known, your exact client version.
-**Review request** shows the destination, model choice and complete prompt.
+Open **Find new commands…** in the library. Use **Change chat** to choose or start a conversation while keeping your question. Enter the effect you want and, if known, your exact client version.
+**Review request** shows the destination, requested model and effort, and complete prompt.
 **Send one search** sends that request once through the selected conversation,
 without replacing your unsent chat draft. Changing the question, destination or
 saved model settings requires a new review. Results appear in the conversation;
@@ -62,7 +61,7 @@ credits or reset provider quota.
 
 ## Model and usage controls
 
-Use the model button above the conversation or **Settings → Conversation →
+Use **Change model** above the conversation or **Settings → Conversation →
 Model & usage…**. Settings apply per conversation on the next companion send.
 
 | Connection | Model control | Usage visibility |

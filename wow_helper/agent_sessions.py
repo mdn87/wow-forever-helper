@@ -227,7 +227,7 @@ class AgentSessions:
                 continue
         return found
 
-    def send(self, session, body, request_id, *, schema=None, effort="medium", model="", timeout=600, display_body=None):
+    def send(self, session, body, request_id, *, schema=None, effort="medium", model="", timeout=600, display_body=None, before_dispatch=None):
         folder, request_id = self.folder(session.id), identifier(request_id)
         path = folder / "requests" / (request_id + ".json")
         with state_lock(folder):
@@ -245,6 +245,8 @@ class AgentSessions:
                 if not isinstance(display_body, str) or len(display_body) > 6000 or '\0' in display_body:
                     raise ChatError('The request description is invalid.')
                 request.update(display_body=display_body, display_response='Processing this request…')
+            if before_dispatch:
+                before_dispatch()
             write_json(path, request)
             meta["requests"] = (meta.get("requests", []) + [request_id])[-100:]
             meta["active"] = request_id
