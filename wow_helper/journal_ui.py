@@ -7,7 +7,7 @@ import time
 import uuid
 import weakref
 
-from .activities import FLAVORS, packet_preview
+from .activities import FLAVORS, current_edition, packet_preview
 from .appearance import style_text
 from .chat import ChatError, write_json
 from .chat_window import BACKGROUND_JOBS
@@ -552,10 +552,11 @@ class FollowupDialog(JournalDialog):
 
     def refresh_report(self):
         evidence = self.entry.get("evidence", {})
-        if self.entry.get('goal') and self.entry['goal']['edition'] != evidence.get('edition'):
+        edition = current_edition(evidence.get("edition"))
+        if self.entry.get('goal') and current_edition(self.entry['goal']['edition']) != edition:
             self.notice.set('The goal and historical evidence have different or unknown editions. No report was refreshed.')
             return
-        flavor = FLAVORS.get(evidence.get("edition"))
+        flavor = FLAVORS.get(edition)
         try:
             original = json.loads(evidence.get("text", ""))
         except (ValueError, TypeError):

@@ -24,7 +24,7 @@ A whole turn must match one of these forms; anything else is a chat message. Eve
 | "turn on keep above other windows", "turn off remember draft" | Sets a menu check box. Says "already on" when nothing needs to change. |
 | "press read combat log", "click prepare review" | Presses a button in the frontmost companion dialog. In a plain chat window, "press Send" and "press Change model" work too. |
 | "check include player names", "uncheck …" | Sets a check box in the dialog. |
-| "choose Retail", "select Classic Forever beta" | Picks a radio button or drop-down value in the dialog. Outside a dialog, picks a chat session by title. |
+| "choose Retail", "select Classic Forever" | Picks a radio button or drop-down value in the dialog. Outside a dialog, picks a chat session by title. |
 | "show the digest tab" | Selects a tab in the dialog or window. |
 | "type why did we wipe so fast" | Adds text to the focused dialog field, or to the dialog's first named field, or to the chat draft when no dialog is open. |
 | "set question to …" | Replaces a named dialog field (for example question or digest). |

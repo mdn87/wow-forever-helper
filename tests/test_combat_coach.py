@@ -14,7 +14,7 @@ LOG_LIKE = '1/2 03:04:05.000  SPELL_DAMAGE,Player-0000-00000000,"Testchar-Exampl
 
 
 def form(**changes):
-    values = dict(edition="Classic Forever beta", encounter="Example boss", phase="First attempt",
+    values = dict(edition="Classic Forever", encounter="Example boss", phase="First attempt",
                   question="What should I improve before the next attempt?",
                   attempt_notes="Testchar stood in the synthetic fire during phase two.",
                   prior_notes="", event_time="", redact_terms="", image="")
@@ -27,7 +27,7 @@ def test_first_attempt_packet_is_manual_notes_with_explicit_gaps(tmp_path):
                                           attempt_notes="Testchar died.\n" + LOG_LIKE), tmp_path)
     assert set(packet["reports"]) == {"combat"}
     record = packet["reports"]["combat"]["data"]
-    assert record["source_kind"] == "manual encounter notes" and record["edition"] == "Classic Forever beta"
+    assert record["source_kind"] == "manual encounter notes" and record["edition"] == "Classic Forever"
     payload = record["payload"]
     assert set(payload) == {"encounter", "phase", "event_time", "attempt_notes", "earlier_attempt_notes",
                             "identity_replacements"}

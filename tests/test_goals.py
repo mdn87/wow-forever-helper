@@ -80,6 +80,16 @@ def test_corrupt_goal_is_kept_and_review_evidence_is_bounded(tmp_path):
         validate_goal(goal() | dict(review=dict(text='Suggestion', evidence=dict(text='🎮' * 16000))))
 
 
+def test_journal_with_a_goal_saved_for_the_forever_beta_still_loads(tmp_path):
+    service = JournalService(tmp_path)
+    service.add(JOURNAL, 'Goals', 'Advice', NOTE, goal=goal() | dict(edition='Classic Forever'))
+    path = service.path(JOURNAL)
+    data = json.loads(path.read_text())
+    data['entries'][0]['goal']['edition'] = 'Classic Forever beta'  # Synthetic: saved before the shipped client.
+    path.write_text(json.dumps(data))
+    assert JournalService(tmp_path).load(JOURNAL)['entries'][0]['goal']['edition'] == 'Classic Forever'
+
+
 def test_goal_reply_review_does_not_change_decisions_or_original_source(tmp_path):
     service = JournalService(tmp_path)
     entry = service.add(JOURNAL, 'Goals', 'Original note', NOTE,

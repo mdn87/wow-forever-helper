@@ -17,7 +17,7 @@ TYPES = {
     "screen": ("Screen adviser", "Capture or open an image, preview it, then ask."),
     "journal": ("Journal", "Keep local notes and discuss your next goals."),
 }
-FLAVORS = {"Classic Forever beta": "_classic_beta_", "Classic": "_classic_",
+FLAVORS = {"Classic Forever": "_forever_", "Classic": "_classic_",
            "Classic Era": "_classic_era_", "Retail": "_retail_"}
 STEPS = {"quests": "Load quest report", "character": "Load character report"}
 SKILLS = {"wow-quest-guide": "Quest planning", "wow-character-status": "Character readiness",
@@ -35,6 +35,16 @@ OPENING = {
 ROOT = Path(__file__).resolve().parent
 
 
+def current_flavor(value):
+    """A saved game folder; the pre-launch Forever beta folder reads as the shipped client."""
+    return "_forever_" if value == "_classic_beta_" else value
+
+
+def current_edition(value):
+    """A saved edition name; the pre-launch Forever beta name reads as the shipped client."""
+    return "Classic Forever" if value == "Classic Forever beta" else value
+
+
 def _strings(raw, limit=8):
     return list(dict.fromkeys(x for x in raw if isinstance(x, str) and len(x) <= 2000))[:limit] if isinstance(raw, list) else []
 
@@ -43,8 +53,9 @@ def profile_settings(kind, raw=None):
     raw = raw if isinstance(raw, dict) else {}
     defaults = [kind] if kind in STEPS else []
     skill = [DEFAULT_SKILL[kind]] if kind in DEFAULT_SKILL else []
+    flavor = current_flavor(raw.get("flavor"))
     return {
-        "flavor": raw.get("flavor") if raw.get("flavor") in FLAVORS.values() else "_classic_beta_",
+        "flavor": flavor if flavor in FLAVORS.values() else "_forever_",
         "steps": [x for x in _strings(raw.get("steps", defaults)) if x in STEPS],
         "skills": [x for x in _strings(raw.get("skills", skill)) if x in SKILLS],
         "skill_files": _strings(raw.get("skill_files")),

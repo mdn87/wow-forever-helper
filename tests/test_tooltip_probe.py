@@ -33,7 +33,7 @@ def run_probe(tmp_path, *, api=None, foreground=None, identify=None, capture=Non
         captures.append(flavor)
         return "synthetic.png"
     ticks = iter(range(100))
-    result = probe(tmp_path, "_classic_beta_", api=api,
+    result = probe(tmp_path, "_forever_", api=api,
                    identify=identify or (lambda _: 42),
                    foreground=foreground or (lambda: 42),
                    capture=capture or save, publish=records.append,
@@ -44,7 +44,7 @@ def run_probe(tmp_path, *, api=None, foreground=None, identify=None, capture=Non
 
 def test_press_captures_once_and_releases_shortcut(tmp_path):
     result, records, captures, api = run_probe(tmp_path)
-    assert captures == ["_classic_beta_"]
+    assert captures == ["_forever_"]
     assert [record["state"] for record in records] == ["ready", "capturing", "captured"]
     assert result["image"] == "synthetic.png"
     assert result["focus_unchanged"] is True

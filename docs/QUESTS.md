@@ -10,7 +10,7 @@ The game does not let other programs read the quest log, so a small addon copies
 2. The game writes that table to `WTF/Account/<ID>/SavedVariables/WoWCompanion.lua` only on `/reload` or logout. The data is therefore a snapshot, and every answer says how old it is.
 3. `wow_helper/savedvars.py` reads the file with the restricted grammar from [PLAN.md](PLAN.md) section 5.1. Nothing from disk is executed. The file must stay unchanged for one second before it is trusted, because the game may still be writing it.
 
-`wow_helper/wtf.py` finds the install through the Windows uninstall registry, the default Program Files folders, or `--wow-root`. When several game folders (`_retail_`, `_classic_`, `_classic_beta_`, ...) have a snapshot, it uses the most recently written one. The account folder name and local paths are never printed.
+`wow_helper/wtf.py` finds the install through the Windows uninstall registry, the default Program Files folders, or `--wow-root`. When several game folders (`_retail_`, `_classic_`, `_forever_`, ...) have a snapshot, it uses the most recently written one. The account folder name and local paths are never printed.
 
 Use `--flavor` with `quests` or `character` to read only one game edition. The helper chooses the newest snapshot within that edition and refuses the request if none exists; it never falls back to another edition. This choice applies only to the current report and is not remembered. It does not select a character or account within that edition.
 
@@ -25,7 +25,7 @@ Addon 0.4.1 therefore keeps the values from its last save in the same session wh
 ## Setup
 
 ```console
-python -m wow_helper install-addon            # or --wow-root "<install folder>" --flavor _classic_beta_
+python -m wow_helper install-addon            # or --wow-root "<install folder>" --flavor _forever_
 ```
 
 This copies the two addon files into `Interface/AddOns/WoWCompanion` in each game folder that has a `WTF` folder, meaning the game has run there. Then enable **WoW Companion** at character select. If the client calls it out of date, tick "Load out of date AddOns". The `.toc` interface number `16001` was confirmed on Classic Forever beta client 1.60.1, build 70338, on 2026-10-10; `120001` for retail remains unverified. Then `/reload` once in game.
@@ -37,7 +37,7 @@ The current addon has no visible windows, buttons, or slash commands. It exports
 ```console
 python -m wow_helper quests --text     # readable lines, suitable for speech
 python -m wow_helper quests            # JSON: player, plan steps, warnings, snapshot age
-python -m wow_helper quests --flavor _classic_beta_ --text
+python -m wow_helper quests --flavor _forever_ --text
 python -m wow_helper character --flavor _retail_ --text
 ```
 

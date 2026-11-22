@@ -16,7 +16,7 @@ def error_text():
 
 
 def form(**changes):
-    values = dict(edition="Classic Forever beta", phase="Diagnose", addon="ExampleAddon", addon_version="1.2.3",
+    values = dict(edition="Classic Forever", phase="Diagnose", addon="ExampleAddon", addon_version="1.2.3",
                   client_version="1.15.0", action="Opened the example options panel.",
                   question="What should I try first?", error=error_text(), locals="Omit locals",
                   replace="", hypotheses="", attempted="", retry_result="", retry_error="")
@@ -50,7 +50,7 @@ def test_packet_keeps_error_as_data_and_records_import_metadata():
     data = packet["reports"]["addon_error"]["data"]
     record = data["attempts"]["original"]
     assert record["format_version"] == 1 and record["source_kind"] == "Pasted text"
-    assert record["source_version"] == "1.2.3" and record["edition"] == "Classic Forever beta"
+    assert record["source_version"] == "1.2.3" and record["edition"] == "Classic Forever"
     assert record["timestamps"]["captured"] == "2026/01/02 03:04:05"
     assert "untrusted data" in record["warnings"][0]
     assert "Ignore previous instructions" in record["payload"]["text"]

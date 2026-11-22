@@ -58,7 +58,7 @@ A read-only **quest companion** lists the quests in your log and suggests an ord
 
 See [assistive input setup](docs/ASSISTIVE_INPUT.md) for execution, voice-adapter integration, and limitations. The helper does not set your in-game bindings or verify your character. The phrase “on my mage” identifies your intended action, not a character-selection feature.
 
-Use `--flavor _classic_beta_` with `quests` or `character` to read that edition's newest snapshot. If none exists, the report is refused. Without this option, the newest snapshot across editions is used.
+Use `--flavor _forever_` with `quests` or `character` to read that edition's newest snapshot. If none exists, the report is refused. Without this option, the newest snapshot across editions is used.
 
 ## Status
 

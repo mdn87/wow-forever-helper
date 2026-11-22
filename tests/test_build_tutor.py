@@ -18,7 +18,7 @@ def test_profile_is_static_data_and_omits_identity_and_unsupported_values():
 
 
 @pytest.mark.parametrize('body,edition', [
-    (PROFILE, 'Classic Forever beta'), (PROFILE + 'mage=Testchar', 'Retail'),
+    (PROFILE, 'Classic Forever'), (PROFILE + 'mage=Testchar', 'Retail'),
     (PROFILE + 'spec=holy', 'Retail'), (PROFILE + 'edition=Classic', 'Retail'),
     ('x' * 64001, 'Retail'), ('priest=Testchar\nnot a directive', 'Retail'),
     ('priest=Testchar\nhead=example,id=oops', 'Retail'),
@@ -43,8 +43,8 @@ def test_missing_fields_and_unverified_report_are_visible():
 
 
 def test_manual_build_notes_support_other_editions_without_simulation_claims():
-    packet = prepare_build(dict(edition='Classic Forever beta', format='Build notes', profile='Prefer healing.',
+    packet = prepare_build(dict(edition='Classic Forever', format='Build notes', profile='Prefer healing.',
                                role='Healer', preferences='', question='Explain this choice.', report='', engine='',
-                               report_edition='Classic Forever beta'))
+                               report_edition='Classic Forever'))
     assert packet['reports']['build']['data']['profile']['notes'] == 'Prefer healing.'
     assert packet['skills'] == [] and packet['context_files'] == []

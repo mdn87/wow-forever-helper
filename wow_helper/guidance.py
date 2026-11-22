@@ -59,7 +59,7 @@ def research_prompt(kind, context, edition, tier):
             f"Use up to {sources} useful sources and roughly {sources + 1} targeted searches. "
             "Obvious means a quick location check; Easy means a short walkthrough; Complicated means checking "
             "prerequisites, stages, conflicting information, and group requirements. "
-            "Classic Forever beta can differ from Classic. Label Classic-based advice when beta facts cannot be verified. "
+            "Classic Forever can differ from Classic. Label Classic-based advice when Forever facts cannot be verified. "
             "Browse before giving location, boss, item or drop claims. If browsing is unavailable or inconclusive, "
             "say that in caveats and do not invent a walkthrough. Provide direct https source links. "
             "Open each cited page and check the relevant claim; omit sources you could not read. "

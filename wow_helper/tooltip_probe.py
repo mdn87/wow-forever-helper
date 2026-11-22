@@ -82,7 +82,7 @@ def probe(storage, flavor, *, api, publish, identify=game_window,
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--flavor", choices=FLAVORS.values(), default="_classic_beta_")
+    parser.add_argument("--flavor", choices=FLAVORS.values(), default="_forever_")
     args = parser.parse_args(argv)
     if os.name != "nt":
         return 2
