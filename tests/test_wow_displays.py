@@ -174,6 +174,20 @@ def test_invalid_display_state_is_preserved(manager_factory, tmp_path):
     assert path.read_bytes() == before
 
 
+def test_quest_display_saved_for_the_forever_beta_reads_the_shipped_folder(manager_factory, monkeypatch):
+    manager = manager_factory()
+    pair(manager, monkeypatch)
+    path = manager.layout_path
+    manager.close()
+    data = json.loads(path.read_text())
+    saved = next(w for w in data["windows"] if w["kind"] == "questlog")
+    saved.setdefault("display", {"version": 1})["flavor"] = "_classic_beta_"  # Synthetic: saved before launch.
+    path.write_text(json.dumps(data))
+    restored = manager_factory()
+    view = next(w.display for w in restored.windows if w.kind == "questlog")
+    assert view.flavor == "_forever_" and view.edition.get() == "Classic Forever"
+
+
 def test_pair_validates_capacity_and_distinct_monitors(manager_factory, monkeypatch):
     manager = manager_factory()
     area = manager.areas[0]

@@ -11,7 +11,7 @@ Start-Process -FilePath .venv/Scripts/pythonw.exe -ArgumentList '-m','wow_helper
 ```
 
 Use the edition's folder label for `--flavor`: `_retail_`, `_classic_`,
-`_classic_era_`, or `_classic_beta_`. One visible matching game window must be
+`_classic_era_`, or `_forever_`. One visible matching game window must be
 open before the probe starts. No companion restart is required.
 
 1. Read `.runtime/live-gear-proof/latest.json`. Continue only when its `state`

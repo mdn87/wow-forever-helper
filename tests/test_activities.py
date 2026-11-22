@@ -8,7 +8,7 @@ import uuid
 import pytest
 
 from wow_helper import activities, character, quests
-from wow_helper.activities import ActivityService, profile_settings
+from wow_helper.activities import ActivityService, FLAVORS, profile_settings
 from wow_helper.chat import ChatError, MAX_MESSAGE
 from wow_helper.savedvars import parse
 from wow_helper.window_state import LayoutLock
@@ -54,6 +54,15 @@ def test_preparation_keeps_whole_skills_and_context_without_sending_or_executing
     message = service.request_message(packet, request)
     assert len(message) < MAX_MESSAGE
     assert json.loads((service.storage / "prepared" / (request + ".json")).read_text()) == packet
+
+
+def test_forever_reads_the_shipped_client_folder_and_beta_profiles_carry_over():
+    # The shipped Classic Forever client installs to _forever_. A profile saved while
+    # Forever was the beta names _classic_beta_ and must load as Forever.
+    assert next(iter(FLAVORS.items())) == ("Classic Forever", "_forever_")
+    assert profile_settings("quests")["flavor"] == "_forever_"
+    assert profile_settings("quests", {"flavor": "_classic_beta_"})["flavor"] == "_forever_"
+    assert profile_settings("quests", {"flavor": "_retail_"})["flavor"] == "_retail_"
 
 
 def test_missing_or_oversized_selected_file_stops_preparation(tmp_path):

@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import uuid
 
-from .activities import FLAVORS, SKILLS, STEPS, TYPES, ActivityService, packet_preview, profile_settings
+from .activities import FLAVORS, SKILLS, STEPS, TYPES, ActivityService, current_edition, packet_preview, profile_settings
 from .appearance import style_text
 from .chat import ChatError, ChatService, read_json, write_json
 from .chat_window import ChatWindow, BACKGROUND_JOBS
@@ -349,6 +349,8 @@ class TaskWindow(ChatWindow):
             except OSError:
                 saved = {}
             context = saved.get("context")
+            if isinstance(context, dict) and "edition" in context:
+                context["edition"] = current_edition(context["edition"])
             if (not isinstance(context, dict) or not isinstance(context.get("quest"), dict)
                     or not isinstance(context["quest"].get("title"), str)
                     or not isinstance(context.get("edition"), str) or context["edition"] not in FLAVORS):

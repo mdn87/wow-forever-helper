@@ -6,7 +6,7 @@ import pytest
 from wow_helper.chat import ChatError
 from wow_helper.quest_chain import normalize_chain, annotate_chain, chain_text
 
-CHAIN = {'edition': 'Classic Forever beta', 'summary': 'Synthetic chain', 'caveats': [], 'nodes': [
+CHAIN = {'edition': 'Classic Forever', 'summary': 'Synthetic chain', 'caveats': [], 'nodes': [
     {'id': 101, 'title': 'Example prerequisite', 'requires': [], 'relation': 'all',
      'sources': ['https://example.com/prerequisite']},
     {'id': 102, 'title': 'Example quest', 'requires': [101], 'relation': 'all',
@@ -16,7 +16,7 @@ CHAIN = {'edition': 'Classic Forever beta', 'summary': 'Synthetic chain', 'cavea
 
 
 def test_observations_remain_separate_from_sourced_prerequisites():
-    chain = normalize_chain(CHAIN, 'Classic Forever beta')
+    chain = normalize_chain(CHAIN, 'Classic Forever')
     report = {'completed_ids': [101], 'completion_coverage': 'available',
               'plan': [{'id': 102, 'action': 'turn in'}], 'warnings': ['Snapshot is old.']}
     result = annotate_chain(chain, report)
@@ -30,7 +30,7 @@ def test_observations_remain_separate_from_sourced_prerequisites():
 
 def test_cycles_missing_sources_and_ambiguous_relations_are_explicit():
     raw = deepcopy(CHAIN); raw['nodes'][0]['requires'] = [103]
-    result = normalize_chain(raw, 'Classic Forever beta')
+    result = normalize_chain(raw, 'Classic Forever')
     assert 'cycle' in ' '.join(result['caveats']).lower()
     assert 'missing' in ' '.join(result['caveats']).lower()
     assert result['nodes'][2]['evidence_state'] == 'Unverified claim'
@@ -47,7 +47,7 @@ def test_cycles_missing_sources_and_ambiguous_relations_are_explicit():
 def test_unsupported_chain_results_fail_closed(mutate):
     raw = deepcopy(CHAIN); mutate(raw)
     with pytest.raises(ChatError):
-        normalize_chain(raw, 'Classic Forever beta')
+        normalize_chain(raw, 'Classic Forever')
 
 
 def test_invalid_urls_are_omitted_and_absence_is_not_completion():

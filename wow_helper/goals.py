@@ -24,9 +24,11 @@ RESEARCH_INSTRUCTIONS = (
 
 
 def validate_goal(goal):
-    from .activities import FLAVORS
+    from .activities import FLAVORS, current_edition
     from .journal import bounded_text, metadata
     try:
+        if isinstance(goal, dict) and 'edition' in goal:
+            goal = {**goal, 'edition': current_edition(goal['edition'])}
         if (not isinstance(goal, dict) or set(goal) - {*TEXT_LIMITS, 'kind', 'edition', 'state', 'review', 'recurrence'}
                 or not {*TEXT_LIMITS, 'kind', 'edition', 'state'} <= set(goal)
                 or goal.get('kind') not in KINDS or goal.get('state') not in STATES

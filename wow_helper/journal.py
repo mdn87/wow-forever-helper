@@ -155,7 +155,7 @@ class JournalService:
                 metadata(entry.get("source"), entry.get("evidence"), entry.get("next_time"), entry.get("bookmark"))
                 if "goal" in entry:
                     from .goals import validate_goal
-                    validate_goal(entry["goal"])
+                    entry["goal"] = validate_goal(entry["goal"])
                 if 'completions' in entry:
                     from .recurrence import validate_events
                     validate_events(entry['completions'])

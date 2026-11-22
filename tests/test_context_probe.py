@@ -141,8 +141,8 @@ def test_a_window_grab_with_a_strip_is_decoded_and_the_measurements_are_reported
 def test_the_window_grab_is_asked_for_the_chosen_game_folder():
     asked = []
     frame = screen(payload(), at=(0, 0), size=(1280, 720))
-    run("window", flavor="_classic_beta_", grab=lambda flavor: asked.append(flavor) or frame)
-    assert asked == ["_classic_beta_"]
+    run("window", flavor="_forever_", grab=lambda flavor: asked.append(flavor) or frame)
+    assert asked == ["_forever_"]
 
 
 def test_a_window_without_a_strip_is_refused_with_the_strip_reason_and_measurements():

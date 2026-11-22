@@ -1,6 +1,6 @@
 """Find WoW installs and the companion addon's SavedVariables. Paths are never printed.
 
-An install root holds one folder per game flavour (`_retail_`, `_classic_`, `_classic_beta_`,
+An install root holds one folder per game flavour (`_retail_`, `_classic_`, `_forever_`,
 ...). Each flavour keeps account-wide SavedVariables under `WTF/Account/<ID>/SavedVariables/`.
 The numeric account folder name is only used to open the file; it is never reported.
 """

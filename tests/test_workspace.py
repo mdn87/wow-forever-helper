@@ -305,7 +305,7 @@ def test_activity_research_report_and_retry_use_reviewed_attempt(manager_factory
     guides = view._guidance
     guides.agents = Agents()
     context = {"quest": {"id": 123, "title": "Synthetic quest"}}
-    key = guides.request("quest", context, "Classic Forever beta", "easy", "codex")
+    key = guides.request("quest", context, "Classic Forever", "easy", "codex")
     session, request, *_ = guides.agents.calls[0]
     guides.agents.results[session, request] = {"status": "failed", "error": "Synthetic failure"}
     original = guides.get(key)
@@ -623,6 +623,7 @@ def test_journal_followup_reviews_history_and_refresh_sends_once(manager_factory
     settle(view)
     entry = view.activity.add_note(view.journal_id, "Example", "Historical advice",
                                   source={"provider": SESSIONS[0].provider, "session_id": SESSIONS[0].id},
+                                  # A note saved while Forever was the beta must still refresh.
                                   evidence={"edition": "Classic Forever beta", "text": json.dumps({"reports": {
                                       "quests": {"snapshot_at": 500, "text": "Old snapshot"}}})})["entries"][0]
     view.resume_session()
@@ -1561,18 +1562,18 @@ def test_report_windows_work_without_agent_and_do_not_repeat_preparation_on_rest
     manager = manager_factory(activity=lambda: activity)
     window = manager.new_window(kind=kind)
     settle(window.view)
-    assert activity.calls == [([kind], "_classic_beta_")]
+    assert activity.calls == [([kind], "_forever_")]
     window.view.report_button.invoke()
     settle(window.view)
     text = (" ".join(window.view.quest_tree.tree.item(k, "text") for k in window.view.quest_tree.quests)
             if kind == "quests" else window.view.report_text.get("1.0", "end"))
     assert ("Synthetic" if kind == "quests" else "12g 34s 56c") in text
-    assert activity.calls == [([kind], "_classic_beta_")] * 2
+    assert activity.calls == [([kind], "_forever_")] * 2
     assert window.view.service.sent == []
     manager.close()
     restored = manager_factory(activity=lambda: activity)
     assert restored.windows[1].kind == kind
-    assert activity.calls == [([kind], "_classic_beta_")] * 2
+    assert activity.calls == [([kind], "_forever_")] * 2
     assert restored.windows[1].view.service.sent == []
 
 
@@ -1609,12 +1610,12 @@ def test_quest_chat_carries_only_selected_quest_and_gathered_sources(manager_fac
     packet = json.loads((tmp_path / "prepared" / (session.id + ".json")).read_text(encoding="utf-8"))
     context = packet["reports"]["quest_context"]["data"]
     assert context["quest"] == view.quest_tree.quests[key]
-    assert context["edition"] == "Classic Forever beta" and context["snapshot_at"] == 1000
+    assert context["edition"] == "Classic Forever" and context["snapshot_at"] == 1000
     assert context["research"]["guide"]["sources"][0]["url"] == "https://example.com/quest"
     assert "session" not in context["research"] and "quest" in options["startup"].lower()
     assert list(packet["reports"]) == ["quest_context"]
     assert packet["skills"] and "historical" in packet["instructions"]
-    assert activity.calls == [(["quests"], "_classic_beta_"), ([], "_classic_beta_")]
+    assert activity.calls == [(["quests"], "_forever_"), ([], "_forever_")]
     assert not view.selector.winfo_ismapped() and child.selector.winfo_ismapped()
     assert not child.session_picker.winfo_ismapped()
     # Reopening, even after progress changes, neither duplicates the tab nor sends again.
@@ -1632,9 +1633,9 @@ def test_quest_chat_uses_the_displayed_snapshot_edition_after_setup_changes(mana
     view.profile["flavor"] = "_retail_"  # Setup changed, but the report has not refreshed yet.
     view.profile["startup_context"] = False
     _, child = open_synthetic_quest_chat(view)
-    assert child.context["edition"] == "Classic Forever beta"
+    assert child.context["edition"] == "Classic Forever"
     packet = json.loads((view.activity.storage / "prepared" / (child.selected.id + ".json")).read_text(encoding="utf-8"))
-    assert packet["edition"] == "Classic Forever beta"
+    assert packet["edition"] == "Classic Forever"
     assert packet["skills"] == [] and packet["context_files"] == []
     assert packet["reports"]["quest_context"]["data"]["quest"] == child.context["quest"]
 
@@ -1772,6 +1773,22 @@ def test_unreadable_saved_quest_context_keeps_its_file_and_other_tabs(manager_fa
     assert "could not be loaded" in restored_view.activity_notice.get() and path.exists()
 
 
+def test_saved_quest_tab_from_the_forever_beta_still_loads_as_forever(manager_factory):
+    manager = manager_factory(service=CreatingService)
+    view = manager.new_window(kind="quests").view
+    open_synthetic_quest_chat(view)
+    tab_id = next(iter(view.quest_chats))
+    manager.close()
+    path = view._quest_chat_path(tab_id)
+    state = json.loads(path.read_text(encoding="utf-8"))
+    state["context"]["edition"] = "Classic Forever beta"  # Synthetic: saved before the shipped client.
+    path.write_text(json.dumps(state), encoding="utf-8")
+    restored = manager_factory(service=CreatingService)
+    restored_view = restored.windows[1].view
+    assert list(restored_view.quest_chats) == [tab_id]
+    assert restored_view.quest_chats[tab_id].context["edition"] == "Classic Forever"
+
+
 def test_quest_tab_limit_keeps_existing_conversations_and_all_tabs_accessible(manager_factory):
     from wow_helper.quest_chat import MAX_QUEST_CHATS
     manager = manager_factory(service=CreatingService)
@@ -1830,7 +1847,7 @@ def test_setup_preview_and_delivery_preserve_the_chat_draft_and_do_not_replay(ma
     dialog.fields["opening"].delete("1.0", "end")
     dialog.fields["opening"].insert("1.0", "Explain the first suggested quest.")
     dialog.save()
-    assert view.service.sent == [] and activity.calls == [(["quests"], "_classic_beta_")]
+    assert view.service.sent == [] and activity.calls == [(["quests"], "_forever_")]
     view.prepare_request()
     settle(view)
     request = view._request_dialog
@@ -1895,7 +1912,7 @@ def test_saved_preset_reopens_setup_and_creates_a_window_without_session_data(ma
     assert chooser.kind == "quests" and chooser.view.profile == view.profile
     assert chooser.view.selection_key is None
     assert chooser.view.service.sent == [] and view.service.sent == []
-    assert activity.calls == [(["quests"], "_classic_beta_")] * 2
+    assert activity.calls == [(["quests"], "_forever_")] * 2
 
 
 def test_failed_preparation_does_not_send_and_setup_cancel_does_not_change_profile(manager_factory, tmp_path):
@@ -1983,7 +2000,7 @@ def test_provider_buttons_prepare_new_chats_and_startup_settings_are_respected(m
     settle(view)
     assert view.selected.provider == "claude" and view.selected.managed
     assert view.service.sent == []
-    assert activity.calls == [(["quests"], "_classic_beta_")] * 2
+    assert activity.calls == [(["quests"], "_forever_")] * 2
     packets = [json.loads(p.read_text()) for p in (tmp_path / "prepared").glob("*.json")]
     assert packets[0]["task"] == "Use this context to answer the user's message."
     assert packets[0]["skills"] and packets[0]["reports"]["quests"]
@@ -2091,7 +2108,7 @@ def test_quest_tree_expansion_requests_one_guide_and_preserves_manual_collapse(m
     view.on_tick()
     settle(view)
     assert len(research.calls) == 1
-    assert research.calls[0][0][0] == "quest" and research.calls[0][0][2] == "Classic Forever beta"
+    assert research.calls[0][0][0] == "quest" and research.calls[0][0][2] == "Classic Forever"
     assert tree.open_ids() == [key]
     tree.tree.item(key, open=False)
     tree.tree.event_generate("<<TreeviewClose>>")
@@ -2127,7 +2144,7 @@ def test_find_gear_uses_fresh_snapshot_selected_slot_and_build(manager_factory, 
     assert context["slot"] == "chest" and context["build_or_goal"] == "Tanking"
     assert context["character"]["player"]["class"] == "WARRIOR"
     assert context["character"]["gear"] and "age_seconds" not in context["character"]
-    assert activity.calls == [(["character"], "_classic_beta_")] * 2
+    assert activity.calls == [(["character"], "_forever_")] * 2
     assert view.service.sent == []
 
 

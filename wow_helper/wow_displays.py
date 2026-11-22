@@ -7,7 +7,7 @@ import math
 import time
 import uuid
 
-from .activities import FLAVORS, profile_settings
+from .activities import FLAVORS, current_flavor, profile_settings
 from .chat import ChatError
 from .task_window import TaskWindow, replace_text
 from .theme import BusyBar, palette, display_font
@@ -40,7 +40,9 @@ def display_state(kind, raw):
             if any(not isinstance(v, dict) for v in states.values()):
                 raise ValueError
         else:
-            if state.get("flavor", "_classic_beta_") not in FLAVORS.values():
+            if "flavor" in state:
+                state["flavor"] = current_flavor(state["flavor"])
+            if state.get("flavor", "_forever_") not in FLAVORS.values():
                 raise ValueError
             rows = state.setdefault("rows", [])
             if not isinstance(rows, list) or len(rows) > 500:
@@ -208,7 +210,7 @@ class QuestLogDisplay:
         self.activity = self.manager.activity_factory()
         self.rows, self.saved_at = state["rows"], state.get("saved_at")
         self.summary = state.get("summary", "Read a saved snapshot to see your quests.")
-        self.flavor = state.get("flavor", "_classic_beta_")
+        self.flavor = state.get("flavor", "_forever_")
         self.selected = state.get("selected", 0)
         self.closed, self.busy = False, False
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="quest-display")

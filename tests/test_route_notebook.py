@@ -7,7 +7,7 @@ from wow_helper.route_notebook import prepare_route
 
 
 def form(**changes):
-    return dict(edition='Classic Forever beta', route_edition='Classic Forever beta',
+    return dict(edition='Classic Forever', route_edition='Classic Forever',
                 dungeon='Example dungeon', role='Healer', phase='Preparation',
                 question='Explain the first two pulls.', route='1. Example entrance\n2. Example hallway',
                 observations='', image='', **changes)
