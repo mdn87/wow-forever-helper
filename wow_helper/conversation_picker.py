@@ -146,7 +146,7 @@ class ConversationPicker:
 
     def scan(self, requested=None):
         self._schedule_scan(None)
-        if self.closed or self.scanning or self.creating:
+        if self.closed or self.view.closed or self.scanning or self.creating:
             return False
         if not hasattr(self.view.service, 'discover'):
             return False

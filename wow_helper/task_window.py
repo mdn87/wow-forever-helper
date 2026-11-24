@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import uuid
 
-from .activities import FLAVORS, SKILLS, STEPS, TYPES, ActivityService, current_edition, packet_preview, profile_settings
+from .activities import FLAVORS, SKILLS, STEPS, TYPES, ActivityService, current_edition, packet_overview, packet_preview, profile_settings
 from .appearance import style_text
 from .chat import ChatError, ChatService, read_json, write_json
 from .chat_window import ChatWindow, BACKGROUND_JOBS
@@ -37,12 +37,13 @@ def replace_text(widget, body):
 
 class TaskWindow(ChatWindow):
     def __init__(self, root, service, *, kind="chat", activity=None, window_id=None,
-                 service_factory=ChatService, resume_conversation=None, **kwargs):
+                 service_factory=ChatService, resume_conversation=None, touch=False, **kwargs):
         import tkinter as tk
         from tkinter import ttk
         state = kwargs.get("state")
         state = state if isinstance(state, dict) else {}
         self.kind = kind
+        self.touch = bool(touch)
         self.resume_conversation = resume_conversation
         self._resume_dialog = None
         self.activity = activity or ActivityService()
@@ -93,7 +94,7 @@ class TaskWindow(ChatWindow):
         self.journal_name = tk.StringVar(master=root, value="My journal")
         chat_root = root
         if kind != "chat":
-            self.book = ttk.Notebook(root)
+            self.book = ttk.Notebook(root, style="Touch.TNotebook" if self.touch else "TNotebook")
             self.book.pack(fill="both", expand=True)
             self.panel = tk.Frame(self.book, bg=palette(root).PANEL)
             chat_root = tk.Frame(self.book, bg=palette(root).PANEL)
@@ -146,7 +147,8 @@ class TaskWindow(ChatWindow):
 
     def _button(self, parent, label, command):
         from tkinter import ttk
-        button = ttk.Button(parent, text=label, command=command)
+        options = {"style": "Touch.TButton"} if self.touch else {}
+        button = ttk.Button(parent, text=label, command=command, **options)
         button.pack(side="left", padx=(0, 4))
         self.buttons.append(button)
         return button
@@ -171,6 +173,10 @@ class TaskWindow(ChatWindow):
             self.menus.tools.add_command(label="Research selected quest chain…", command=self.show_quest_chain)
         self.ask_button = self._button(actions, "Ask agent", lambda: self.prepare_request(review=False))
         self.setup_button = self._button(actions, "Setup", self.show_setup)
+        self.setup_health_button = ttk.Button(
+            actions, text="WoW setup & addon…", style="Primary.TButton",
+            command=self.open_setup_health,
+        )
         footer = tk.Label(self.panel, textvariable=self.activity_notice, bg=palette(self.root).PANEL, fg=palette(self.root).ACCENT,
                           anchor="w", justify="left", wraplength=370, padx=8, pady=5, font=("Segoe UI", 9))
         footer.pack(side="bottom", fill="x")
@@ -213,9 +219,10 @@ class TaskWindow(ChatWindow):
             tier.bind("<<ComboboxSelected>>", lambda _: self._guide_settings())
             self._button(options, "Retry guide", self.retry_guide)
             opened = raw.get("opened_quests") if isinstance(raw.get("opened_quests"), list) else []
-            self.quest_tree = QuestTree(self.panel, on_expand=self._expand_quest, on_change=self.on_change, opened=opened)
+            self.quest_tree = QuestTree(self.panel, on_expand=self._expand_quest, on_change=self.on_change,
+                                        on_research=self.research_selected_quest, opened=opened)
             self.quest_tree.set_appearance(self.appearance)
-            self.activity_notice.set("Refresh reads the saved quest log. Expanding a quest can start web research.")
+            self.activity_notice.set("Refresh reads the saved quest log. Select a quest for details or press Research quest.")
         elif self.kind == "screen":
             self.image_label = tk.Label(self.panel, bg=palette(self.root).PANEL, fg=palette(self.root).MUTED,
                                        text="Capture WoW or open an image.\nReview it before asking the agent.")
@@ -237,7 +244,18 @@ class TaskWindow(ChatWindow):
                 ttk.Entry(options, textvariable=self.gear_goal, width=8).pack(side="left", fill="x", expand=True)
                 self.gear_goal.trace_add("write", lambda *_: self.on_change())
                 self.gear_slot.trace_add("write", lambda *_: self.on_change())
-            self.report_text = text_box(tk, self.panel)
+                self.character_book = ttk.Notebook(self.panel)
+                self.character_book.pack(fill="both", expand=True)
+                self.character_status_tab = tk.Frame(self.character_book, bg=palette(self.root).PANEL)
+                self.gear_research_tab = tk.Frame(self.character_book, bg=palette(self.root).PANEL)
+                self.character_book.add(self.character_status_tab, text="Character & gear")
+                self.character_book.add(self.gear_research_tab, text="Gear research")
+                self.report_text = text_box(tk, self.character_status_tab)
+                self.gear_research_text = text_box(tk, self.gear_research_tab)
+                style_text(self.gear_research_text, self.appearance)
+                replace_text(self.gear_research_text, "Choose a slot and build/goal above, then press Find better gear to research upgrades.")
+            else:
+                self.report_text = text_box(tk, self.panel)
             style_text(self.report_text, self.appearance)
             replace_text(self.report_text, "Press Refresh to read the selected edition's saved snapshot.\n\n"
                          "For current data, /reload in WoW first. No agent connection is needed to view this report.")
@@ -266,7 +284,7 @@ class TaskWindow(ChatWindow):
 
     def set_appearance(self, settings):
         super().set_appearance(settings)
-        for name in ("report_text", "note"):
+        for name in ("report_text", "gear_research_text", "note"):
             if hasattr(self, name):
                 style_text(getattr(self, name), self.appearance, composer=name == "note")
         if hasattr(self, "quest_tree"):
@@ -484,6 +502,30 @@ class TaskWindow(ChatWindow):
                 return
             self._guide_queue.append((key, self.quest_tree.quests[key], True))
 
+    def research_selected_quest(self):
+        key = self.quest_tree.selected()
+        if not key:
+            self.activity_notice.set("Select a quest first.")
+            return
+        if any(item[0] == key for item in self._guide_queue):
+            return
+        if len(self._guide_queue) >= 8:
+            self.activity_notice.set("Eight quests are waiting. Try again after a guide starts.")
+            return
+        retry = key in self.guide_keys
+        self._guide_queue.append((key, self.quest_tree.quests[key], retry))
+        self.quest_tree.set_guide(key, {"status": "queued", "tier": quest_tier(self.quest_tree.quests[key], self.profile["guide_tier"])})
+        self.activity_notice.set("Queued guide research for the selected quest.")
+
+    def open_setup_health(self):
+        manager = getattr(self.root.winfo_toplevel(), "_companion_manager", None)
+        if manager is not None and hasattr(manager, "show_setup_health"):
+            window = next((w for w in manager.windows if w.root == self.root.winfo_toplevel()), None)
+            if window is not None:
+                manager.show_setup_health(window)
+                return
+        self.activity_notice.set("Open Preferences → WoW setup & addon health… from the Settings menu.")
+
     def _request_quest(self, key, quest, retry=False):
         context = {"quest": quest, "player": self.quest_tree.report.get("player", {})}
         edition = next(k for k, v in FLAVORS.items() if v == self.profile["flavor"])
@@ -523,14 +565,20 @@ class TaskWindow(ChatWindow):
     def _render_gear(self):
         record = self._gear_guide or {}
         guide = record.get("guide")
-        lines = [self._panel_base, "", "GEAR RESEARCH"]
+        lines = ["GEAR RESEARCH"]
         if guide:
             lines += [guide["summary"]] + [f"{i}. {step}" for i, step in enumerate(guide["steps"], 1)]
             lines += ["Note: " + c for c in guide["caveats"]]
             lines += [source["title"] + "\n" + source["url"] for source in guide["sources"]]
         else:
             lines += [record.get("error") or record.get("notice") or "Researching upgrades on the web…"]
-        replace_text(self.report_text, "\n\n".join(lines))
+        body = "\n\n".join(lines)
+        if hasattr(self, "gear_research_text"):
+            replace_text(self.gear_research_text, body)
+            if hasattr(self, "character_book") and guide:
+                self.character_book.select(self.gear_research_tab)
+        else:
+            replace_text(self.report_text, self._panel_base + "\n\n" + body)
 
     def refresh_panel(self):
         if self.kind == "journal":
@@ -540,10 +588,39 @@ class TaskWindow(ChatWindow):
         if self._submit("activity", lambda: self.activity.reports([self.kind], flavor), on_result=self._report_result):
             self.activity_notice.set("Reading snapshot…")
 
+    @staticmethod
+    def _format_equipment_table(gear):
+        if not gear:
+            return "EQUIPMENT\nNo equipped gear recorded in this snapshot."
+        header = f"{'Slot':<14} {'Item ID':<10} {'iLvl':<7} {'Durability'}"
+        rule = "-" * len(header)
+        rows = [header, rule]
+        low_slots = []
+        for item in gear:
+            slot = str(item.get("slot") or "").title()[:14]
+            item_id = str(item.get("id") or "—")[:10]
+            ilvl = str(item.get("ilvl") or "—")[:7]
+            dur = item.get("durability_percent")
+            if dur is None:
+                dur_str = "—"
+            elif dur < 35:
+                dur_str = f"{dur}%  [LOW]"
+                low_slots.append(slot)
+            else:
+                dur_str = f"{dur}%"
+            rows.append(f"{slot:<14} {item_id:<10} {ilvl:<7} {dur_str}")
+        if low_slots:
+            rows.append(f"\nRepair check: low durability (<35%) on {', '.join(low_slots)}.")
+        return "EQUIPMENT\n" + "\n".join(rows)
+
     def _report_result(self, result, error):
         if error:
             self.activity_notice.set(error)
+            if hasattr(self, "setup_health_button") and not self.setup_health_button.winfo_manager():
+                self.setup_health_button.pack(side="right", padx=(4, 0))
             return
+        if hasattr(self, "setup_health_button") and self.setup_health_button.winfo_manager():
+            self.setup_health_button.pack_forget()
         self.panel_report = result
         self._report_generation += 1
         report = result[self.kind]
@@ -557,10 +634,7 @@ class TaskWindow(ChatWindow):
             return
         body = report["text"]
         if self.kind == "character":
-            body += "\n\nEQUIPMENT\n" + "\n".join(
-                f"{item['slot'].title()}: item {item['id']} · level {item['ilvl'] or 'unknown'} · "
-                f"durability {str(item['durability_percent']) + '%' if item['durability_percent'] is not None else 'unknown'}"
-                for item in report["data"]["gear"])
+            body += "\n\n" + self._format_equipment_table(report["data"].get("gear", []))
         replace_text(self.report_text, body)
         self._panel_base = body
         if self.kind == "character" and self._gear_guide:
@@ -1137,12 +1211,14 @@ class SetupDialog:
 class RequestDialog:
     def __init__(self, view, packet, session_key):
         from tkinter import ttk
+        from .journal_ui import OPEN_DIALOGS, review_notebook
         self.view, self.packet, self.session_key = view, packet, session_key
         self.request_id = str(uuid.uuid4())
         self.attempted = False
         tk = view.tk
         self.root = tk.Toplevel(view.root)
         self.root.withdraw()
+        OPEN_DIALOGS.add(self)
         self.chrome = setup_dialog(self.root, view.root, title="Review agent request",
                                    close=self.close, minimum=(440, 420), size=(640, 660))
         surface = self.chrome.content
@@ -1151,12 +1227,17 @@ class RequestDialog:
                  padx=10, pady=8).pack(fill="x")
         actions = tk.Frame(surface, bg=palette(self.root).PANEL, padx=10, pady=10)
         actions.pack(side="bottom", fill="x")
-        self.send_button = ttk.Button(actions, text="Send request", command=self.send)
+        self.send_button = ttk.Button(actions, text="Send request", style="Primary.TButton", command=self.send)
         self.send_button.pack(side="right")
         ttk.Button(actions, text="Cancel", command=self.close).pack(side="right", padx=6)
-        self.preview = text_box(tk, surface)
-        style_text(self.preview, view.appearance)
-        replace_text(self.preview, packet_preview(packet))
+        holder = tk.Frame(surface, bg=palette(self.root).PANEL, padx=8)
+        holder.pack(fill="both", expand=True)
+        model_summary = view.model_summary.get() if hasattr(view, "model_summary") else ""
+        self.review_book, self.overview, self.preview = review_notebook(
+            tk, ttk, holder, view.appearance,
+            packet_overview(packet, destination=view.session_title, model_summary=model_summary),
+            packet_preview(packet),
+        )
         self.root.deiconify()
         self.chrome.apply_native()
 
@@ -1165,6 +1246,7 @@ class RequestDialog:
         if self.attempted:
             return
         if not view.selected or view.selected.key != self.session_key:
+            self.send_button.configure(state="disabled")
             self.notice.set("The selected session changed. Close this preview and prepare a new request.")
             return
         if view.jobs - BACKGROUND_JOBS:
@@ -1172,6 +1254,7 @@ class RequestDialog:
             return
         if view.send_prepared(self.packet, self.session_key, self.request_id):
             self.attempted = True
+            self.send_button.configure(state="disabled")
             self.close()
         else:
             self.notice.set(view.activity_notice.get())

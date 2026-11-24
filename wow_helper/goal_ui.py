@@ -32,7 +32,23 @@ class GoalDialog(JournalDialog):
         self.book.pack(fill='both', expand=True, padx=8)
         main, plan, decisions, evidence = [self.tab(title) for title in ('Goal', 'Plan', 'Decisions', 'Evidence')]
         repeat = self.tab('Repeat')
-        from .recurrence import DAYS
+        from .recurrence import DAYS, RESET_PRESETS, local_timezone_name
+        preset_row = self.frame(repeat)
+        preset_row.pack(fill='x', pady=(0, 6))
+        self.label(preset_row, 'Quick presets:').pack(side='left', padx=(0, 4))
+        self.preset_buttons = {}
+        for preset_label, preset in RESET_PRESETS:
+            btn = self.ttk.Button(preset_row, text=preset_label, style='Agent.TButton',
+                                  command=lambda p=preset: self._apply_preset(p))
+            btn.pack(side='left', padx=(0, 3))
+            self.preset_buttons[preset_label] = btn
+        local_btn = self.ttk.Button(preset_row, text='Local daily', style='Agent.TButton',
+                                    command=lambda: self._apply_preset({
+                                        'frequency': 'Daily', 'zone': local_timezone_name() or 'UTC',
+                                        'time': '08:00', 'weekday': 'Monday',
+                                    }))
+        local_btn.pack(side='left')
+        self.preset_buttons['Local daily'] = local_btn
         self.field(repeat, 'frequency', 'Repeat', choices=['None', 'Daily', 'Weekly'])
         self.field(repeat, 'zone', 'IANA time zone (for example America/New_York)')
         self.field(repeat, 'reset_time', 'Reset time (HH:MM, 24-hour)')
@@ -63,6 +79,12 @@ class GoalDialog(JournalDialog):
         self.ttk.Button(self.actions, text='Save goal', command=self.save).pack(side='left')
         self.load_fields(entry)
         self.show()
+
+    def _apply_preset(self, preset):
+        self.fields['frequency'].set(preset['frequency'])
+        self.fields['zone'].set(preset['zone'])
+        self.fields['reset_time'].set(preset['time'])
+        self.fields['weekday'].set(preset['weekday'])
 
     def tab(self, title):
         tab = self.frame(self.book, padding=8)
@@ -102,9 +124,10 @@ class GoalDialog(JournalDialog):
         if not initial:
             defaults['edition'] = next((k for k, v in FLAVORS.items() if v == self.view.profile['flavor']), 'Unknown')
         defaults.update(goal)
-        from .recurrence import DAYS
+        from .recurrence import DAYS, local_timezone_name
         rule = goal.get('recurrence', {})
-        defaults.update(frequency=rule.get('frequency', 'None'), zone=rule.get('zone', ''),
+        default_zone = rule.get('zone', '') or ('' if entry else local_timezone_name())
+        defaults.update(frequency=rule.get('frequency', 'None'), zone=default_zone,
                         reset_time=rule.get('time', ''), weekday=DAYS[rule.get('weekday', 0)])
         if defaults['edition'] not in FLAVORS:
             defaults['edition'] = 'Unknown'

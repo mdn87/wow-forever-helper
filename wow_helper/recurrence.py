@@ -10,6 +10,72 @@ from .chat import ChatError
 MAX_EVENTS = 2000
 DAYS = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
 
+_WINDOWS_TZ_TO_IANA = {
+    'eastern standard time': 'America/New_York',
+    'eastern daylight time': 'America/New_York',
+    'central standard time': 'America/Chicago',
+    'central daylight time': 'America/Chicago',
+    'mountain standard time': 'America/Denver',
+    'mountain daylight time': 'America/Denver',
+    'us mountain standard time': 'America/Phoenix',
+    'pacific standard time': 'America/Los_Angeles',
+    'pacific daylight time': 'America/Los_Angeles',
+    'alaskan standard time': 'America/Anchorage',
+    'hawaiian standard time': 'Pacific/Honolulu',
+    'atlantic standard time': 'America/Halifax',
+    'gmt standard time': 'Europe/London',
+    'greenwich standard time': 'Etc/GMT',
+    'w. europe standard time': 'Europe/Berlin',
+    'central europe standard time': 'Europe/Budapest',
+    'central european standard time': 'Europe/Warsaw',
+    'romance standard time': 'Europe/Paris',
+    'e. europe standard time': 'Europe/Bucharest',
+    'aus eastern standard time': 'Australia/Sydney',
+    'tokyo standard time': 'Asia/Tokyo',
+    'korea standard time': 'Asia/Seoul',
+    'utc': 'UTC',
+}
+
+RESET_PRESETS = (
+    ('NA Daily', {'frequency': 'Daily', 'zone': 'UTC', 'time': '15:00', 'weekday': 'Monday'}),
+    ('NA Weekly', {'frequency': 'Weekly', 'zone': 'UTC', 'time': '15:00', 'weekday': 'Tuesday'}),
+    ('EU Daily', {'frequency': 'Daily', 'zone': 'UTC', 'time': '04:00', 'weekday': 'Monday'}),
+    ('EU Weekly', {'frequency': 'Weekly', 'zone': 'UTC', 'time': '04:00', 'weekday': 'Wednesday'}),
+)
+
+
+def local_timezone_name():
+    """Return a valid local IANA timezone name when installed, otherwise UTC or empty string."""
+    candidates = []
+    try:
+        import tzlocal  # type: ignore
+        name = tzlocal.get_localzone_name()
+        if isinstance(name, str) and name:
+            candidates.append(name)
+    except Exception:
+        pass
+    try:
+        local = datetime.now().astimezone().tzinfo
+        key = getattr(local, 'key', None)
+        if isinstance(key, str) and key:
+            candidates.append(key)
+        tzname = datetime.now().astimezone().tzname()
+        if isinstance(tzname, str) and tzname:
+            mapped = _WINDOWS_TZ_TO_IANA.get(tzname.strip().lower())
+            if mapped:
+                candidates.append(mapped)
+            candidates.append(tzname.strip())
+    except Exception:
+        pass
+    candidates.append('UTC')
+    for candidate in candidates:
+        try:
+            ZoneInfo(candidate)
+            return candidate
+        except (ZoneInfoNotFoundError, ValueError, KeyError):
+            continue
+    return ''
+
 
 def validate_rule(rule):
     try:

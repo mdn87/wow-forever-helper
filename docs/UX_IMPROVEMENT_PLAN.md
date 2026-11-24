@@ -1,6 +1,6 @@
 # Companion UX improvement plan
 
-**Status:** Proposed implementation. Prepared and revised 2026-11-23 from a code-level UX audit at baseline `cc9d46f`, incorporating an Autowork `codex-astra` cross-review (`20261124-013949-cross-review`, all 3 findings accepted). No application code has been changed, and no live visual or player walkthrough has been run for these items yet. Each item below labels whether it addresses a **code-verified defect** or a **design improvement**.
+**Status:** Implemented (Batches 1–4, `U01`–`U18`) and verified with synthetic isolated-desktop automated tests on 2026-11-23. Prepared from a code-level UX audit at baseline `cc9d46f` and revised after an Autowork `codex-astra` cross-review (`20261124-013949-cross-review`, all 3 findings `UX-01`–`UX-03` accepted and implemented with regression tests). Live visual inspection in both themes and live in-game walkthroughs have **not** been run yet and remain separate from the synthetic automated verification below. Each item below notes its type (**code-verified defect** or **design improvement**).
 
 ## Goals and guardrails
 
@@ -381,31 +381,29 @@ This batch elevates the specialized WoW workflows, lowers pre-send review fatigu
 
 ---
 
-## Open product decisions
+## Product decisions applied
 
-These three choices are reversible product preferences rather than defects; confirm them before implementing Batches 3–4:
+The three reversible product choices from the plan were resolved conservatively to stay backward-compatible with existing workflows and tests while adding explicit user controls:
 
-1. **Desktop `Quest guide` default for `Guide on expand` (U14):** Should desktop Quest guide default `guide_auto` to **Off** (matching `ActivityDeck`, so expanding a quest to read objectives never fires AI web research unexpectedly) with a prominent **Research quest** button, or keep it **On**?
-2. **Fight-analysis dialogs (U13):** Should **Ask about the last fight** (combat log digest) and **Post-fight coaching** (manual notes + screenshot + compare later attempt) merge into one tabbed **Fight review** dialog, or stay two separate tools grouped side-by-side?
-3. **Hands-free voice chat fallback (related to U12):** Today, any hands-free utterance that doesn't match a spoken command is sent directly to the connected chat without draft review ([handsfree.py](../wow_helper/handsfree.py)). Should we keep that default and optionally add a **"Commands only (say 'ask …' to chat)"** toggle so a misheard command cannot accidentally spend a chat turn?
-
----
+1. **Desktop `Quest guide` default for `Guide on expand` (U14):** Kept desktop `guide_auto=True` by default (`ActivityDeck` stays `guide_auto=False`) and added an explicit **Research quest** / **Retry guide** button inside the new master-detail detail pane so players can turn off `Guide on expand` and trigger guides on demand.
+2. **Fight-analysis dialogs (U13):** Kept both **Ask about the last fight** (combat log digest) and **Post-fight coaching** (manual notes, attempt comparisons, and screenshots) as distinct tools with clearer descriptions and direct cross-link buttons between them that preserve drafts.
+3. **Hands-free voice chat fallback (U12):** Kept direct-to-chat as the default and added an opt-in **Commands only (require "ask the agent …" or "tell the agent …" to chat)** checkbox in `HandsFreeDialog`.
 
 ## Cross-review dispositions (`20261124-013949-cross-review`)
 
-Reviewed by `codex-astra` (`gpt-6-astra`, `high`, 2026-11-23). All three findings were accepted and folded into the plan above:
+Reviewed by `codex-astra` (`gpt-6-astra`, `high`, 2026-11-23). All three findings were accepted, folded into the implementation, and covered by synthetic regression tests:
 
-| Finding | Section | Disposition | Plan revision |
+| Finding | Section | Disposition | Implemented change & regression test |
 | --- | --- | --- | --- |
-| `UX-01` | [U05](#u05-smart-transcript-scrolling) | Accepted | Replaced fractional scroll preservation with a `(message_id, char_offset)` content anchor plus viewport offset, and added reflow tests for appended replies, width changes, and font-size changes. |
-| `UX-02` | [U11](#u11-unified-session-picker-and-compact-model-pill) | Accepted | Bound picker selection, live-refresh highlight, and confirmation to stable `(provider, session_id)` keys with discovery generation tracking, explicit disappeared-session handling, and race-condition tests. |
-| `UX-03` | [U15](#u15-scannable-pre-send-review-previews) | Accepted | Required Overview summary derivation from the same frozen prepared request as Full payload, and added acceptance tests for button and hands-free spoken Send refusal on unprepared/invalidated reviews plus exact payload/destination match. |
+| `UX-01` | [U05](#u05-smart-transcript-scrolling) | Accepted & implemented | Content-anchored scroll restoration (`(message_id, char_offset, y_offset)`) with `Jump to latest` button; verified in `tests/test_ux_batch1.py` and `tests/test_chat_window.py`. |
+| `UX-02` | [U11](#u11-unified-session-picker-and-compact-model-pill) | Accepted & implemented | `ConversationPicker` live discovery bound to `(provider, session_id)` with generation tracking, duplicate-title reordering, disappeared-session refusal, and cancel-safe close; verified in `tests/test_ux_batch3.py`. |
+| `UX-03` | [U15](#u15-scannable-pre-send-review-previews) | Accepted & implemented | Shared `Overview` + `Full payload` review notebook derived from the frozen prepared request across `RequestDialog`, `FollowupDialog`, `DiscussionNotebook`, `ChainDialog`, and `ToolAccessDialog`; button and hands-free spoken `Send` refusal on unprepared/invalidated reviews verified in `tests/test_ux_batch4.py`. |
 
-## Verification and landing cadence
+## Verification status
 
-Implement and land one batch at a time (or split Batches 2–4 into focused PRs per 2–3 items):
-
-1. **Automated suite:** `python -m pytest -q -p no:cacheprovider` (confirming isolated Windows desktop UI tests, `tests/test_no_input.py`, and new regression tests for every fixed defect and new behavior).
-2. **Theme and geometry checks:** Inspect synthetic windows in both **Classic** and **Modern Synth**, at minimum sizes (`440×580`, compact Play `340×300`, dialog minimums) and large chat font sizes, verifying contrast, wrapping, and focus visibility.
-3. **Hands-free voice regression:** Run `tests/test_handsfree.py` and `tests/test_voice_browser.py` whenever toolbar labels, menu labels, or dialog structures change.
-4. **Public-repo safety check:** Run `scripts/leakcheck.sh origin/main...HEAD` before pushing.
+- **Automated synthetic verification (isolated Windows desktop):**
+  - Batch 1–4 regression suites added in `tests/test_ux_batch1.py`, `tests/test_ux_batch2.py`, `tests/test_ux_batch3.py`, and `tests/test_ux_batch4.py`, plus updated behavior assertions in `tests/test_chat_window.py` (smart scrolling) and `tests/test_active_session_search.py` (Command library `Enter` copy vs `Ctrl+Enter` web search).
+  - Full pytest suite (`python -m pytest -q -p no:cacheprovider`, including `tests/test_no_input.py`, `tests/test_handsfree.py`, and `tests/test_voice_browser.py`) and public-repo `scripts/leakcheck.sh origin/main...HEAD` run before landing.
+- **Not yet verified (requires operator live walkthrough):**
+  - Live visual inspection of **Classic** and **Modern Synth** windows on real multi-monitor and touch displays at minimum sizes (`440×580`, compact Play `340×300`, dialog minimums) and large chat fonts.
+  - Live in-game WoW session walkthrough (real addon install/snapshot check, live gear tooltip capture, and live Lugos Voice turns).

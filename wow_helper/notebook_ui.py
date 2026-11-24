@@ -4,12 +4,12 @@ from copy import deepcopy
 import json
 import uuid
 
-from .activities import FLAVORS, packet_preview
+from .activities import FLAVORS, packet_overview, packet_preview
 from .build_tutor import prepare_build
 from .chat import ChatError
 from .imports import read_text
 from .journal import metadata
-from .journal_ui import JournalDialog
+from .journal_ui import JournalDialog, review_notebook
 
 
 def notebook_drafts(raw):
@@ -37,12 +37,16 @@ class DiscussionNotebook(JournalDialog):
         self.inputs = self.tab('Inputs')
         self.make_fields()
         self.review_tab = self.tab('Review')
-        self.preview = self.text(self.review_tab, 'Prepare a review to see exactly what will be saved or sent.')
+        self.review_book, self.overview, self.preview = review_notebook(
+            self.tk, self.ttk, self.review_tab, self.view.appearance,
+            'Prepare a review to see a concise summary before saving or sending.',
+            'Prepare a review to see exactly what will be saved or sent.',
+        )
         self.prepare_button = self.ttk.Button(self.actions, text='Prepare review', command=self.prepare)
         self.prepare_button.pack(side='left')
         self.save_button = self.ttk.Button(self.actions, text='Save note', command=self.save, state='disabled')
         self.save_button.pack(side='left', padx=4)
-        self.send_button = self.ttk.Button(self.actions, text='Send', command=self.send, state='disabled')
+        self.send_button = self.ttk.Button(self.actions, text='Send', style='Primary.TButton', command=self.send, state='disabled')
         self.send_button.pack(side='left')
         self.notice.set('Review imports before sending. Save note keeps reviewed evidence in Journal even when chat retention is off.')
         self.show()
@@ -106,9 +110,14 @@ class DiscussionNotebook(JournalDialog):
             self.view.notebook_drafts[self.kind] = form
             self.view.on_change()
         if self.packet is not None and form != self.reviewed_form:
+            from .task_window import replace_text
+            self.packet = None
             self.save_button.configure(state='disabled')
             self.send_button.configure(state='disabled')
-            self.notice.set('Inputs changed. Prepare a fresh review before saving or sending.')
+            msg = 'Inputs changed. Prepare a fresh review before saving or sending.'
+            replace_text(self.overview, msg)
+            replace_text(self.preview, msg)
+            self.notice.set(msg)
 
     def import_text(self, field, limit):
         from tkinter import filedialog
@@ -149,11 +158,14 @@ class DiscussionNotebook(JournalDialog):
                        if self.session_key else None)
         self.attempted = False
         destination = self.view.session_title if self.session_key else 'No conversation selected; saving is available offline'
+        model_summary = self.view.model_summary.get() if self.session_key and hasattr(self.view, 'model_summary') else ''
+        replace_text(self.overview, packet_overview(packet, destination=destination, model_summary=model_summary))
         replace_text(self.preview, 'DESTINATION\n' + destination + '\n\n' + packet_preview(packet))
+        self.review_book.select(0)
         self.book.select(self.review_tab)
         self.save_button.configure(state='normal')
         self.send_button.configure(state='normal' if self.session_key else 'disabled')
-        self.notice.set('Review the full evidence. Send uses the selected conversation and preserves its draft.')
+        self.notice.set('Review the Overview or Full payload. Send uses the selected conversation and preserves its draft.')
         self.changed()
 
     def valid_review(self):

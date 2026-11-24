@@ -117,6 +117,7 @@ class CompanionWindow:
         self.preferences_menu.add_command(label="Voice input…  Keypad -", command=lambda: manager.show_voice_input(self))
         self.preferences_menu.add_command(label="Hands-free voice (Lugos Voice)…", command=lambda: manager.show_handsfree_voice(self))
         self.preferences_menu.add_command(label="WoW companion displays…", command=lambda: show_display_setup(manager, self.root))
+        self.preferences_menu.add_command(label="WoW setup & addon health…", command=lambda: manager.show_setup_health(self))
         self.preferences_menu.add_separator()
         self.preferences_menu.add_command(label="Usage study…", command=lambda: manager.show_usage_study(self))
         self.notice = tk.StringVar(master=self.root)
@@ -370,6 +371,8 @@ class CompanionWindow:
             self.manager._activity_dialog.close()
         if self.manager._usage_dialog and self.manager._usage_dialog.parent is self.root:
             self.manager._usage_dialog.close()
+        if self.manager._setup_health_dialog and self.manager._setup_health_dialog.parent is self.root:
+            self.manager._setup_health_dialog.close()
         if self.card:
             self.card.close()
         self.opacity.close()
@@ -407,6 +410,7 @@ class WindowManager:
         self._search_dialog = None
         self._activity_dialog = None
         self._usage_dialog = None
+        self._setup_health_dialog = None
         self._voice_dialog = None
         self._handsfree_dialog = None
         from .handsfree import HandsFree
@@ -544,6 +548,15 @@ class WindowManager:
         else:
             self._usage_dialog.refresh()
             self._usage_dialog.root.lift()
+
+    def show_setup_health(self, window):
+        from .setup_health_ui import SetupHealthDialog
+        if self._setup_health_dialog is None:
+            self._setup_health_dialog = SetupHealthDialog(self, window)
+        else:
+            self._setup_health_dialog.refresh()
+            self._setup_health_dialog.root.deiconify()
+            self._setup_health_dialog.root.lift()
 
     def open_search_window(self, kind):
         if self.closed or len(self.windows) >= MAX_WINDOWS:
@@ -1030,6 +1043,8 @@ class WindowManager:
             self._voice_dialog.close()
         if self._handsfree_dialog:
             self._handsfree_dialog.close()
+        if self._setup_health_dialog:
+            self._setup_health_dialog.close()
         self.handsfree.close()
         if self._display_after is not None:
             self.root.after_cancel(self._display_after)

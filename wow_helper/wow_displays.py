@@ -132,6 +132,7 @@ class ActivityDeck:
                               resume_conversation=self.manager.resume_conversation,
                               open_session_keys=self.manager.open_session_keys,
                               pin_advice=self.manager.pin_advice, state=state, toolbar=toolbar,
+                              touch=True,
                               on_change=lambda: self.manager.changed(self.window))
             self.views[kind], self.hosts[kind] = view, host
             cached = state.get("display_report")
@@ -232,15 +233,17 @@ class QuestLogDisplay:
         self.busy_bar = BusyBar(self.root, fill="x", padx=12, pady=(0, 6), after=self.age)
         body = self.tk.Frame(self.root, bg=colors.PANEL)
         body.pack(fill="both", expand=True, padx=12)
-        self.list = self.tk.Listbox(body, height=5, font=("Segoe UI", 17), activestyle="dotbox",
-                                   bg=colors.BACKGROUND, fg=colors.TEXT, selectbackground=colors.SELECT,
-                                   selectforeground=colors.TEXT, exportselection=False, selectborderwidth=9)
-        scroll = ttk.Scrollbar(body, command=self.list.yview)
+        self.list_canvas = self.tk.Canvas(body, bg=colors.BACKGROUND, highlightthickness=0, bd=0, height=220)
+        scroll = ttk.Scrollbar(body, command=self.list_canvas.yview)
+        self.list_canvas.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
-        self.list.configure(yscrollcommand=scroll.set)
-        self.list.pack(fill="both", expand=True)
-        self.list.bind("<<ListboxSelect>>", lambda _: self.select_row(self.list.curselection()[0])
-                       if self.list.curselection() else None)
+        self.list_canvas.pack(side="left", fill="both", expand=True)
+        self.list_inner = self.tk.Frame(self.list_canvas, bg=colors.BACKGROUND)
+        self._list_window = self.list_canvas.create_window((0, 0), window=self.list_inner, anchor="nw")
+        self.list_inner.bind("<Configure>", lambda _: self.list_canvas.configure(scrollregion=self.list_canvas.bbox("all")))
+        self.list_canvas.bind("<Configure>", self._resize_list)
+        self.row_buttons = []
+        self.list = self.list_canvas
         detail_frame = self.tk.Frame(self.root, bg=colors.PANEL)
         detail_frame.pack(fill="both", expand=True, padx=12, pady=8)
         self.detail = self.tk.Text(detail_frame, height=5, width=1, wrap="word", font=("Segoe UI", 13),
@@ -315,21 +318,48 @@ class QuestLogDisplay:
         self.render()
         self.manager.changed(self.window)
 
+    def _resize_list(self, event):
+        width = max(160, event.width)
+        self.list_canvas.itemconfigure(self._list_window, width=width)
+        wrap = max(120, width - 36)
+        for button in self.row_buttons:
+            button.configure(wraplength=wrap)
+
     def render(self):
-        self.list.delete(0, "end")
-        for row in self.rows:
-            self.list.insert("end", row["title"])
+        for button in self.row_buttons:
+            button.destroy()
+        self.row_buttons = []
+        colors = palette(self.root)
+        wrap = max(180, self.list_canvas.winfo_width() - 36)
+        for idx, row in enumerate(self.rows):
+            btn = self.tk.Button(
+                self.list_inner, text=row["title"],
+                command=lambda i=idx: self.select_row(i),
+                font=("Segoe UI", 15), anchor="w", justify="left", wraplength=wrap,
+                bg=colors.EDITOR, fg=colors.TEXT,
+                activebackground=colors.HOVER, activeforeground=colors.ACCENT,
+                relief="flat", borderwidth=1, highlightthickness=1,
+                highlightbackground=colors.EDGE, highlightcolor=colors.ACCENT,
+                padx=12, pady=10,
+            )
+            btn.pack(fill="x", padx=4, pady=3)
+            self.row_buttons.append(btn)
         self.notice.configure(text=self.summary)
         if self.rows:
             self.select_row(max(0, min(self.selected, len(self.rows) - 1)))
         else:
             replace_text(self.detail, "No saved quest details to show. Read the selected edition's snapshot.")
+        self.list_canvas.yview_moveto(0.0)
 
     def select_row(self, index):
         if 0 <= index < len(self.rows):
             self.selected = index
-            self.list.selection_clear(0, "end")
-            self.list.selection_set(index)
+            colors = palette(self.root)
+            for idx, button in enumerate(self.row_buttons):
+                if idx == index:
+                    button.configure(bg=colors.SELECT, fg=colors.ACCENT, highlightbackground=colors.ACCENT)
+                else:
+                    button.configure(bg=colors.EDITOR, fg=colors.TEXT, highlightbackground=colors.EDGE)
             replace_text(self.detail, self.rows[index]["detail"])
             self.manager.changed(self.window)
 

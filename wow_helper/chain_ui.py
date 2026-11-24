@@ -6,9 +6,9 @@ import time
 import uuid
 import webbrowser
 
-from .activities import FLAVORS, packet_preview
+from .activities import FLAVORS, packet_overview, packet_preview
 from .chat import ChatError
-from .journal_ui import JournalDialog
+from .journal_ui import JournalDialog, review_notebook
 from .quest_chat import MAX_QUEST_CHATS, quest_context, quest_identity
 from .quest_chain import annotate_chain, chain_text
 from .task_window import replace_text
@@ -42,7 +42,11 @@ class ChainDialog(JournalDialog):
             self.book.add(tab, text=name)
         self.chain = self.text(chain_tab)
         self.evidence = self.text(evidence_tab)
-        self.review = self.text(review_tab)
+        self.review_book, self.overview, self.review = review_notebook(
+            self.tk, self.ttk, review_tab, self.view.appearance,
+            'Press Prepare discussion to review a concise summary before sending.',
+            'Press Prepare discussion to inspect the full verbatim payload.',
+        )
         self.review_tab = review_tab
         colors = palette(self.root)
         self.sources = self.tk.Listbox(sources_tab, height=4, exportselection=False, bg=colors.PANEL,
@@ -69,6 +73,9 @@ class ChainDialog(JournalDialog):
     def invalidate(self):
         self.packet = None
         self.send_button.configure(state='disabled')
+        msg = 'Snapshot or research changed. Press Prepare discussion before sending.'
+        replace_text(self.overview, msg)
+        replace_text(self.review, msg)
 
     def annotated(self):
         from .quests import STALE_AFTER
@@ -179,10 +186,12 @@ class ChainDialog(JournalDialog):
                                              'text': chain_text(chain) + '\n\nSNAPSHOT\n' + json.dumps(self.snapshot, ensure_ascii=False, indent=2)}}}
         self.packet, self.request_id, self.attempted = packet, str(uuid.uuid4()), False
         destination = target.session_title if target.selection_key else 'New ' + target.default_provider.title() + ' quest conversation on Send'
+        replace_text(self.overview, packet_overview(packet, destination=destination))
         replace_text(self.review, 'DESTINATION\n' + destination + '\n\n' + packet_preview(packet))
+        self.review_book.select(0)
         self.book.select(self.review_tab)
         self.send_button.configure(state='normal')
-        self.notice.set('Review this frozen chain and snapshot. Send updates only this quest conversation and preserves its draft.')
+        self.notice.set('Review the Overview or Full payload. Send updates only this quest conversation and preserves its draft.')
 
     def send(self):
         if self.packet is None or self.attempted:

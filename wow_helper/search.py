@@ -18,6 +18,7 @@ SETTINGS_ACTIONS = (("interface", "Interface and transparency"), ("layouts", "Ac
                     ("voice_input", "Voice input (Keypad -)"),
                     ("handsfree", "Hands-free voice (Lugos Voice)"),
                     ("wow_displays", "WoW companion displays"),
+                    ("setup_health", "WoW setup and addon health"),
                     ("model_settings", "Model and usage settings"),
                     ("bookmark", "Bookmark this moment"),
                     ("pin_reply", "Pin selected reply to Play"),
@@ -145,6 +146,8 @@ def open_row(manager, window, row):
     elif target == "wow_displays":
         from .wow_displays import show_display_setup
         show_display_setup(manager, window.root)
+    elif target == "setup_health":
+        manager.show_setup_health(window)
     elif target in {"appearance", "setup"} and view:
         (view.show_appearance if target == "appearance" else view.show_setup)()
     elif target in {"live_gear", "combat", "model_settings", "bookmark", "pin_reply",

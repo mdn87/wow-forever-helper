@@ -190,6 +190,7 @@ def _classic_theme(root):
     style.map("Primary.TButton", foreground=[("disabled", "#837862"), ("active", "#ffffff")])
     style.configure("Window.TButton", font=("Segoe UI", 9, "bold"), padding=(2, 0), width=2)
     style.configure("Agent.TButton", font=("Segoe UI", 8), padding=(3, 0), width=0)
+    style.configure("Touch.TButton", font=display_font(root, 11), padding=(12, 8), width=0)
     style.layout("TMenubutton", [("Companion.button", {"sticky": "nswe", "children": [
         ("Menubutton.padding", {"sticky": "nswe", "children": [
             ("Menubutton.indicator", {"side": "right", "sticky": ""}),
@@ -204,6 +205,11 @@ def _classic_theme(root):
     style.configure("TNotebook.Tab", background=BACKGROUND, foreground=MUTED,
                     padding=(10, 4), font=("Segoe UI", 9))
     style.map("TNotebook.Tab", background=[("selected", PANEL), ("active", TITLE)],
+              foreground=[("selected", ACCENT), ("active", TEXT)])
+    style.configure("Touch.TNotebook", background=PANEL, bordercolor=EDGE, tabmargins=(4, 4, 4, 0))
+    style.configure("Touch.TNotebook.Tab", background=BACKGROUND, foreground=MUTED,
+                    padding=(14, 9), font=("Segoe UI", 11))
+    style.map("Touch.TNotebook.Tab", background=[("selected", PANEL), ("active", TITLE)],
               foreground=[("selected", ACCENT), ("active", TEXT)])
     style.configure("TCheckbutton", background=PANEL, foreground=TEXT, font=("Segoe UI", 10))
     style.map("TCheckbutton", background=[("active", PANEL)], foreground=[("active", ACCENT)])
@@ -253,6 +259,7 @@ def _modern_theme(root):
               foreground=[("disabled", "#748299"), ("!disabled", "#111722")])
     style.configure("Window.TButton", font=("Segoe UI", 9), padding=(2, 0), width=2)
     style.configure("Agent.TButton", font=("Segoe UI", 8), padding=(4, 1), width=0)
+    style.configure("Touch.TButton", font=("Segoe UI", 11), padding=(12, 8), width=0)
     style.configure("TMenubutton", padding=(6, 3), background=colors.EDITOR,
                     arrowcolor=colors.ACCENT, relief="flat")
     style.map("TMenubutton", background=[("active", colors.HOVER)])
@@ -263,6 +270,11 @@ def _modern_theme(root):
     style.configure("TNotebook.Tab", background=colors.TITLE, foreground=colors.MUTED,
                     font=("Segoe UI", 9), padding=(10, 5))
     style.map("TNotebook.Tab", background=[("selected", colors.SELECT), ("active", colors.HOVER)],
+              foreground=[("selected", colors.ACCENT), ("active", colors.TEXT)])
+    style.configure("Touch.TNotebook", background=colors.PANEL, borderwidth=0, tabmargins=(0, 6, 0, 4))
+    style.configure("Touch.TNotebook.Tab", background=colors.TITLE, foreground=colors.MUTED,
+                    font=("Segoe UI", 11), padding=(14, 9))
+    style.map("Touch.TNotebook.Tab", background=[("selected", colors.SELECT), ("active", colors.HOVER)],
               foreground=[("selected", colors.ACCENT), ("active", colors.TEXT)])
     for name in ("TCheckbutton", "TRadiobutton"):
         style.configure(name, background=colors.PANEL, foreground=colors.TEXT,

@@ -7,7 +7,7 @@ import time
 import uuid
 import weakref
 
-from .activities import FLAVORS, current_edition, packet_preview
+from .activities import FLAVORS, current_edition, packet_overview, packet_preview
 from .appearance import style_text
 from .chat import ChatError, write_json
 from .chat_window import BACKGROUND_JOBS
@@ -62,6 +62,25 @@ def style_journal_tree(tree):
               foreground=[("selected", colors.TEXT if is_modern(tree) else colors.ACCENT)])
     style.configure("Journal.Treeview.Heading", background=colors.TITLE, foreground=colors.TEXT)
     tree._companion_theme_refresh = lambda: style_journal_tree(tree)
+
+
+def review_notebook(tk, ttk, parent, appearance, initial_overview="", initial_payload=""):
+    """Build a two-tab Overview (default) + Full payload review widget."""
+    from .task_window import text_box, replace_text
+    book = ttk.Notebook(parent)
+    book.pack(fill="both", expand=True)
+    colors = palette(parent)
+    overview_tab = tk.Frame(book, bg=colors.PANEL)
+    payload_tab = tk.Frame(book, bg=colors.PANEL)
+    book.add(overview_tab, text="Overview")
+    book.add(payload_tab, text="Full payload")
+    overview = text_box(tk, overview_tab)
+    payload = text_box(tk, payload_tab)
+    style_text(overview, appearance)
+    style_text(payload, appearance)
+    replace_text(overview, initial_overview)
+    replace_text(payload, initial_payload)
+    return book, overview, payload
 
 
 class JournalDialog:
@@ -142,13 +161,23 @@ class BookmarkDialog(JournalDialog):
         times = self.frame(self.surface, padding=8)
         times.pack(fill="x")
         self.label(times, "Image capture time (optional ISO 8601 with time zone)").pack(anchor="w")
-        self.image_time = self.ttk.Entry(times)
-        self.image_time.pack(fill="x", pady=(0, 4))
+        time_row = self.frame(times)
+        time_row.pack(fill="x", pady=(0, 4))
+        self.image_time = self.ttk.Entry(time_row)
+        self.image_time.pack(side="left", fill="x", expand=True)
+        self.now_time_button = self.ttk.Button(time_row, text="Now (local)", style="Agent.TButton",
+                                               command=self._fill_local_now)
+        self.now_time_button.pack(side="right", padx=(6, 0))
         self.label(times, "Manual time correction in minutes (optional, from −1440 to 1440)").pack(anchor="w")
         self.correction = self.ttk.Entry(times)
         self.correction.pack(fill="x")
         self.ttk.Button(self.actions, text="Save bookmark", command=self.save).pack(side="right", padx=6)
         self.show()
+
+    def _fill_local_now(self):
+        stamp = datetime.now().astimezone().isoformat(timespec="seconds")
+        self.image_time.delete(0, "end")
+        self.image_time.insert(0, stamp)
 
     def _source_metadata(self):
         key = self.source_key
@@ -542,15 +571,26 @@ class FollowupDialog(JournalDialog):
         self.ttk.Button(controls, text="Use historical only", command=self.historical_only).grid(row=0, column=1, sticky="ew", padx=5)
         self.ttk.Button(controls, text="Preview request", command=self.prepare).grid(row=1, column=0, sticky="ew", pady=(5, 0))
         controls.columnconfigure((0, 1), weight=1)
-        self.preview = self.text(self.surface)
-        self.send_button = self.ttk.Button(self.actions, text="Send", command=self.send)
+        holder = self.frame(self.surface, padding=6)
+        holder.pack(fill="both", expand=True)
+        self.review_book, self.overview, self.preview = review_notebook(
+            self.tk, self.ttk, holder, self.view.appearance,
+            "Press Preview request to see a concise summary before sending.",
+            "Press Preview request to inspect the full verbatim payload.",
+        )
+        self.send_button = self.ttk.Button(self.actions, text="Send", style="Primary.TButton", command=self.send, state="disabled")
         self.send_button.pack(side="right", padx=5)
         self.task.trace_add("write", lambda *_: self.invalidate())
         self.prepare()
         self.show()
 
     def invalidate(self):
+        from .task_window import replace_text
         self.packet = None
+        self.send_button.configure(state="disabled")
+        msg = "Selection changed. Press Preview request before sending."
+        replace_text(self.overview, msg)
+        replace_text(self.preview, msg)
         self.notice.set("Selection changed. Preview the request again before sending.")
 
     def historical_only(self):
@@ -620,7 +660,11 @@ class FollowupDialog(JournalDialog):
             from .goals import RESEARCH_INSTRUCTIONS
             self.packet.update(window='Personal goal research', edition=self.entry['goal']['edition'], instructions=RESEARCH_INSTRUCTIONS)
             self.packet['instructions'] += ' Keep historical evidence separate from any separately read current report.'
+        model_summary = self.target.model_summary.get() if hasattr(self.target, "model_summary") else ""
+        replace_text(self.overview, packet_overview(self.packet, destination=self.target.session_title, model_summary=model_summary))
         replace_text(self.preview, packet_preview(self.packet))
+        self.review_book.select(0)
+        self.send_button.configure(state="normal")
         self.notice.set("Prepared for " + self.target.session_title + ". Send submits exactly this text bundle; refresh alone sends nothing.")
 
     def send(self):

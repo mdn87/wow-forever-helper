@@ -6,7 +6,7 @@ import json
 
 from .chat import ChatError
 from .journal import identifier
-from .journal_ui import JournalDialog, style_journal_tree
+from .journal_ui import JournalDialog, review_notebook, style_journal_tree
 from .publications import PublicationService
 
 
@@ -62,9 +62,11 @@ class ToolAccessDialog(JournalDialog):
         controls = self.frame(self.review_tab)
         controls.pack(side="bottom", fill="x", pady=4)
         self.ttk.Button(controls, text="Review saved note", command=self.review_note).pack(side="left")
-        self.publish_button = self.ttk.Button(controls, text="Publish note", command=self.publish_note, state="disabled")
+        self.publish_button = self.ttk.Button(controls, text="Publish note", style="Primary.TButton", command=self.publish_note, state="disabled")
         self.publish_button.pack(side="right")
-        self.preview = self.text(self.review_tab)
+        self.review_book, self.overview, self.preview = review_notebook(
+            self.tk, self.ttk, self.review_tab, self.view.appearance,
+        )
         self._make_access()
         setup_controls = self.frame(self.setup_tab)
         setup_controls.pack(side="bottom", fill="x", pady=4)
@@ -118,8 +120,28 @@ class ToolAccessDialog(JournalDialog):
         replace_text(self.setup_preview,
             "Show private setup only when configuring a compatible client for this conversation. "
             "It contains a secret token and local paths. Copy setup places them on the system clipboard.\n\n"
-            "Provider setup and native conversation binding remain unverified. "
-            "Do not attach this grant as a global provider configuration. No provider settings are changed here.")
+            "Attach this grant only to one compatible conversation—never as a global provider setting. "
+            "No provider configuration files are changed here.")
+
+    def _publication_overview(self, selection):
+        payload = selection.get("payload", {})
+        raw_bytes = len(json.dumps(payload, ensure_ascii=False).encode("utf-8", errors="replace"))
+        size_text = f"{raw_bytes} B" if raw_bytes < 1024 else f"{raw_bytes / 1024:.1f} KB"
+        lines = [
+            f"SAVED NOTE: {selection.get('saved_at', 'Unknown')}",
+            f"ORIGINAL CONVERSATION: {self.source['provider'].title()} · …{self.source['session_id'][-8:]}",
+            f"EDITION: {payload.get('edition', 'Unknown')}",
+            f"PAYLOAD SIZE: ~{size_text}",
+            "",
+            "NOTE SUMMARY",
+            str(payload.get("note", ""))[:400],
+            "",
+            "PRIVACY & BOUNDARY",
+            "• Publishing creates a read-only local snapshot for an active grant; nothing is pushed automatically.",
+            "• Image references are omitted from published records.",
+            "• Switch to Full payload to inspect every verbatim JSON field before publishing.",
+        ]
+        return "\n".join(lines)
 
     def review_note(self):
         from .task_window import replace_text
@@ -130,12 +152,16 @@ class ToolAccessDialog(JournalDialog):
             if selection["source"] != self.source:
                 raise ChatError("The note's source conversation changed. Close and reopen Tool access for that saved note.")
             self.review = deepcopy(selection)
+            replace_text(self.overview, self._publication_overview(selection))
             replace_text(self.preview, "EXACT PUBLICATION SELECTION\nSaved: " + selection["saved_at"] + "\n\n" +
                          json.dumps(selection["payload"], ensure_ascii=False, indent=2))
-            self.notice.set("Review this frozen selection before Publish note. Grant creation and refresh publish nothing. Runtime authorization is unverified.")
+            self.review_book.select(0)
+            self.notice.set("Review the Overview or Full payload before pressing Publish note. Creating a grant or refreshing publishes nothing.")
         except ChatError as error:
-            replace_text(self.preview, "This note cannot currently be published.\n\n" + str(error) +
-                         "\n\nExisting access for its original conversation can still be removed in Access.")
+            msg = ("This note cannot currently be published.\n\n" + str(error) +
+                   "\n\nExisting access for its original conversation can still be removed in Access.")
+            replace_text(self.overview, msg)
+            replace_text(self.preview, msg)
             self.notice.set(str(error))
         self.update_buttons()
 
@@ -174,7 +200,7 @@ class ToolAccessDialog(JournalDialog):
             self.render_records(record_id)
             self.update_buttons()
             if not quiet:
-                self.notice.set("Access refreshed locally. Provider connection and authorization remain unverified; no evidence was published.")
+                self.notice.set("Access refreshed locally; no evidence was published.")
             return True
         except ChatError as error:
             self.grants = []
@@ -217,7 +243,7 @@ class ToolAccessDialog(JournalDialog):
                       "Published: " + when(record["published_at"]), "Publication age: " + age(record["published_age_seconds"]),
                       "Snapshot age: " + age(record["snapshot_age_seconds"])]
         lines += ["", "Removing access stops future reads. Already delivered information can remain in provider history.",
-                  "Provider connection, native conversation binding, and runtime authorization remain unverified."]
+                  "Grants are enforced locally by the companion tool server; do not share private setup tokens globally."]
         replace_text(self.access_preview, "\n".join(lines))
         self.remove_record_button.configure(state="normal" if record and record["state"] == "available" else "disabled")
 
@@ -233,7 +259,7 @@ class ToolAccessDialog(JournalDialog):
         try:
             result = self.service.create(**self.source, hours=hours)
             if self.refresh_access(grant_id=result["grant_id"], quiet=True):
-                self.notice.set("Grant created. Review the note and press Publish note separately. Private setup is available; provider integration remains unverified.")
+                self.notice.set("Grant created. Review the note and press Publish note separately. Private setup is ready in its tab.")
         except ChatError as error:
             self.notice.set(str(error))
 
@@ -247,7 +273,9 @@ class ToolAccessDialog(JournalDialog):
             if self.refresh_access(grant_id=grant["grant_id"], record_id=result["record_id"], quiet=True):
                 self.notice.set("Reviewed evidence published locally. No provider request was sent; existing publication IDs keep their original age.")
         except ChatError as error:
+            from .task_window import replace_text
             self.review = None
+            replace_text(self.overview, "The saved note changed. Press Review saved note before publishing.")
             self.update_buttons()
             self.notice.set(str(error))
 
@@ -281,7 +309,7 @@ class ToolAccessDialog(JournalDialog):
             self._setup_grant_id = grant["grant_id"]
             replace_text(self.setup_preview, json.dumps(self._setup, ensure_ascii=False, indent=2))
             self.copy_setup_button.configure(state="normal")
-            self.notice.set("Private setup is visible locally. It contains a secret; attach it only to this conversation in a compatible client. Integration is unverified.")
+            self.notice.set("Private setup is visible locally. Keep its secret token private and attach it only to this conversation.")
         except ChatError as error:
             self.clear_setup()
             self.notice.set(str(error))
@@ -295,7 +323,7 @@ class ToolAccessDialog(JournalDialog):
                 raise ChatError("Private setup changed. Show it again before copying.")
             self.root.clipboard_clear()
             self.root.clipboard_append(json.dumps(self._setup, ensure_ascii=False, indent=2))
-            self.notice.set("Private setup copied to the system clipboard. Keep it local. Provider configuration remains unchanged and integration is unverified.")
+            self.notice.set("Private setup copied to the system clipboard. Keep it local; no provider files were changed.")
         except (ChatError, self.tk.TclError) as error:
             self.clear_setup()
             self.notice.set(str(error) if isinstance(error, ChatError) else "The private setup could not be copied.")

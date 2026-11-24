@@ -174,3 +174,82 @@ def packet_preview(packet):
     if "image" in packet:
         lines += ["", "IMAGE", "The previewed image will be made available to the selected agent."]
     return "\n".join(lines)
+
+
+def _format_bytes(count):
+    if count < 1024:
+        return f"{count} B"
+    return f"{count / 1024:.1f} KB"
+
+
+def packet_overview(packet, *, destination="", model_summary=""):
+    """Concise structured summary derived strictly from one frozen prepared packet."""
+    preview_bytes = len(packet_preview(packet).encode("utf-8", errors="replace"))
+    lines = []
+    if destination:
+        lines.append("DESTINATION: " + destination)
+    if model_summary:
+        lines.append("MODEL & EFFORT: " + model_summary)
+    lines.append(f"ACTIVITY: {packet.get('window', 'Request')} · {packet.get('edition', 'Unknown')}")
+    lines += ["", "TASK / QUESTION", (packet.get("task") or "").strip() or "(none)"]
+
+    included = []
+    skills = packet.get("skills") or []
+    if skills:
+        skill_bytes = sum(len(str(s.get("instructions", "")).encode("utf-8", errors="replace")) for s in skills)
+        names = ", ".join(s.get("name", "skill") for s in skills[:4])
+        if len(skills) > 4:
+            names += f" (+{len(skills) - 4} more)"
+        included.append(f"• Skills ({len(skills)}): {names} ({_format_bytes(skill_bytes)})")
+    reports = packet.get("reports") or {}
+    if reports:
+        rep_bytes = sum(len(str(r.get("text", "")).encode("utf-8", errors="replace")) for r in reports.values())
+        included.append(f"• Reports ({len(reports)}): {', '.join(reports)} ({_format_bytes(rep_bytes)})")
+    context_files = packet.get("context_files") or []
+    if context_files:
+        ctx_bytes = sum(len(str(c.get("text", "")).encode("utf-8", errors="replace")) for c in context_files)
+        names = ", ".join(c.get("name", "file") for c in context_files[:4])
+        included.append(f"• Context ({len(context_files)}): {names} ({_format_bytes(ctx_bytes)})")
+    if "journal" in packet:
+        entries = packet["journal"].get("entries", [])
+        included.append(f"• Journal: {packet['journal'].get('name', 'My journal')} ({len(entries)} notes)")
+    if "image" in packet:
+        included.append("• Image: 1 local reviewed image attached")
+    included.append(f"• Total prepared text: ~{_format_bytes(preview_bytes)}")
+    lines += ["", "INCLUDED IN THIS REQUEST", *included]
+
+    # Pull a bounded human-readable excerpt from reports or context files so the player
+    # (and hands-free "read it") can verify key details without scrolling raw boilerplate.
+    excerpts = []
+    warnings = []
+    for key, report in reports.items():
+        data = report.get("data") if isinstance(report, dict) else None
+        if isinstance(data, dict):
+            for warn in data.get("warnings") or []:
+                if isinstance(warn, str) and warn not in warnings:
+                    warnings.append(warn)
+            payload = data.get("payload")
+            if isinstance(payload, dict):
+                digest = payload.get("digest") or payload.get("attempt_notes") or ""
+                if isinstance(digest, str) and digest.strip():
+                    excerpts.append(digest.strip()[:700])
+        if not excerpts and isinstance(report, dict) and isinstance(report.get("text"), str):
+            text = report["text"].strip()
+            if text:
+                excerpts.append(text[:600])
+    if not excerpts and context_files:
+        first_ctx = str(context_files[0].get("text", "")).strip()
+        if first_ctx:
+            excerpts.append(first_ctx[:600])
+    if excerpts:
+        snippet = "\n\n".join(excerpts)[:800]
+        if len("\n\n".join(excerpts)) > 800:
+            snippet = snippet.rstrip() + "…"
+        lines += ["", "KEY CONTENT EXCERPT", snippet]
+
+    lines += ["", "PRIVACY & BOUNDARY"]
+    if warnings:
+        for warn in warnings[:4]:
+            lines.append("• " + warn)
+    lines.append("• Nothing is sent until you press Send. Switch to Full payload to inspect every verbatim byte.")
+    return "\n".join(lines)
