@@ -36,8 +36,9 @@ def quest_context(quest, report, research, edition, snapshot_at=None):
 
 
 class QuestChat(ChatWindow):
-    def __init__(self, root, service, *, activity, context, profile, **kwargs):
+    def __init__(self, root, service, *, activity, context, profile, origin_window_id=None, **kwargs):
         self.activity, self.context = activity, context
+        self.origin_window_id = origin_window_id
         self.profile = profile_settings("quests", profile)
         super().__init__(root, service, **kwargs)
         # A quest tab owns its conversation. General session attachment stays in Chat.
@@ -66,20 +67,38 @@ class QuestChat(ChatWindow):
         return str(self.context["quest"].get("title") or "Quest")[:100]
 
     def create_session(self, provider, creation_id):
+        from .capabilities import CapabilityStore, build_manifest
         profile = deepcopy(self.profile)
         # Reuse the evidence the user was viewing, including a guide already gathered.
         # Do not refresh the whole log or introduce other quests into this conversation.
         profile["steps"] = []
         if not profile["startup_context"]:
             profile.update(skills=[], skill_files=[], context_files=[])
+        approved, generation = (False, 0)
+        if self.origin_window_id:
+            try:
+                approved, generation = CapabilityStore(self.activity.storage).window_approval(self.origin_window_id)
+            except Exception:
+                approved, generation = (False, 0)
+        manifest = build_manifest(
+            kind="quests",
+            origin_window_id=self.origin_window_id,
+            web_research=profile["web_research"],
+            browser_approved=approved,
+            browser_generation=generation,
+            purpose="interactive",
+        )
         packet = self.activity.prepare("chat", profile, task=OPENING)
         packet["window"] = "Quest chat · " + self.quest_title
         packet["edition"] = self.context["edition"]
         packet["instructions"] = INSTRUCTIONS + "\n\n" + profile["instructions"]
         packet["reports"] = {"quest_context": {"data": self.context}}
-        startup = self.activity.request_message(packet, creation_id)
-        return self.service.create(provider, title=self.quest_title, startup=startup,
-                                   creation_id=creation_id), None
+        startup = self.activity.request_message(packet, creation_id, allow_browser=manifest["browser_links"])
+        kwargs = {"title": self.quest_title, "startup": startup, "creation_id": creation_id}
+        try:
+            return self.service.create(provider, manifest=manifest, **kwargs), None
+        except TypeError:
+            return self.service.create(provider, **kwargs), None
 
     def snapshot(self, remember=True):
         return {**super().snapshot(remember), "context": self.context, "profile": self.profile}

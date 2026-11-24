@@ -1,6 +1,6 @@
 # Typed agent sessions and normal-browser links: implementation plan
 
-**Status:** Proposed implementation. Prepared and revised 2026-10-17 from [the research handoff](AGENT_SESSION_CAPABILITY_HANDOFF.md), incorporating an Autowork review of the earlier plan. No feature code has been changed and no live provider/browser integration has been verified in this planning pass. The review dispositions below distinguish accepted gaps from corrected assumptions.
+**Status:** Implemented (Milestones 1–4) with synthetic automated tests on 2026-11-23. Prepared and revised 2026-10-17 from [the research handoff](AGENT_SESSION_CAPABILITY_HANDOFF.md), incorporating an Autowork review (`CR-001`–`CR-018`). Implementation lives in `wow_helper/capabilities.py`, `wow_helper/browser_links.py`, `wow_helper/agent_sessions.py`, `wow_helper/activities.py`, `wow_helper/quest_chat.py`, `wow_helper/chat.py`, `wow_helper/task_window.py`, `wow_helper/chat_window.py`, and `wow_helper/guidance.py`. Synthetic tests verify policy, manifests, revocation, CLI flag mappings, probe fallback, URL normalization, durable claim/receipt/reconciliation, and UI controls; live provider turns with real CLIs and live Windows default-browser focus/tab checks remain unverified until run against a live desktop session.
 
 ## Outcome and selected approach
 

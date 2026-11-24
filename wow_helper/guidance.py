@@ -201,14 +201,22 @@ class Guidance:
                 key, prompt = self.waiting.popleft()
                 record = read_json(self.path(key))
                 try:
-                    session = self.agents.create(record["provider"], "Companion research")
+                    from .capabilities import build_manifest
+                    manifest = build_manifest(
+                        kind="quests", origin_window_id=None, web_research=True,
+                        browser_approved=False, purpose="research",
+                    )
+                    try:
+                        session = self.agents.create(record["provider"], "Companion research", manifest=manifest)
+                    except TypeError:
+                        session = self.agents.create(record["provider"], "Companion research")
                     request = str(uuid.uuid4())
                     effort, timeout, _ = TIERS[record["tier"]]
                     record.update(status="running", session=session.id, request=request)
                     write_json(self.path(key), record)
                     from .quest_chain import CHAIN_SCHEMA
                     schema = CHAIN_SCHEMA if record.get("kind") == "chain" else SCHEMA
-                    self.agents.send(session, prompt, request, schema=schema, effort=effort, timeout=timeout)
+                    self.agents.send(session, prompt, request, schema=schema, effort=effort, timeout=timeout, purpose="research")
                     self.active = key
                 except (OSError, ChatError) as error:
                     record.update(status="failed", error=str(error) if isinstance(error, ChatError)

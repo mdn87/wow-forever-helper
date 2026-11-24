@@ -149,6 +149,9 @@ class ChatWindow:
         self.menus.conversation.add_command(label="Model & usage…", command=self.show_model_settings)
         self.menus.conversation.add_command(label="Save selected reply to Journal…", command=self.save_to_journal)
         self.menus.conversation.add_command(label="Pin selected reply to Play…", command=self.pin_to_play)
+        self.menus.conversation.add_command(label="Stop browser openings for this chat",
+                                            command=self.revoke_browser_access, state="disabled")
+        self.revoke_browser_menu_index = self.menus.conversation.index("end")
         self.session_picker = ttk.Combobox(selector, state="readonly", width=1, font=("Segoe UI", 9))
         self.session_picker.set("Use an existing chat…")
         self.session_picker.pack(side="left", fill="x", expand=True)
@@ -176,6 +179,39 @@ class ChatWindow:
         summary.bind('<Configure>', lambda e: summary.configure(wraplength=max(80, e.width - 6)))
         self.saved_button = ttk.Button(conversation, text='View saved draft', command=self.show_saved_draft)
         self.draft_anchor = route
+        self._effective_caps = {}
+        self._browser_receipts = {}
+        self._active_receipt = None
+        self.browser_bar = tk.Frame(conversation, bg=palette(self.root).PANEL, padx=4, pady=3,
+                                    highlightthickness=1, highlightbackground=palette(self.root).EDGE)
+        bar_top = tk.Frame(self.browser_bar, bg=palette(self.root).PANEL)
+        bar_top.pack(fill="x")
+        self.browser_status = tk.StringVar(master=root, value="")
+        self.browser_dest_label = tk.Label(bar_top, textvariable=self.browser_status, anchor="w", justify="left",
+                                           bg=palette(self.root).PANEL, fg=palette(self.root).ACCENT,
+                                           font=("Segoe UI", 9, "bold"), wraplength=340)
+        self.browser_dest_label.pack(side="left", fill="x", expand=True)
+        self.stop_browser_button = ttk.Button(bar_top, text="Stop browser openings", style="Agent.TButton",
+                                              command=self.revoke_browser_access)
+        self.browser_detail = tk.StringVar(master=root, value="")
+        self.browser_detail_label = tk.Label(self.browser_bar, textvariable=self.browser_detail, anchor="w",
+                                             justify="left", bg=palette(self.root).PANEL, fg=palette(self.root).MUTED,
+                                             font=("Segoe UI", 8), wraplength=380)
+        self.browser_detail_label.pack(fill="x")
+        self._receipt_row = tk.Frame(self.browser_bar, bg=palette(self.root).PANEL)
+        self.receipt_url_var = tk.StringVar(master=root, value="")
+        self.receipt_url_entry = ttk.Entry(self._receipt_row, textvariable=self.receipt_url_var, state="readonly")
+        self.receipt_url_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.copy_receipt_url_button = ttk.Button(self._receipt_row, text="Copy URL", style="Agent.TButton",
+                                                  command=self.copy_receipt_url)
+        self.copy_receipt_url_button.pack(side="right", padx=(3, 0))
+        self.open_receipt_button = ttk.Button(self._receipt_row, text="Open link", style="Agent.TButton",
+                                              command=self.open_receipt_link)
+        self.open_receipt_button.pack(side="right")
+        self.browser_bar.bind("<Configure>", lambda e: (
+            self.browser_dest_label.configure(wraplength=max(160, e.width - 130)),
+            self.browser_detail_label.configure(wraplength=max(160, e.width - 16)),
+        ), add="+")
         self._find_bar = tk.Frame(conversation, bg=palette(self.root).PANEL)
         self.find_query = tk.StringVar(master=root)
         self.find_entry = ttk.Entry(self._find_bar, textvariable=self.find_query)
@@ -253,6 +289,7 @@ class ChatWindow:
         self.status_label.pack(fill="x")
         root.bind("<Configure>", self._resize, add="+")
         self._show(self.history_cache.get(self.desired_key, []))
+        self._render_browser_bar()
         if self.desired_key:
             self.title.set(self.session_title or "Saved session")
             self.subtitle.set("Saved history · checking whether this session is available")
@@ -488,6 +525,7 @@ class ChatWindow:
         self.subtitle.set("Saved history · refreshing conversation" if self.history_cache.get(session.key)
                           else self._description(session))
         self._show(self.history_cache.get(session.key, []))
+        self.refresh_capabilities()
         self._update_controls()
         self.status.set("Loading conversation…")
         self.on_change()
@@ -550,6 +588,117 @@ class ChatWindow:
         provider = "Codex" if session.provider == "codex" else "Claude Code"
         return f"{provider} · {session.project} · {session.status} · {session.id[:8]}"
 
+    def refresh_capabilities(self):
+        session = self.selected
+        if session is not None and session.managed and hasattr(self.service, "effective_capabilities"):
+            try:
+                self._effective_caps[session.key] = self.service.effective_capabilities(session)
+            except ChatError:
+                self._effective_caps[session.key] = None
+            if hasattr(self.service, "browser_receipts"):
+                try:
+                    self._browser_receipts[session.key] = self.service.browser_receipts(session)
+                except ChatError:
+                    pass
+        self._render_browser_bar()
+
+    def revoke_browser_access(self):
+        session = self.selected
+        if not session or not session.managed or not hasattr(self.service, "revoke_browser"):
+            return
+        try:
+            self.service.revoke_browser(session)
+        except ChatError as error:
+            self.status.set(str(error))
+            return
+        self.refresh_capabilities()
+        self.status.set("Automatic browser openings stopped for this chat. Start a new chat to re-enable.")
+
+    def copy_receipt_url(self):
+        url = self.receipt_url_var.get().strip()
+        if url:
+            self._copy_snippet(url)
+
+    def open_receipt_link(self):
+        receipt = self._active_receipt
+        if not receipt or not receipt.get("url"):
+            return
+        url = receipt["url"]
+        title = receipt.get("title", "")
+        if hasattr(self.service, "manual_open_link"):
+            try:
+                res = self.service.manual_open_link(self.selected, url, title)
+                self.status.set(res.get("message", "Sent link to browser."))
+            except ChatError as error:
+                self.status.set(str(error))
+            return
+        self._open_transcript_link(url)
+
+    def _render_browser_bar(self):
+        from .browser_links import ACTION_BUTTON_LABEL, sanitize_title
+        session = self.selected
+        key = session.key if session else None
+        caps = self._effective_caps.get(key) if key else None
+        receipts = self._browser_receipts.get(key) or {} if key else {}
+        latest = None
+        if receipts:
+            latest = max(receipts.values(), key=lambda r: r.get("at", 0))
+        self._active_receipt = latest
+
+        can_revoke = bool(session and session.managed and caps and caps.get("browser_enabled"))
+        if hasattr(self, "revoke_browser_menu_index"):
+            self.menus.conversation.entryconfigure(
+                self.revoke_browser_menu_index,
+                state="normal" if can_revoke else "disabled",
+            )
+        if can_revoke:
+            if not self.stop_browser_button.winfo_manager():
+                self.stop_browser_button.pack(side="right", padx=(6, 0))
+        elif self.stop_browser_button.winfo_manager():
+            self.stop_browser_button.pack_forget()
+
+        show_bar = False
+        if latest:
+            show_bar = True
+            dest = latest.get("destination") or latest.get("url") or "Validated web link"
+            title = sanitize_title(latest.get("title", ""))
+            outcome = latest.get("outcome", "unknown")
+            msg = latest.get("message", "")
+            self.browser_status.set(dest)
+            detail_parts = []
+            if title:
+                detail_parts.append("Title: " + title)
+            if msg:
+                detail_parts.append(msg)
+            self.browser_detail.set(" · ".join(detail_parts))
+            self.receipt_url_var.set(latest.get("url", ""))
+            self.open_receipt_button.configure(text=ACTION_BUTTON_LABEL.get(outcome, "Open link"))
+            if latest.get("url"):
+                if not self._receipt_row.winfo_manager():
+                    self._receipt_row.pack(fill="x", pady=(3, 0))
+            elif self._receipt_row.winfo_manager():
+                self._receipt_row.pack_forget()
+        elif caps and caps.get("typed"):
+            if caps.get("browser_enabled"):
+                show_bar = True
+                self.browser_status.set("Automatic browser opening enabled for this chat")
+                self.browser_detail.set("Validated http/https links may open when a reply finishes.")
+            elif "unavailable" in (caps.get("browser_reason") or "").lower() or "stopped" in (caps.get("browser_reason") or "").lower():
+                show_bar = True
+                self.browser_status.set("Manual links only — automatic opening unavailable")
+                self.browser_detail.set(caps.get("browser_reason", ""))
+            if self._receipt_row.winfo_manager():
+                self._receipt_row.pack_forget()
+        else:
+            if self._receipt_row.winfo_manager():
+                self._receipt_row.pack_forget()
+
+        if show_bar:
+            if not self.browser_bar.winfo_manager():
+                self.browser_bar.pack(before=self._transcript_frame, fill="x", pady=(0, 3))
+        elif self.browser_bar.winfo_manager():
+            self.browser_bar.pack_forget()
+
     def _history(self, *, pending=False):
         session = self.selected
         if pending:
@@ -567,7 +716,9 @@ class ChatWindow:
             def read():
                 statuses = {request: self.service.response_status(session, request)
                             for request in requests} if hasattr(self.service, "response_status") else {}
-                return self.service.history(session), statuses
+                receipts = self.service.browser_receipts(session) if hasattr(self.service, "browser_receipts") else {}
+                caps = self.service.effective_capabilities(session) if hasattr(self.service, "effective_capabilities") else None
+                return self.service.history(session), statuses, receipts, caps
             self._submit("history", read, session.key)
 
     def _record_activity(self, key, wait, outcome):
@@ -1249,10 +1400,16 @@ class ChatWindow:
                 else:
                     self.session_picker.set("Use an existing chat…")
             elif kind == "history":
-                messages, statuses = result
+                if len(result) == 4:
+                    messages, statuses, receipts, caps = result
+                    self._browser_receipts[context] = receipts
+                    self._effective_caps[context] = caps
+                else:
+                    messages, statuses = result
                 self._observe_responses(context, messages, statuses)
                 if self.selected and context == self.selected.key:
                     self._show(messages)
+                    self._render_browser_bar()
                     self.subtitle.set(self._description(self.selected))
                     if self.status.get() == "Loading conversation…":
                         self.status.set("Enter sends · Shift+Enter adds a line · Approvals stay in the terminal.")

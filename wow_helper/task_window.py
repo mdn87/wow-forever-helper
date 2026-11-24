@@ -44,6 +44,7 @@ class TaskWindow(ChatWindow):
         state = state if isinstance(state, dict) else {}
         self.kind = kind
         self.touch = bool(touch)
+        self.window_id = str(uuid.UUID(window_id)) if self._valid_id(window_id) else str(uuid.uuid4())
         self.resume_conversation = resume_conversation
         self._resume_dialog = None
         self.activity = activity or ActivityService()
@@ -355,7 +356,8 @@ class TaskWindow(ChatWindow):
         state = state or {"provider": self.selected.provider if self.selected else self.default_provider,
                           "appearance": self.appearance}
         view = QuestChat(surface, self.service_factory(), activity=self.activity, context=context,
-                         profile=state.get("profile", self.profile), state=state, embedded=True,
+                         profile=state.get("profile", self.profile), origin_window_id=self.window_id,
+                         state=state, embedded=True,
                          on_change=self.on_change, toolbar=self.shared_toolbar, pin_advice=self.pin_advice)
         self.quest_chats[tab_id] = view
         if self.shared_toolbar is not None:
@@ -432,18 +434,36 @@ class TaskWindow(ChatWindow):
             super().refresh()
 
     def create_session(self, provider, creation_id):
+        from .capabilities import CapabilityStore, build_manifest
         profile = profile_settings(self.kind, self.profile)
-        kind = self.kind
+        prep_kind = self.kind
         if not profile["startup_context"]:
             profile.update(steps=[], skills=[], skill_files=[], context_files=[])
-            kind = "chat"
-        elif kind == "screen" and not self.image_name:
-            kind = "chat"
+            prep_kind = "chat"
+        elif prep_kind == "screen" and not self.image_name:
+            prep_kind = "chat"
+        approved, generation = (False, 0)
+        try:
+            approved, generation = CapabilityStore(self.activity.storage).window_approval(self.window_id)
+        except ChatError:
+            approved, generation = (False, 0)
+        manifest = build_manifest(
+            kind=self.kind,
+            origin_window_id=self.window_id,
+            web_research=profile["web_research"],
+            browser_approved=approved,
+            browser_generation=generation,
+            purpose="interactive",
+        )
         task = None if profile["startup_opening"] else "Use this context to answer the user's message."
-        packet = self.activity.prepare(kind, profile, journal_id=self.journal_id, image=self.image_name, task=task)
-        startup = self.activity.request_message(packet, creation_id)
+        packet = self.activity.prepare(prep_kind, profile, journal_id=self.journal_id, image=self.image_name, task=task)
+        startup = self.activity.request_message(packet, creation_id, allow_browser=manifest["browser_links"])
         startup = "Startup context for the user's first request; do not run a separate turn:\n" + startup
-        return self.service.create(provider, title=TYPES[self.kind][0], startup=startup, creation_id=creation_id), packet
+        kwargs = {"title": TYPES[self.kind][0], "startup": startup, "creation_id": creation_id}
+        try:
+            return self.service.create(provider, manifest=manifest, **kwargs), packet
+        except TypeError:
+            return self.service.create(provider, **kwargs), packet
 
     def session_started(self, preparation):
         if preparation and self.kind in preparation.get("reports", {}):
@@ -960,18 +980,21 @@ class TaskWindow(ChatWindow):
 
     def save_preset(self):
         from tkinter import simpledialog
+        from .capabilities import strip_local_approvals
         name = simpledialog.askstring("Save window preset", "Preset name:", parent=self.root)
         if name and name.strip():
             try:
                 label = re.sub(r'[^\w .-]', '_', name).strip('. ')[:60] or "Preset"
                 path = self.activity.storage / "presets" / (label + "-" + uuid.uuid4().hex[:8] + ".json")
-                write_json(path, {"version": 1, "name": name.strip()[:80], "kind": self.kind, "profile": self.profile})
+                write_json(path, {"version": 1, "name": name.strip()[:80], "kind": self.kind,
+                                  "profile": strip_local_approvals(self.profile)})
                 self.status.set("Window preset saved locally. Load it from another window's cog menu.")
             except OSError:
                 self.status.set("The preset could not be saved. Your window settings remain available.")
 
     def load_preset(self):
         from tkinter import filedialog
+        from .capabilities import strip_local_approvals
         path = filedialog.askopenfilename(parent=self.root, initialdir=self.activity.storage / "presets",
                                           title="Load window preset", filetypes=[("Window presets", "*.json")])
         if path:
@@ -981,7 +1004,7 @@ class TaskWindow(ChatWindow):
                 data = read_json(Path(path))
                 if data.get("version") != 1 or data.get("kind") != self.kind:
                     raise ChatError("Choose a preset for this window type.")
-                self.profile = profile_settings(self.kind, data.get("profile"))
+                self.profile = profile_settings(self.kind, strip_local_approvals(data.get("profile")))
                 self.sync_profile_controls()
                 if self._setup_dialog is not None:
                     self._setup_dialog.close()
@@ -1105,9 +1128,34 @@ class SetupDialog:
         book = ttk.Notebook(surface)
         self.book = book
         book.pack(fill="both", expand=True, padx=10)
-        startup, prompts, prep, skills = [tk.Frame(book, bg=palette(self.root).PANEL, padx=10, pady=10) for _ in range(4)]
-        for pane, name in ((startup, "Startup"), (prompts, "Prompts"), (prep, "Preparation"), (skills, "Skills")):
+        startup, prompts, prep, skills, caps = [tk.Frame(book, bg=palette(self.root).PANEL, padx=10, pady=10) for _ in range(5)]
+        for pane, name in ((startup, "Startup"), (prompts, "Prompts"), (prep, "Preparation"), (skills, "Skills"), (caps, "Capabilities")):
             book.add(pane, text=name)
+        from .capabilities import (
+            BROWSER_APPROVAL_HELP, RESEARCH_SCOPE_HELP, CapabilityStore, platform_supports_browser,
+        )
+        self.web_research = tk.BooleanVar(master=self.root, value=bool(view.profile.get("web_research", True)))
+        ttk.Checkbutton(caps, text="Built-in web research tools", variable=self.web_research).pack(anchor="w", pady=(2, 2))
+        tk.Label(caps, text=RESEARCH_SCOPE_HELP, bg=palette(self.root).PANEL, fg=palette(self.root).MUTED,
+                 justify="left", wraplength=420, anchor="w").pack(fill="x", pady=(0, 10))
+        try:
+            current_browser, _ = CapabilityStore(view.activity.storage).window_approval(view.window_id)
+            self._cap_error = ""
+        except ChatError as error:
+            current_browser, self._cap_error = False, str(error)
+        self.browser_links = tk.BooleanVar(master=self.root, value=current_browser)
+        self.browser_check = ttk.Checkbutton(
+            caps, text="Allow agent chats from this window to open web links",
+            variable=self.browser_links,
+            state="normal" if (platform_supports_browser() and not self._cap_error) else "disabled",
+        )
+        self.browser_check.pack(anchor="w", pady=(2, 2))
+        browser_note = self._cap_error or (
+            BROWSER_APPROVAL_HELP if platform_supports_browser()
+            else "Manual links only — automatic browser opening is disabled on this platform."
+        )
+        tk.Label(caps, text=browser_note, bg=palette(self.root).PANEL, fg=palette(self.root).MUTED,
+                 justify="left", wraplength=420, anchor="w").pack(fill="x", pady=(0, 8))
         self.startup = {}
         for key, label in (("refresh_on_open", "Refresh reports when creating a window"),
                            ("startup_context", "Load preparation, skills and context for new chats"),
@@ -1190,16 +1238,29 @@ class SetupDialog:
             self.file_lists[key].delete(selection[0])
 
     def save(self):
+        from .capabilities import CapabilityStore, platform_supports_browser
         raw = {**self.view.profile, "flavor": FLAVORS[self.flavor.get()], "steps": [k for k, v in self.steps.items() if v.get()],
                "skills": [k for k, v in self.skills.items() if v.get()], **self.files,
+               "web_research": self.web_research.get(),
                **{k: v.get() for k, v in self.startup.items()},
                **{k: field.get("1.0", "end-1c") for k, field in self.fields.items()}}
         if any(len(raw[k]) > 8000 for k in self.fields):
             from tkinter import messagebox
             messagebox.showerror("Setup too long", "Keep each prompt under 8,000 characters.", parent=self.root)
             return
+        if platform_supports_browser() and not self._cap_error:
+            try:
+                CapabilityStore(self.view.activity.storage).set_window_browser_approval(
+                    self.view.window_id, self.browser_links.get(),
+                )
+            except ChatError as error:
+                from tkinter import messagebox
+                messagebox.showerror("Could not save capabilities", str(error), parent=self.root)
+                return
         self.view.profile = profile_settings(self.view.kind, raw)
         self.view.sync_profile_controls()
+        if hasattr(self.view, "refresh_capabilities"):
+            self.view.refresh_capabilities()
         self.view.status.set("Setup saved for the next new chat or prepared request.")
         self.close()
 

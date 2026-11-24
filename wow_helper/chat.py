@@ -211,7 +211,7 @@ class ChatService:
         self.usage_scope = UsageScope.shared(self.state)
         self._usage = {}
         from .agent_sessions import AgentSessions
-        self.agents = AgentSessions(self.state / "agents")
+        self.agents = AgentSessions(self.state / "agents", capability_storage=self.state)
 
     def close(self):
         self.codex.close()
@@ -235,8 +235,30 @@ class ChatService:
         found.extend(owned)
         return found, notices
 
-    def create(self, provider, *, title="Companion chat", startup="", creation_id=None):
-        return self.agents.create(provider, title, startup=startup, creation_id=creation_id)
+    def create(self, provider, *, title="Companion chat", startup="", creation_id=None, manifest=None):
+        return self.agents.create(provider, title, startup=startup, creation_id=creation_id, manifest=manifest)
+
+    def effective_capabilities(self, session):
+        if not session or not session.managed:
+            return None
+        return self.agents.effective_capabilities(session.id)
+
+    def browser_receipts(self, session):
+        if not session or not session.managed:
+            return {}
+        return self.agents.browser_receipts(session)
+
+    def revoke_browser(self, session):
+        if not session or not session.managed:
+            return
+        from .capabilities import CapabilityStore
+        CapabilityStore(self.state).revoke_session(session.id)
+
+    def manual_open_link(self, session, url, title="", *, action_id=None):
+        from .browser_links import manual_open_link
+        folder = self.agents.folder(session.id) if (session and session.managed) else (self.state / "manual-links")
+        sid = session.id if session else str(uuid.UUID(int=0))
+        return manual_open_link(folder, sid, url, title, action_id=action_id)
 
     def history(self, session):
         if session.managed:
