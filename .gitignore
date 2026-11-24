@@ -60,6 +60,8 @@ SavedVariables/
 .codex/
 .Codex/handoff.md
 .Codex/handoff-history/
+.gemini/handoff.md
+.gemini/handoff-history/
 .lugos-wip/
 
 # Autowork request staging and scratch worktrees
