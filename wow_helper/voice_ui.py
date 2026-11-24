@@ -12,27 +12,37 @@ class VoiceDialog(JournalDialog):
         self.dictation = self.key = None
         self.target = None
         self.after = None
-        super().__init__(window.view, 'Voice input · Keypad -')
+        super().__init__(window.view, 'Voice input · Keypad -', size=(430, 310), minimum=(360, 230))
         self.notice.set('Enable voice for this window, then hold Keypad - to record for this chat. '
                         'Speak when Recording appears; release to transcribe into the draft.')
-        info = self.label(self.surface, 'Local Whisper · English · default microphone\n'
-                          '30 seconds maximum · no audio saved · no spoken replies\n'
-                          'Mic connection stays open while voice is enabled.\n'
-                          'Only held speech is kept. Other apps are unaffected.')
-        info.configure(wraplength=390, justify='left'); info.pack(fill='x', padx=8, pady=8)
-        self.enable_button = self.ttk.Button(self.surface, text='Enable for this chat window', command=self.enable)
+        info = self.label(self.surface, 'Local Whisper · English · default mic · 30s max · no audio saved · other apps unaffected.')
+        info.configure(wraplength=390, justify='left'); info.pack(fill='x', padx=8, pady=(2, 6))
+        self.enable_button = self.ttk.Button(self.surface, text='Enable for this chat window', style='Primary.TButton', command=self.enable)
         self.enable_button.pack(fill='x', padx=8)
         self.hold = self.ttk.Button(self.surface, text='Or hold here to talk', state='disabled')
-        self.hold.pack(fill='x', padx=8, pady=6)
+        self.hold.pack(fill='x', padx=8, pady=5)
         self.hold.bind('<ButtonPress-1>', lambda _: self.start())
         self.hold.bind('<ButtonRelease-1>', lambda _: self.stop())
         self.hold.bind('<KeyPress-space>', lambda _: self.start())
         self.hold.bind('<KeyRelease-space>', lambda _: self.stop())
         self.ttk.Button(self.surface, text='Disable / cancel recording', command=self.disable).pack(fill='x', padx=8)
-        self.label(self.surface, 'Last transcript — select and copy if the destination changed').pack(anchor='w', padx=8, pady=(8, 0))
-        self.transcript = self.text(self.surface)
+        self._transcript_shown = False
+        self.transcript_toggle = self.ttk.Button(self.actions, text='Show transcript', command=self.toggle_transcript)
+        self.transcript_toggle.pack(side='left')
+        self._transcript_box = self.frame(self.surface, padding=6)
+        self.label(self._transcript_box, 'Last transcript — select and copy if the destination changed').pack(anchor='w')
+        self.transcript = self.text(self._transcript_box)
         self.after = self.root.after(30, self.poll)
         self.show()
+
+    def toggle_transcript(self):
+        self._transcript_shown = not self._transcript_shown
+        if self._transcript_shown:
+            self._transcript_box.pack(fill='both', expand=True, padx=4, pady=(4, 0))
+            self.transcript_toggle.configure(text='Hide transcript')
+        else:
+            self._transcript_box.pack_forget()
+            self.transcript_toggle.configure(text='Show transcript')
 
     def enable(self):
         if self.dictation:
@@ -42,6 +52,7 @@ class VoiceDialog(JournalDialog):
         self.enable_button.configure(state='disabled')
         self.hold.configure(state='normal')
         self.set_status('Connecting to microphone… other apps keep their own microphone settings.')
+        self.manager.refresh_mode_badges()
 
     def start(self):
         if not self.dictation or self.dictation.busy:
@@ -115,12 +126,14 @@ class VoiceDialog(JournalDialog):
         self.enable_button.configure(state='normal')
         self.hold.configure(state='disabled')
         self.set_status('Voice disabled; companion released its mic connection. Other apps are unaffected. Draft and transcript kept.')
+        self.manager.refresh_mode_badges()
 
     def close(self):
         if self.after:
             self.root.after_cancel(self.after)
         self.disable()
         self.manager._voice_dialog = None
+        self.manager.refresh_mode_badges()
         self.root.destroy()
 
 
@@ -152,10 +165,32 @@ class HandsFreeDialog(JournalDialog):
         self.ttk.Checkbutton(self.surface, text='Connect this window automatically when the companion starts',
                              variable=self.auto, command=lambda: self.controller.set_auto(self.auto.get())
                              ).pack(anchor='w', padx=8)
-        self.label(self.surface, 'Recent turns').pack(anchor='w', padx=8, pady=(8, 0))
-        self.transcript = self.text(self.surface)
-        self.label(self.surface, 'What you can say').pack(anchor='w', padx=8, pady=(8, 0))
-        self.help = self.text(self.surface, HELP)
+        self.commands_only = self.tk.BooleanVar(master=self.root, value=getattr(self.controller, 'commands_only', False))
+        self.ttk.Checkbutton(self.surface, text='Commands only (require "ask the agent …" or "tell the agent …" to chat)',
+                             variable=self.commands_only,
+                             command=lambda: self.controller.set_commands_only(self.commands_only.get())
+                             ).pack(anchor='w', padx=8, pady=(2, 4))
+        book = self.ttk.Notebook(self.surface)
+        book.pack(fill='both', expand=True, padx=8, pady=(4, 0))
+        turns_tab = self.frame(book, padding=4)
+        help_tab = self.frame(book, padding=4)
+        book.add(turns_tab, text='Recent turns')
+        book.add(help_tab, text='What you can say')
+        self.transcript = self.text(turns_tab)
+        grouped = (
+            'MENUS & WINDOWS\n'
+            '  "Open Journal" · "Open Command library" · "Turn on keep above other windows"\n\n'
+            'DIALOGS\n'
+            '  "Press <button>" · "Check/uncheck <box>" · "Show <tab>" · "Type <text>" · "Read it" · "Send" · "Close"\n\n'
+            'CHAT\n'
+            '  "Switch to <session>" · "New Codex/Claude chat" · "Read the reply" · or speak directly\n\n'
+            'GEAR & BROWSER\n'
+            '  "Compare" (when armed) · "Open browser" · "Look up <name>" · "Read the page" · "Go back"\n\n'
+            'DISCONNECT\n'
+            '  "Stop hands free"\n\n'
+            + HELP
+        )
+        self.help = self.text(help_tab, grouped)
         self.controller.listeners.append(self.refresh)
         self.refresh()
         self.show()

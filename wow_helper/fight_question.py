@@ -64,13 +64,21 @@ class FightQuestion(DiscussionNotebook):
         self.read_button = self.ttk.Button(bar, text="Read combat log", command=self.read_log)
         self.read_button.pack(side="left")
         self.ttk.Button(bar, text="Remove digest", command=self.remove_digest).pack(side="left", padx=4)
-        self.log_status = self.label(self.inputs, "Turn on combat logging in game with /combatlog before the pull. "
-                                     "Reading starts only when you press Read combat log.")
+        self.switch_coach_button = self.ttk.Button(bar, text="Manual notes & screenshot…",
+                                                   command=self.open_manual_coaching)
+        self.switch_coach_button.pack(side="right")
+        self.log_status = self.label(self.inputs, "Uses the local /combatlog digest for a quick fight question. "
+                                     "Reading starts only when you press Read combat log. "
+                                     "For manual attempt comparisons or screenshots, use Manual notes & screenshot.")
         self.log_status.configure(wraplength=390, justify="left")
         self.log_status.pack(anchor="w", pady=(4, 0))
         self.editor("digest", "Digest", "What will be sent from the combat log. Edit or remove anything before "
                     "preparing the review.")
         self._results = queue.Queue()
+
+    def open_manual_coaching(self):
+        self.changed()
+        self.view.show_combat_coaching()
 
     def changed(self):
         super().changed()

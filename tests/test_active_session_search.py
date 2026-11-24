@@ -52,8 +52,11 @@ def test_disappearing_active_session_is_never_replaced_by_the_next_row(manager_f
     assert 'closed' in panel.notice.get().lower() and not view.service.sent
 
 
-@pytest.mark.parametrize('question', ['farclip', 'a question missing from the local library'])
-def test_enter_opens_web_review_and_answer_returns_to_the_search(manager_factory, tmp_path, question):
+@pytest.mark.parametrize('question,key', [
+    ('farclip', '<Control-Return>'),
+    ('a question missing from the local library', '<Return>'),
+])
+def test_enter_opens_web_review_and_answer_returns_to_the_search(manager_factory, tmp_path, question, key):
     manager = manager_factory()
     view = manager.windows[0].view
     view.service.state = tmp_path
@@ -65,7 +68,7 @@ def test_enter_opens_web_review_and_answer_returns_to_the_search(manager_factory
     library.query.set(question)
     library.entry.focus_force()
     manager.root.update()
-    library.entry.event_generate('<Return>')
+    library.entry.event_generate(key)
     manager.root.update()
     dialog = library.research_dialog
     assert dialog and question in dialog.preview.get('1.0', 'end')

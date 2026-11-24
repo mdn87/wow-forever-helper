@@ -5,7 +5,7 @@ from datetime import datetime
 from .chat import ChatError
 from .theme import palette
 from .usage_study import UsageStudy
-from .window_frame import WindowFrame
+from .window_frame import setup_dialog
 
 
 class UsageDialog:
@@ -16,10 +16,8 @@ class UsageDialog:
         self.study = UsageStudy(manager.activity_factory().storage)
         tk = manager.tk
         self.root = tk.Toplevel(self.parent)
-        self.root.geometry("600x500")
-        self.root.transient(self.parent)
-        self.root.attributes("-topmost", self.parent.attributes("-topmost"))
-        self.chrome = WindowFrame(self.root, title="Usage study", close=self.close, minimum=(480, 420))
+        self.chrome = setup_dialog(self.root, self.parent, title="Usage study", close=self.close,
+                                   minimum=(480, 420), size=(600, 500))
         surface, colors = self.chrome.content, palette(self.parent)
         tk.Label(surface, text="Local feature and action counts only. No messages, screenshots, account details, or game content. Recording stops automatically at the end of the period.",
                  wraplength=440, justify="left", bg=colors.PANEL, fg=colors.TEXT).pack(fill="x", padx=12, pady=10)

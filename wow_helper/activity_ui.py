@@ -6,7 +6,7 @@ import json
 from .activity_history import LABELS
 from .chat import ChatError
 from .theme import palette
-from .window_frame import WindowFrame
+from .window_frame import setup_dialog
 
 
 def research_record(manager, source):
@@ -54,10 +54,8 @@ class ActivityDialog:
         tk = manager.tk
         self.root = tk.Toplevel(self.parent)
         self.root.withdraw()
-        self.root.geometry("660x590")
-        self.root.transient(self.parent)
-        self.root.attributes("-topmost", self.parent.attributes("-topmost"))
-        self.chrome = WindowFrame(self.root, title="Activity history", close=self.close, minimum=(480, 480))
+        self.chrome = setup_dialog(self.root, self.parent, title="Activity history", close=self.close,
+                                   minimum=(480, 480), size=(660, 590))
         surface, colors = self.chrome.content, palette(self.parent)
         self.notice = tk.StringVar(master=self.root, value="Opening an item never sends a request. Latest 500 outcomes are retained.")
         tk.Label(surface, textvariable=self.notice, bg=colors.PANEL, fg=colors.TEXT,
@@ -218,11 +216,8 @@ class ActivityReview:
         self.retry = retry
         tk = parent.manager.tk
         self.root = tk.Toplevel(parent.root)
-        self.root.geometry("640x520")
-        self.root.transient(parent.root)
-        self.root.attributes("-topmost", parent.root.attributes("-topmost"))
-        self.chrome = WindowFrame(self.root, title="Review retry" if retry else "Research report",
-                                  close=self.close, minimum=(480, 420))
+        self.chrome = setup_dialog(self.root, parent.root, title="Review retry" if retry else "Research report",
+                                   close=self.close, minimum=(480, 420), size=(640, 520))
         surface, colors = self.chrome.content, palette(parent.root)
         self.notice = tk.StringVar(master=self.root, value="Review the source first. Only Send retry creates a new request. Your conversation draft is kept." if retry else "Saved research; no new request was made.")
         tk.Label(surface, textvariable=self.notice, bg=colors.PANEL, fg=colors.TEXT,

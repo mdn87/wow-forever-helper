@@ -6,8 +6,7 @@ from urllib.parse import quote_plus
 from .command_library import CATEGORIES, describe, find_commands
 from .task_window import replace_text, text_box
 from .theme import palette
-from .window_frame import WindowFrame
-from .window_state import display_workareas, window_bounds
+from .window_frame import setup_dialog
 
 
 class CommandLibraryDialog:
@@ -19,15 +18,8 @@ class CommandLibraryDialog:
         tk = manager.tk
         self.root = tk.Toplevel(manager.root)
         self.root.withdraw()
-        self.root.title("Command library")
-        self.root.transient(self.parent)
-        self.root.attributes("-topmost", self.parent.attributes("-topmost"))
-        self.root.protocol("WM_DELETE_WINDOW", self.close)
-        self.root.bind("<Escape>", lambda _: self.close())
-        self.chrome = WindowFrame(self.root, title="Command library", close=self.close, minimum=(520, 620))
-        bounds = window_bounds({"x": self.parent.winfo_x() + 24, "y": self.parent.winfo_y() + 24,
-                                "width": 760, "height": 780}, display_workareas(self.root), (520, 620))
-        self.chrome.place(f"{bounds['width']}x{bounds['height']}+{bounds['x']}+{bounds['y']}")
+        self.chrome = setup_dialog(self.root, self.parent, title="Command library", close=self.close,
+                                   minimum=(520, 620), size=(760, 780))
         colors = palette(self.root)
         body = tk.Frame(self.chrome.content, bg=colors.PANEL, padx=12, pady=10)
         body.pack(fill="both", expand=True)
@@ -46,8 +38,13 @@ class CommandLibraryDialog:
         self.entry.pack(side='left', fill='x', expand=True)
         self.research_button = ttk.Button(search, text='Search online…', command=self.research)
         self.research_button.pack(side='right', padx=(6, 0))
-        self.entry.bind('<Return>', self.research)
-        self.entry.bind('<KP_Enter>', self.research)
+        self.entry.bind('<Return>', self.activate)
+        self.entry.bind('<KP_Enter>', self.activate)
+        self.entry.bind('<Control-Return>', self.research)
+        self.entry.bind('<Control-KP_Enter>', self.research)
+        self.root.bind('<Control-Return>', self.research)
+        self.entry.bind('<Down>', lambda _: self.move(1))
+        self.entry.bind('<Up>', lambda _: self.move(-1))
         self.category = tk.StringVar(master=self.root, value=CATEGORIES[0])
         self.category_choice = ttk.Combobox(body, textvariable=self.category,
                                            values=CATEGORIES, state="readonly")
@@ -65,6 +62,8 @@ class CommandLibraryDialog:
         scroll.pack(side="right", fill="y")
         self.results.pack(fill="both", expand=True)
         self.results.bind("<<TreeviewSelect>>", self.selected)
+        self.results.bind("<Double-1>", lambda _: self.copy("command"))
+        self.results.bind("<Return>", lambda _: self.copy("command"))
 
         footer = tk.Frame(body, bg=colors.PANEL)
         footer.pack(side="bottom", fill="x", pady=(8, 0))
@@ -95,6 +94,24 @@ class CommandLibraryDialog:
         self.refresh()
         self.root.deiconify()
         self.chrome.apply_native()
+        self.entry.focus_set()
+
+    def move(self, direction):
+        if self.matches:
+            current = self.current()
+            index = next((i for i, e in enumerate(self.matches) if current and e.key == current.key), 0)
+            target = self.matches[min(len(self.matches) - 1, max(0, index + direction))].key
+            self.results.selection_set(target)
+            self.results.focus(target)
+            self.results.see(target)
+            self.selected()
+        return "break"
+
+    def activate(self, _event=None):
+        if self.matches and self.current() is not None:
+            self.copy("command", suffix=" (Ctrl+Enter searches online.)")
+            return "break"
+        return self.research(_event)
 
     def current(self):
         selection = self.results.selection()
@@ -110,8 +127,11 @@ class CommandLibraryDialog:
             key = current if any(entry.key == current for entry in self.matches) else self.matches[0].key
             self.results.selection_set(key)
             self.results.see(key)
-        self.notice.set(f"{len(self.matches)} library matches · Enter reviews an online search with your agent." if self.query.get().strip()
-                        else f"{len(self.matches)} library commands")
+        if self.query.get().strip():
+            self.notice.set(f"{len(self.matches)} library matches · Enter copies selected · Ctrl+Enter searches online."
+                            if self.matches else "0 library matches · Enter reviews an online search with your agent.")
+        else:
+            self.notice.set(f"{len(self.matches)} library commands")
         self.browser_button.state(['!disabled'] if self.query.get().strip() else ['disabled'])
         self.selected()
 
@@ -123,7 +143,7 @@ class CommandLibraryDialog:
                               (self.copy_restore, "restore"), (self.source_button, "source")):
             button.configure(state="normal" if entry and getattr(entry, field) else "disabled")
 
-    def copy(self, field):
+    def copy(self, field, *, suffix=""):
         entry = self.current()
         value = getattr(entry, field) if entry else ""
         if not value:
@@ -135,7 +155,7 @@ class CommandLibraryDialog:
             self.notice.set("Could not copy. Select the command text and copy it manually.")
             return
         label = {"command": "command", "inspect": "read-value command", "restore": "reset-to-default command"}[field]
-        self.notice.set(f"Copied {label}. Paste it into WoW chat when ready.")
+        self.notice.set(f"Copied {label}. Paste it into WoW chat when ready.{suffix}")
 
     def open_source(self):
         entry = self.current()

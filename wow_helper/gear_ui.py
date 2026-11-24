@@ -3,12 +3,13 @@
 import time
 
 from .activities import FLAVORS
-from .chat import ChatError
+from .chat import ChatError, read_json, write_json
 from .comparison_shortcut import ComparisonShortcut
 from .journal_ui import JournalDialog, SaveAdviceDialog
 from .live_gear import LiveGear, journal_selection, rendered
 from .screen_capture import capture_game, crop_region, saved_image
 from .task_window import replace_text
+from .theme import palette
 
 
 class GearDialog(JournalDialog):
@@ -18,6 +19,8 @@ class GearDialog(JournalDialog):
         self.key = self.future = self.source_image = self.preview_photo = self.review_photo = None
         self.preview_name = self.preview_flavor = self.region = self.reviewed = None
         self.last_record = None
+        self._shown_request_id = None
+        self._last_state_notice = None
         self.after = None
         self.closed = False
         super().__init__(view, 'Live gear comparison')
@@ -42,7 +45,7 @@ class GearDialog(JournalDialog):
                       if choices else self.ttk.Entry(self.setup, textvariable=variable))
             widget.pack(fill='x', pady=(0, 4))
         self.label(self.setup, 'Capture a preview, then drag around where both tooltips appear.').pack(anchor='w')
-        self.canvas = self.tk.Canvas(self.setup, height=250, highlightthickness=0, background='#101722')
+        self.canvas = self.tk.Canvas(self.setup, height=250, highlightthickness=0, background=palette(self.root).EDITOR)
         self.canvas.pack(fill='both', expand=True)
         self.canvas.bind('<Configure>', lambda _: self.draw_preview())
         self.canvas.bind('<ButtonPress-1>', self.drag_start)
@@ -74,7 +77,7 @@ class GearDialog(JournalDialog):
             button.grid(row=row, column=column, sticky='ew', padx=2, pady=2)
         for variable in (self.edition, self.build, self.goal):
             variable.trace_add('write', lambda *_: self.changed())
-        self.notice.set('Choose a companion-created chat. Review what the region includes before enabling Ctrl+Alt+F9. Voice stays input-only.')
+        self.notice.set('Choose a companion-created chat. Review what the region includes before enabling Ctrl+Alt+F9 (or hands-free "compare").')
         self.show()
         self.after = self.root.after(50, self.poll)
 
@@ -95,6 +98,16 @@ class GearDialog(JournalDialog):
             self.key = None
         if hasattr(self, 'notice'):
             self.notice.set('Shortcut disabled. A request already sent may finish in its original conversation.')
+        self._refresh_badges()
+
+    def _refresh_badges(self):
+        cb = getattr(self.view, 'on_change', None)
+        manager = getattr(getattr(cb, '__self__', None), 'manager', None)
+        if manager is None and hasattr(self.view, 'root'):
+            # Walk up via workspace manager if attached on root.
+            manager = getattr(self.view.root.winfo_toplevel(), '_companion_manager', None)
+        if manager is not None and hasattr(manager, 'refresh_mode_badges'):
+            manager.refresh_mode_badges()
 
     def preview(self):
         if self.future or self.engine.busy:
@@ -105,6 +118,28 @@ class GearDialog(JournalDialog):
         self.future = self.view.worker.submit(self.capture, self.view.activity.storage, flavor)
         self.notice.set('Capturing a fresh WoW preview locally. Nothing is being sent.')
 
+    def _region_store_path(self):
+        return self.view.activity.storage / 'live-gear-regions.json'
+
+    def _saved_region(self, flavor, size):
+        data = read_json(self._region_store_path())
+        entry = data.get(flavor) if isinstance(data, dict) else None
+        if (isinstance(entry, dict) and entry.get('size') == list(size)
+                and isinstance(entry.get('region'), list) and len(entry['region']) == 4
+                and all(type(v) is int for v in entry['region'])):
+            return list(entry['region'])
+        return None
+
+    def _save_region(self, flavor, size, region):
+        try:
+            path = self._region_store_path()
+            data = read_json(path)
+            data = data if isinstance(data, dict) else {}
+            data[flavor] = {'size': list(size), 'region': list(region)}
+            write_json(path, data)
+        except OSError:
+            pass
+
     def load_preview(self, name):
         from PIL import Image
         with Image.open(saved_image(self.view.activity.storage, name)) as image:
@@ -112,9 +147,20 @@ class GearDialog(JournalDialog):
                 raise ChatError('The preview is too large.')
             self.source_image = image.copy()
         self.preview_name = name
-        self.region = None
+        restored = self._saved_region(self.preview_flavor, self.source_image.size) if self.preview_flavor else None
+        if restored is not None:
+            try:
+                crop_region(self.source_image, restored, list(self.source_image.size))
+                self.region = restored
+            except (ChatError, ValueError):
+                self.region = None
+        else:
+            self.region = None
         self.draw_preview()
-        self.notice.set('Drag a region containing the candidate and Equipped tooltips, then Review region.')
+        if self.region is not None:
+            self.notice.set('Restored last reviewed region on this fresh preview. Adjust if needed, then Review region.')
+        else:
+            self.notice.set('Drag a region containing the candidate and Equipped tooltips, then Review region.')
 
     def draw_preview(self):
         if self.source_image is None or self.closed:
@@ -170,6 +216,7 @@ class GearDialog(JournalDialog):
                                        'Each explicit shortcut sends this region from a fresh game frame. '
                                        'Exclude names or chat you do not want shared. Requires image-reading support.')
             self.reviewed = self.form()
+            self._save_region(self.preview_flavor, self.source_image.size, self.region)
             self.enable_button.configure(state='normal')
             self.book.select(self.review)
             self.notice.set('Review the exact region and destination. Enable shortcut approves future explicit captures for this setup only.')
@@ -189,6 +236,7 @@ class GearDialog(JournalDialog):
                 self.disable()
                 raise ChatError('Ctrl+Alt+F9 or its Shift variant is in use. Disable it in the other comparison window before enabling here.')
             self.notice.set('Enabled: in WoW, show both tooltips and press Ctrl+Alt+F9 (Shift may stay held). One request at a time; no automatic retries.')
+            self._refresh_badges()
         except (ChatError, OSError, ValueError) as error:
             self.notice.set(str(error) if isinstance(error, ChatError) else 'The setup could not be enabled. Review a new preview.')
 
@@ -214,8 +262,24 @@ class GearDialog(JournalDialog):
         record = self.engine.snapshot()
         if record and record != self.last_record:
             self.last_record = record
+            request_id = record.get('id') or record.get('request_id')
+            if request_id and request_id != self._shown_request_id:
+                self._shown_request_id = request_id
+                self.book.select(self.result)
             replace_text(self.output, rendered(record) or 'Capturing and reading the requested tooltips…')
             self.save_button.configure(state='normal' if record.get('state') == 'completed' else 'disabled')
+            state_key = (request_id, record.get('state'))
+            if state_key != self._last_state_notice:
+                self._last_state_notice = state_key
+                notice_map = {
+                    'capturing': 'Capturing tooltips from WoW…',
+                    'extracting': 'Reading tooltips from the captured frame…',
+                    'explaining': 'Explaining stat differences and tradeoffs…',
+                    'completed': 'Comparison complete. Review the Result tab or Save to Journal.',
+                    'failed': record.get('error', 'Comparison failed.'),
+                }
+                if record.get('state') in notice_map:
+                    self.notice.set(notice_map[record['state']])
             if record.get('image') and record['image'] != self.evidence_name:
                 try:
                     from PIL import Image, ImageTk

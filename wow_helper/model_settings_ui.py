@@ -2,7 +2,7 @@
 from .chat import ChatError
 from .model_settings import EFFORTS, choice_summary
 from .theme import palette
-from .window_frame import WindowFrame
+from .window_frame import setup_dialog
 
 PRESETS = (('Quick question', 'low', 'Look up one setting'),
            ('Everyday help', 'medium', 'Compare settings or troubleshoot'),
@@ -18,13 +18,10 @@ class ModelSettingsDialog:
         self.closed = False
         self.body = self.session_panel = self.usage_timer = None
         tk = view.tk
+        title = 'Change model' if view.selected else 'Find active sessions'
         self.root = tk.Toplevel(parent or view.root)
-        self.root.title('Change model')
-        self.root.transient((parent or view.root).winfo_toplevel())
-        self.root.protocol('WM_DELETE_WINDOW', self.close)
-        self.root.bind('<Escape>', lambda _: self.close())
-        self.chrome = WindowFrame(self.root, title='Change model', close=self.close, minimum=(430, 475))
-        self.chrome.place('620x580')
+        self.chrome = setup_dialog(self.root, parent or view.root, title=title, close=self.close,
+                                   minimum=(430, 475), size=(620, 580))
         self.show_session(advanced=view.selected is None)
         self.chrome.apply_native()
 
@@ -34,6 +31,9 @@ class ModelSettingsDialog:
         self.clear_session()
         view, tk = self.view, self.view.tk
         self.session, self.selection = view.selected, view.selection_revision
+        title = 'Change model' if self.session else 'Find active sessions'
+        self.root.title(title)
+        self.chrome.caption.set(title)
         self.external_claude = bool(self.session and not self.session.managed and self.session.provider == 'claude')
         self.external_codex = bool(self.session and not self.session.managed and self.session.provider == 'codex')
         self.models, self.known_models, self.reading = [], set(), None
@@ -86,6 +86,10 @@ class ModelSettingsDialog:
             for command in ('/model', '/effort', '/usage'):
                 ttk.Button(main, text='Copy ' + command, command=lambda c=command: self.copy(c)).pack(anchor='w', pady=3)
         else:
+            if self.external_codex:
+                self.label(main, 'This attached Codex chat uses its own settings. Enable override below to change model or effort.')
+                ttk.Checkbutton(main, text='Override this Codex chat', variable=self.override,
+                                command=self.toggle_override).pack(anchor='w', pady=(0, 4))
             self.label(main, 'Reasoning effort')
             for title, value, _ in PRESETS:
                 b = ttk.Radiobutton(main, text=f'{title} · {value.capitalize()}',
@@ -212,7 +216,9 @@ class ModelSettingsDialog:
         elif effort not in efforts:
             issue = 'This model does not support the selected effort. Choose a supported effort.'
         self.issue = issue
-        self.notice.set(issue)
+        dirty = bool(self.base and (model != self.base.model or effort != self.base.effort
+                                    or str(self.base.timeout) != self.timeout.get()))
+        self.notice.set(issue or ('Unsaved changes — click Save for next messages to apply.' if dirty else ''))
         self.save_button.state(['disabled'] if issue or self.base is None else ['!disabled'])
 
     def current(self):

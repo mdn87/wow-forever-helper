@@ -1,6 +1,6 @@
 """One explicit decision for a provider-reported usage interruption."""
 from .theme import palette
-from .window_frame import WindowFrame
+from .window_frame import setup_dialog
 
 
 class UsageDialog:
@@ -10,12 +10,8 @@ class UsageDialog:
         self.closed = False
         tk = view.tk
         self.root = tk.Toplevel(parent or view.root)
-        self.root.title('Provider usage')
-        self.root.transient((parent or view.root).winfo_toplevel())
-        self.root.protocol('WM_DELETE_WINDOW', self.close)
-        self.root.bind('<Escape>', lambda _: self.close())
-        chrome = self.chrome = WindowFrame(self.root, title='Provider usage', close=self.close, minimum=(410, 280))
-        chrome.place('510x320')
+        chrome = self.chrome = setup_dialog(self.root, parent or view.root, title='Provider usage',
+                                            close=self.close, minimum=(410, 280), size=(510, 320))
         colors = palette(self.root)
         body = tk.Frame(chrome.content, bg=colors.PANEL, padx=14, pady=12)
         body.pack(fill='both', expand=True)

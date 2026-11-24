@@ -11,7 +11,7 @@ from .window_state import history_state, restored_history, saved_selection
 from .provider_usage import UsageDecision
 from .response_wait import ResponseWait, elapsed
 from .activity_history import ActivityHistory
-from .theme import palette, apply_theme, display_font, settings_icon, menu as themed_menu
+from .theme import BusyBar, palette, apply_theme, display_font, settings_icon, menu as themed_menu
 
 BACKGROUND_JOBS = {"history", "guides", "active-sessions"}
 SETUP_LABEL = "Connect selected Claude session…"
@@ -53,7 +53,12 @@ class ChatWindow:
         self._pin_dialog = None
         self.pin_advice = pin_advice
         self.reply_ranges = []
+        self.message_ranges = []
         self.selected_reply_id = None
+        self._pinned_to_bottom = True
+        self._scroll_anchor = None
+        self._programmatic_scroll = False
+        self._anchor_after_id = None
         self.desired_key = tuple(selection) if selection else saved_selection(state.get("session"))
         if not self.desired_key and self.pending_creation:
             self.desired_key = saved_selection(self.pending_creation)
@@ -137,7 +142,7 @@ class ChatWindow:
         self.menus.conversation.add_command(label=SETUP_LABEL, command=self.claude_setup, state="disabled")
         self.refresh_button = ttk.Button(selector, text="↻", style="Window.TButton", command=self.refresh)
         self.refresh_button.pack(side="right", padx=(4, 0))
-        self.new_chat_button = ttk.Button(selector, text="Start a new chat", style="Agent.TButton",
+        self.new_chat_button = ttk.Button(selector, text="+ Chat", style="Agent.TButton",
                                           command=self.choose_chat)
         self.new_chat_button.pack(side="right", padx=(3, 0))
         self.menus.conversation.add_command(label="Refresh open sessions", command=self.refresh)
@@ -171,26 +176,64 @@ class ChatWindow:
         summary.bind('<Configure>', lambda e: summary.configure(wraplength=max(80, e.width - 6)))
         self.saved_button = ttk.Button(conversation, text='View saved draft', command=self.show_saved_draft)
         self.draft_anchor = route
-        transcript_frame = tk.Frame(conversation, bg=palette(self.root).PANEL)
+        self._find_bar = tk.Frame(conversation, bg=palette(self.root).PANEL)
+        self.find_query = tk.StringVar(master=root)
+        self.find_entry = ttk.Entry(self._find_bar, textvariable=self.find_query)
+        self.find_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.find_count = tk.StringVar(master=root, value="")
+        tk.Label(self._find_bar, textvariable=self.find_count, bg=palette(self.root).PANEL,
+                 fg=palette(self.root).MUTED, font=("Segoe UI", 8)).pack(side="left", padx=(0, 4))
+        ttk.Button(self._find_bar, text="↑", style="Window.TButton", command=lambda: self.find_step(-1)).pack(side="left", padx=1)
+        ttk.Button(self._find_bar, text="↓", style="Window.TButton", command=lambda: self.find_step(1)).pack(side="left", padx=1)
+        ttk.Button(self._find_bar, text="×", style="Window.TButton", command=self.hide_find).pack(side="left", padx=(3, 0))
+        self.find_entry.bind("<Return>", lambda _: (self.find_step(1), "break")[1])
+        self.find_entry.bind("<Shift-Return>", lambda _: (self.find_step(-1), "break")[1])
+        self.find_entry.bind("<Escape>", lambda _: (self.hide_find(), "break")[1])
+        self.find_query.trace_add("write", lambda *_: self.update_find())
+        self._find_matches = []
+        self._find_index = -1
+        self._transcript_frame = transcript_frame = tk.Frame(conversation, bg=palette(self.root).PANEL)
         transcript_frame.pack(fill="both", expand=True)
         self.transcript = tk.Text(transcript_frame, wrap="word", state="disabled", bg=palette(self.root).PANEL,
                                   fg=palette(self.root).TEXT, font=("Segoe UI", 11), relief="flat", padx=6,
                                   pady=3, height=1, width=1, cursor="arrow", selectbackground="#554228")
-        scrollbar = ttk.Scrollbar(transcript_frame, command=self.transcript.yview)
-        self.transcript.configure(yscrollcommand=scrollbar.set)
+        self._scrollbar = scrollbar = ttk.Scrollbar(transcript_frame, command=self._scrollbar_move)
+        self.transcript.configure(yscrollcommand=self._on_transcript_yscroll)
         scrollbar.pack(side="right", fill="y")
         self.transcript.pack(side="left", fill="both", expand=True)
-        self.transcript.bind("<Configure>", self._queue_scroll_to_bottom)
-        self.transcript.bind("<Map>", self._queue_scroll_to_bottom)
+        self.transcript.bind("<Configure>", self._queue_scroll_restore)
+        self.transcript.bind("<Map>", self._queue_scroll_restore)
+        for event in ("<MouseWheel>", "<Button-4>", "<Button-5>", "<KeyRelease>"):
+            self.transcript.bind(event, self._queue_anchor_capture, add="+")
         self.transcript.bind("<Control-j>", lambda _: self.save_to_journal())
         self.transcript.bind("<Control-p>", lambda _: self.pin_to_play())
-        composer = tk.Frame(conversation, bg=palette(self.root).PANEL)
+        self.transcript.bind("<Control-f>", lambda _: (self.show_find(), "break")[1])
+        self.transcript.bind("<Button-3>", self._transcript_context_menu)
+        self.root.bind("<Control-f>", lambda _: (self.show_find(), "break")[1], add="+")
+        self.jump_latest_button = ttk.Button(conversation, text="Jump to latest ↓", command=self.jump_to_latest)
+        self.reply_bar = tk.Frame(conversation, bg=palette(self.root).PANEL)
+        self._reply_copy_btn = ttk.Button(self.reply_bar, text="Copy reply", style="Agent.TButton",
+                                          command=lambda: self._selected_reply_action("copy"))
+        self._reply_save_btn = ttk.Button(self.reply_bar, text="Save", style="Agent.TButton",
+                                          command=lambda: self._selected_reply_action("save"))
+        self._reply_pin_btn = ttk.Button(self.reply_bar, text="Pin", style="Agent.TButton",
+                                         command=lambda: self._selected_reply_action("pin"))
+        self._reply_copy_btn.pack(side="left", padx=(0, 3))
+        self._reply_save_btn.pack(side="left", padx=(0, 3))
+        self._reply_pin_btn.pack(side="left", padx=(0, 3))
+        self._cmd_buttons = []
+        self._composer = composer = tk.Frame(conversation, bg=palette(self.root).PANEL)
         composer.pack(fill="x", pady=(5, 0))
+        self.wait_bar = BusyBar(conversation, before=composer, fill="x", pady=(2, 0))
         self.send_button = ttk.Button(composer, text="Send ↵", style="Primary.TButton", command=self.send, state="disabled")
         self.send_button.pack(side="right", anchor="s", padx=(6, 0))
-        self.editor = tk.Text(composer, height=2, width=1, wrap="word", bg=palette(self.root).EDITOR, fg=palette(self.root).TEXT,
+        editor_box = tk.Frame(composer, bg=palette(self.root).PANEL)
+        editor_box.pack(side="left", fill="both", expand=True)
+        self.editor = tk.Text(editor_box, height=2, width=1, wrap="word", bg=palette(self.root).EDITOR, fg=palette(self.root).TEXT,
                               insertbackground=palette(self.root).TEXT, font=("Segoe UI", 11), padx=8, pady=6,
                               relief="solid", borderwidth=1, undo=True)
+        self._editor_scroll = ttk.Scrollbar(editor_box, command=self.editor.yview)
+        self.editor.configure(yscrollcommand=self._editor_scroll.set)
         self.editor.pack(side="left", fill="both", expand=True)
         for key in ("Return", "KP_Enter"):
             self.editor.bind(f"<{key}>", self.send)
@@ -198,6 +241,8 @@ class ChatWindow:
             self.editor.bind(f"<Control-{key}>", self.send)
             self.editor.bind(f"<Shift-{key}>", self.insert_newline)
         self.editor.bind("<<Modified>>", self._edited)
+        self.editor.bind("<KeyRelease>", lambda _: self._resize_editor(), add="+")
+        self.editor.bind("<Configure>", lambda _: self._resize_editor(), add="+")
         style_text(self.transcript, self.appearance)
         style_text(self.editor, self.appearance, composer=True)
         self.status = tk.StringVar(master=root, value="Looking for open sessions…")
@@ -230,7 +275,7 @@ class ChatWindow:
         can_choose = not self.desired_key and (self.sessions or hasattr(self.service, "create"))
         self.send_button.configure(state="normal" if (self.selected or can_choose) and not foreground else "disabled")
         self.refresh_button.configure(state="disabled" if foreground else "normal")
-        self.new_chat_button.configure(text='Change chat' if self.selected or self.desired_key else 'Start a new chat')
+        self.new_chat_button.configure(text='Chats…' if self.selected or self.desired_key else '+ Chat')
         self.model_button.configure(state='normal', text='Change model' if self.selected else 'Find active sessions')
         if self.saved_drafts.get(self.selection_key):
             self.saved_button.pack(after=self.draft_anchor, anchor='w', pady=(0, 2))
@@ -253,7 +298,31 @@ class ChatWindow:
                 self.drafts[key] = self.editor.get("1.0", "end-1c")
             if self._dispatch_valid and self._clear_sent_draft:
                 self._dispatch_valid.clear()
+            self._resize_editor()
             self.on_change()
+
+    def _resize_editor(self):
+        if self.closed or not self.editor.winfo_exists():
+            return
+        text = self.editor.get("1.0", "end-1c")
+        lines = len(text.splitlines()) if text else 1
+        if text.endswith("\n"):
+            lines += 1
+        if self.editor.winfo_ismapped() and self.editor.winfo_width() > 20:
+            try:
+                counted = self.editor.count("1.0", "end-1c", "displaylines")
+                if counted:
+                    lines = max(lines, int(counted[0]) + (1 if text.endswith("\n") else 0))
+            except self.tk.TclError:
+                pass
+        target = max(2, min(6, lines))
+        if int(self.editor.cget("height")) != target:
+            self.editor.configure(height=target)
+        if lines > 6:
+            if not self._editor_scroll.winfo_manager():
+                self._editor_scroll.pack(side="right", fill="y")
+        elif self._editor_scroll.winfo_manager():
+            self._editor_scroll.pack_forget()
 
     def replace_draft(self, body):
         self.editor.delete('1.0', 'end')
@@ -323,10 +392,16 @@ class ChatWindow:
             self._appearance_dialog.root.lift()
 
     def set_appearance(self, settings):
+        if not self._pinned_to_bottom and self._scroll_anchor is None:
+            self._capture_scroll_anchor()
         self.appearance = appearance_settings(settings)
-        style_text(self.transcript, self.appearance)
-        style_text(self.editor, self.appearance, composer=True)
-        self._queue_scroll_to_bottom()
+        self._programmatic_scroll = True
+        try:
+            style_text(self.transcript, self.appearance)
+            style_text(self.editor, self.appearance, composer=True)
+        finally:
+            self._programmatic_scroll = False
+        self._queue_scroll_restore()
         self.on_change()
 
     def insert_newline(self, _event=None):
@@ -396,6 +471,9 @@ class ChatWindow:
                 self.saved_drafts[session.key] = existing
             self.drafts[session.key] = current
         self.selected = session
+        self._pinned_to_bottom = True
+        self._scroll_anchor = None
+        self._set_jump_visible(False)
         self.refresh_model_summary()
         self.desired_key = session.key
         self.session_title = session.title
@@ -403,6 +481,7 @@ class ChatWindow:
         self.editor.delete("1.0", "end")
         self.editor.insert("1.0", self.drafts.get(session.key, ""))
         self.editor.edit_modified(False)
+        self._resize_editor()
         if session in self.sessions:
             self.session_picker.current(self.sessions.index(session))
         self.title.set(session.title[:65].replace("\n", " "))
@@ -567,6 +646,8 @@ class ChatWindow:
             self._showing_wait = False
             if self.selected:
                 self.subtitle.set(self._description(self.selected))
+        if hasattr(self, "wait_bar"):
+            self.wait_bar.set(bool(waits) or ("send" in self.jobs) or ("start" in self.jobs))
 
     def _show(self, messages):
         pending = self.sent.get(self.selection_key, [])
@@ -589,26 +670,216 @@ class ChatWindow:
         if signature == self.last_messages:
             return
         self.last_messages = signature
-        self.transcript.configure(state="normal")
-        self.transcript.delete("1.0", "end")
-        if not messages and not pending:
-            self.transcript.insert("end", "Your conversation appears here.", "note")
-        self.reply_ranges = []
-        for message in messages:
-            append_turn(self.transcript, message.text, message.role)
-            if message.role == "assistant":
-                end = self.transcript.index("end-1c")
-                start = self.transcript.index(f"{end}-{len(message.text.strip(chr(10)))}c")
-                self.reply_ranges.append((start, end, message))
-                tag = "reply-" + str(len(self.reply_ranges))
-                self.transcript.tag_add(tag, start, end)
-                self.transcript.tag_bind(tag, "<ButtonRelease-1>",
-                                         lambda _, key=message.id: setattr(self, "selected_reply_id", key))
-        for body, status, _previous_ids in pending:
-            append_turn(self.transcript, body, "user", pending=status)
-        self.transcript.configure(state="disabled")
-        self._queue_scroll_to_bottom()
+        had_pending = self._last_pending_count if hasattr(self, "_last_pending_count") else 0
+        self._last_pending_count = len(pending)
+        if len(pending) > had_pending:
+            self._pinned_to_bottom = True
+            self._scroll_anchor = None
+        if not self._pinned_to_bottom and self._scroll_anchor is None:
+            self._capture_scroll_anchor()
+        self._programmatic_scroll = True
+        try:
+            self.transcript.configure(state="normal")
+            self.transcript.delete("1.0", "end")
+            self.transcript._md_links = {}
+            if not messages and not pending:
+                self.transcript.insert("end", "Your conversation appears here.", "note")
+            self.reply_ranges = []
+            self.message_ranges = []
+            for message in messages:
+                if message.role == "assistant":
+                    start, end = append_turn(
+                        self.transcript, message.text, message.role,
+                        on_link=self._open_transcript_link,
+                        on_copy=self._copy_snippet,
+                        on_action=lambda action, msg=message: self._reply_action(msg, action),
+                    )
+                    self.reply_ranges.append((start, end, message))
+                    tag = "reply-" + str(len(self.reply_ranges))
+                    self.transcript.tag_add(tag, start, end)
+                    self.transcript.tag_bind(tag, "<ButtonRelease-1>",
+                                             lambda _, key=message.id: self._select_reply(key))
+                else:
+                    start, end = append_turn(
+                        self.transcript, message.text, message.role,
+                        on_link=self._open_transcript_link,
+                    )
+                self.message_ranges.append((message.id, start, end))
+            for idx, (body, status, _previous_ids) in enumerate(pending):
+                start, end = append_turn(self.transcript, body, "user", pending=status)
+                self.message_ranges.append((("pending", idx), start, end))
+            self._highlight_selected_reply()
+            self.transcript.configure(state="disabled")
+        finally:
+            self._programmatic_scroll = False
+        if self._find_bar.winfo_manager():
+            self.update_find()
+        self._restore_scroll()
+        self._queue_scroll_restore()
         self.on_change()
+
+    def _select_reply(self, message_id):
+        self.selected_reply_id = message_id
+        self._highlight_selected_reply()
+
+    def _active_reply(self):
+        if not self.reply_ranges:
+            return None
+        return next((m for _, _, m in self.reply_ranges if m.id == self.selected_reply_id), self.reply_ranges[-1][2])
+
+    def _selected_reply_action(self, action):
+        target = self._active_reply()
+        if target is not None:
+            self._reply_action(target, action)
+
+    def _highlight_selected_reply(self):
+        from tkinter import ttk
+        from .markdown_text import extract_commands
+        self.transcript.tag_remove("reply_selected", "1.0", "end")
+        target = self._active_reply()
+        if self.selected_reply_id:
+            for start, end, message in self.reply_ranges:
+                if message.id == self.selected_reply_id:
+                    self.transcript.tag_add("reply_selected", start, end)
+                    break
+        for btn in self._cmd_buttons:
+            btn.destroy()
+        self._cmd_buttons = []
+        if target is None:
+            if self.reply_bar.winfo_manager():
+                self.reply_bar.pack_forget()
+            return
+        commands = extract_commands(target.text)
+        for cmd in commands[:2]:
+            label = cmd.splitlines()[0]
+            if len(label) > 28:
+                label = label[:27] + "…"
+            btn = ttk.Button(self.reply_bar, text=f"Copy: {label}", style="Agent.TButton",
+                             command=lambda c=cmd: self._copy_snippet(c))
+            btn.pack(side="left", padx=(3, 0))
+            self._cmd_buttons.append(btn)
+        if not self.reply_bar.winfo_manager():
+            self.reply_bar.pack(before=self._composer, fill="x", pady=(2, 0))
+
+    def _open_transcript_link(self, url):
+        import webbrowser
+        from .markdown_text import valid_http_url
+        safe = valid_http_url(url)
+        if not safe:
+            return
+        try:
+            opened = webbrowser.open(safe)
+        except (OSError, webbrowser.Error):
+            opened = False
+        self.status.set("Opened link in your browser." if opened else "Could not open your browser. Copy the link instead.")
+
+    def _copy_snippet(self, text):
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(text)
+            self.status.set("Copied snippet to clipboard.")
+        except self.tk.TclError:
+            self.status.set("Could not copy to clipboard.")
+
+    def _reply_action(self, message, action):
+        self._select_reply(message.id)
+        if action == "copy":
+            self._copy_snippet(message.text)
+        elif action == "save":
+            self.save_to_journal()
+        elif action == "pin":
+            self.pin_to_play()
+
+    def _transcript_context_menu(self, event):
+        idx = self.transcript.index(f"@{event.x},{event.y}")
+        clicked_reply = None
+        for start, end, message in self.reply_ranges:
+            if self.transcript.compare(idx, ">=", start) and self.transcript.compare(idx, "<=", end):
+                clicked_reply = message
+                self._select_reply(message.id)
+                break
+        link_url = ""
+        links = getattr(self.transcript, "_md_links", {})
+        for tag in self.transcript.tag_names(idx):
+            if tag in links:
+                link_url = links[tag]
+                break
+        popup = themed_menu(self.transcript)
+        sel = self.transcript.tag_ranges("sel")
+        if sel:
+            selected_text = self.transcript.get(*sel)
+            popup.add_command(label="Copy selection", command=lambda t=selected_text: self._copy_snippet(t))
+        if link_url:
+            popup.add_command(label="Open link in browser", command=lambda u=link_url: self._open_transcript_link(u))
+            popup.add_command(label="Copy link", command=lambda u=link_url: self._copy_snippet(u))
+        if clicked_reply is not None or self.reply_ranges:
+            target = clicked_reply or self.reply_ranges[-1][2]
+            if sel or link_url:
+                popup.add_separator()
+            popup.add_command(label="Copy reply", command=lambda m=target: self._reply_action(m, "copy"))
+            popup.add_command(label="Save reply to Journal…", command=lambda m=target: self._reply_action(m, "save"))
+            popup.add_command(label="Pin reply to Play…", command=lambda m=target: self._reply_action(m, "pin"))
+        if popup.index("end") is not None:
+            try:
+                popup.tk_popup(event.x_root, event.y_root)
+            finally:
+                popup.grab_release()
+
+    def show_find(self):
+        if not self._find_bar.winfo_manager():
+            self._find_bar.pack(before=self._transcript_frame, fill="x", pady=(0, 3))
+        self.find_entry.focus_set()
+        self.find_entry.selection_range(0, "end")
+        self.update_find()
+
+    def hide_find(self):
+        self.transcript.tag_remove("find_match", "1.0", "end")
+        self.transcript.tag_remove("find_current", "1.0", "end")
+        self._find_matches = []
+        self._find_index = -1
+        self.find_count.set("")
+        if self._find_bar.winfo_manager():
+            self._find_bar.pack_forget()
+        self.editor.focus_set()
+
+    def update_find(self):
+        self.transcript.tag_remove("find_match", "1.0", "end")
+        self.transcript.tag_remove("find_current", "1.0", "end")
+        self._find_matches = []
+        self._find_index = -1
+        needle = self.find_query.get()
+        if not needle:
+            self.find_count.set("")
+            return
+        pos = "1.0"
+        while True:
+            found = self.transcript.search(needle, pos, stopindex="end", nocase=True)
+            if not found:
+                break
+            end = f"{found}+{len(needle)}c"
+            self.transcript.tag_add("find_match", found, end)
+            self._find_matches.append((found, end))
+            pos = end
+            if len(self._find_matches) >= 500:
+                break
+        if self._find_matches:
+            self._find_index = 0
+            self._focus_find_match()
+        else:
+            self.find_count.set("0 matches")
+
+    def find_step(self, delta):
+        if not self._find_matches:
+            return
+        self._find_index = (self._find_index + delta) % len(self._find_matches)
+        self._focus_find_match()
+
+    def _focus_find_match(self):
+        self.transcript.tag_remove("find_current", "1.0", "end")
+        start, end = self._find_matches[self._find_index]
+        self.transcript.tag_add("find_current", start, end)
+        self.transcript.see(start)
+        self.find_count.set(f"{self._find_index + 1} / {len(self._find_matches)}")
 
     def selected_advice(self):
         from .journal import advice_selection
@@ -660,16 +931,102 @@ class ChatWindow:
         except ChatError as error:
             self.status.set(str(error))
 
-    def _queue_scroll_to_bottom(self, _event=None):
-        # Wait for wrapping and geometry to settle, including initial mapping
-        # and resizing. Unchanged history returns before requesting a scroll.
+    def _set_jump_visible(self, visible):
+        if visible:
+            if not self.jump_latest_button.winfo_manager():
+                self.jump_latest_button.pack(before=self._composer, anchor="e", pady=(2, 0))
+        elif self.jump_latest_button.winfo_manager():
+            self.jump_latest_button.pack_forget()
+
+    def _scrollbar_move(self, *args):
+        self.transcript.yview(*args)
+        self._capture_scroll_anchor()
+
+    def _on_transcript_yscroll(self, first, last):
+        self._scrollbar.set(first, last)
+        if not self._programmatic_scroll:
+            self._queue_anchor_capture()
+
+    def _queue_anchor_capture(self, _event=None):
+        if not self.closed and not self._programmatic_scroll and self._anchor_after_id is None:
+            self._anchor_after_id = self.root.after_idle(self._capture_scroll_anchor)
+
+    def _capture_scroll_anchor(self):
+        self._anchor_after_id = None
+        if self.closed or self._programmatic_scroll or not self.message_ranges:
+            return
+        if not self.transcript.winfo_ismapped() or self.transcript.winfo_height() <= 1:
+            return
+        first, last = self.transcript.yview()
+        if last >= 0.98 or (first <= 0.0 and last >= 1.0):
+            self._pinned_to_bottom = True
+            self._scroll_anchor = None
+            self._set_jump_visible(False)
+            return
+        self._pinned_to_bottom = False
+        top_idx = self.transcript.index("@0,0")
+        dline = self.transcript.dlineinfo(top_idx)
+        y_offset = dline[1] if dline else 0
+        anchor = None
+        for msg_key, start, end in self.message_ranges:
+            if self.transcript.compare(top_idx, "<=", end):
+                offset = 0 if self.transcript.compare(top_idx, "<", start) else len(self.transcript.get(start, top_idx))
+                anchor = (msg_key, offset, y_offset)
+                break
+        if anchor is None:
+            anchor = (self.message_ranges[-1][0], 0, 0)
+        self._scroll_anchor = anchor
+        self._set_jump_visible(True)
+
+    def jump_to_latest(self):
+        self._pinned_to_bottom = True
+        self._scroll_anchor = None
+        self._set_jump_visible(False)
+        self._restore_scroll()
+
+    def _queue_scroll_restore(self, _event=None):
+        # Wait for wrapping and geometry to settle, including initial mapping,
+        # font changes, and resizing, while keeping scrolled-up reading anchors intact.
         if not self.closed and self._scroll_after_id is None:
-            self._scroll_after_id = self.root.after_idle(self._scroll_to_bottom)
+            self._scroll_after_id = self.root.after_idle(self._restore_scroll)
+
+    def _queue_scroll_to_bottom(self, _event=None):
+        self._pinned_to_bottom = True
+        self._scroll_anchor = None
+        self._queue_scroll_restore(_event)
+
+    def _restore_scroll(self):
+        self._scroll_after_id = None
+        if self.closed:
+            return
+        self._programmatic_scroll = True
+        try:
+            if self._pinned_to_bottom or self._scroll_anchor is None:
+                self.transcript.yview_moveto(1.0)
+                self._set_jump_visible(False)
+                return
+            anchor_key, char_offset, _y_offset = self._scroll_anchor
+            match = next((row for row in self.message_ranges if row[0] == anchor_key), None)
+            if match is None:
+                self.transcript.yview_moveto(1.0)
+                self._pinned_to_bottom = True
+                self._scroll_anchor = None
+                self._set_jump_visible(False)
+                return
+            _, start, end = match
+            target = self.transcript.index(f"{start}+{max(0, char_offset)}c")
+            if self.transcript.compare(target, ">", end):
+                target = end
+            self.transcript.yview(target)
+            first, last = self.transcript.yview()
+            self._set_jump_visible(not (last >= 0.98 or (first <= 0.0 and last >= 1.0)))
+        finally:
+            self._programmatic_scroll = False
 
     def _scroll_to_bottom(self):
-        self._scroll_after_id = None
-        if not self.closed:
-            self.transcript.yview_moveto(1.0)
+        self._pinned_to_bottom = True
+        self._scroll_anchor = None
+        self._restore_scroll()
 
     def _release_enter(self, _event=None):
         self._held_enter = False
@@ -785,6 +1142,9 @@ class ChatWindow:
             self._sent_revision = draft_revision
             self.sending_wait = ResponseWait(request_id, body, previous_ids=previous_ids, recover_draft=clear_draft)
             self.response_waits.setdefault(session.key, []).append(self.sending_wait)
+            self._pinned_to_bottom = True
+            self._scroll_anchor = None
+            self._set_jump_visible(False)
             self._update_response_timer()
             self._send_callback = on_delivery
             self._clear_sent_draft = clear_draft
@@ -797,13 +1157,10 @@ class ChatWindow:
         if not self.selected or self.selected.provider != "claude":
             return
         from tkinter import ttk
-        from .window_frame import WindowFrame
+        from .window_frame import setup_dialog
         dialog = self.tk.Toplevel(self.root)
-        dialog.title("Connect this Claude session")
-        dialog.transient(self.root.winfo_toplevel())
-        dialog.attributes("-topmost", self.root.winfo_toplevel().attributes("-topmost"))
-        dialog.geometry("700x460")
-        dialog._companion_frame = WindowFrame(dialog, title="Connect this Claude session", minimum=(500, 400))
+        dialog._companion_frame = setup_dialog(dialog, self.root, title="Connect this Claude session",
+                                                close=dialog.destroy, minimum=(500, 400), size=(700, 460))
         surface = dialog._companion_frame.content
         self.tk.Label(surface, text="Paste these instructions into the selected, already-open Claude session.",
                       bg=palette(self.root).BACKGROUND, fg=palette(self.root).TEXT, padx=16, pady=16, wraplength=650).pack(anchor="w")
@@ -908,6 +1265,7 @@ class ChatWindow:
                     if clear and self.editor.get("1.0", "end-1c").strip() == body:
                         self.editor.delete("1.0", "end")
                         self.drafts[key] = ""
+                        self._resize_editor()
                     self.last_messages = None
                     self._show(self.history_cache.get(key, []))
                 elif clear and self.drafts.get(key, "").strip() == body:
@@ -959,6 +1317,9 @@ class ChatWindow:
         if self._scroll_after_id is not None:
             self.root.after_cancel(self._scroll_after_id)
             self._scroll_after_id = None
+        if self._anchor_after_id is not None:
+            self.root.after_cancel(self._anchor_after_id)
+            self._anchor_after_id = None
         # Close the proxy after in-flight work, never the agent it connects to.
         self.worker.submit(self.service.close)
         self.worker.shutdown(wait=False)

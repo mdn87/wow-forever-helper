@@ -12,8 +12,8 @@ from .appearance import style_text
 from .chat import ChatError, write_json
 from .chat_window import BACKGROUND_JOBS
 from .journal import JournalService
-from .theme import palette
-from .window_frame import WindowFrame
+from .theme import palette, is_modern
+from .window_frame import WindowFrame, setup_dialog
 
 
 def note_summary(entry):
@@ -51,17 +51,28 @@ def note_summary(entry):
 OPEN_DIALOGS = weakref.WeakSet()
 
 
+def style_journal_tree(tree):
+    """Apply active palette colors to Journal.Treeview and refresh on live theme switches."""
+    from tkinter import ttk
+    style = ttk.Style(tree)
+    colors = palette(tree)
+    style.configure("Journal.Treeview", background=colors.PANEL, fieldbackground=colors.PANEL,
+                    foreground=colors.TEXT)
+    style.map("Journal.Treeview", background=[("selected", colors.SELECT)],
+              foreground=[("selected", colors.TEXT if is_modern(tree) else colors.ACCENT)])
+    style.configure("Journal.Treeview.Heading", background=colors.TITLE, foreground=colors.TEXT)
+    tree._companion_theme_refresh = lambda: style_journal_tree(tree)
+
+
 class JournalDialog:
-    def __init__(self, view, title):
+    def __init__(self, view, title, *, size=(650, 720), minimum=(440, 480)):
         from tkinter import ttk
         self.view, self.tk, self.ttk = view, view.tk, ttk
         self.root = self.tk.Toplevel(view.root)
         self.root.withdraw()
-        self.root.title(title)
         OPEN_DIALOGS.add(self)
-        self.chrome = WindowFrame(self.root, close=self.close, minimum=(440, 480))
-        self.chrome.caption.set(title)
-        self.chrome.place("650x720")
+        self.chrome = setup_dialog(self.root, view.root, title=title, close=self.close,
+                                   minimum=minimum, size=size)
         self.surface = self.chrome.content
         self.notice = self.tk.StringVar(master=self.root)
         label = self.tk.Label(self.surface, textvariable=self.notice, wraplength=400, justify="left",
@@ -334,12 +345,9 @@ class ResumeDialog(JournalDialog):
         super().__init__(view, "Goals and wishlist" if goals_only else "Resume session")
         self.notice.set("Select saved advice, a bookmark, or a goal. Continue conversation opens its source without sending anything. "
                         "Research prepares a request for review.")
-        style = self.ttk.Style(self.root)
-        colors = palette(self.root)
-        style.configure("Journal.Treeview", background=colors.PANEL, fieldbackground=colors.PANEL, foreground=colors.TEXT)
-        style.configure("Journal.Treeview.Heading", background=colors.TITLE, foreground=colors.TEXT)
         self.entries = self.ttk.Treeview(self.surface, columns=("next",), show="tree headings", height=5,
                                          selectmode="browse", style="Journal.Treeview")
+        style_journal_tree(self.entries)
         self.entries.heading("#0", text="Goal" if goals_only else "Saved advice / bookmark")
         self.entries.heading("next", text="Next step / event")
         self.entries.column("#0", width=230, minwidth=100)
@@ -646,4 +654,76 @@ class FollowupDialog(JournalDialog):
 
     def close(self):
         self.owner.followup = None
+        self.root.destroy()
+
+
+class OpenJournalDialog(JournalDialog):
+    """Browse saved journals by title, note count, and last saved time."""
+
+    def __init__(self, view, on_open):
+        self.on_open = on_open
+        super().__init__(view, "Open a saved journal", size=(540, 420), minimum=(420, 320))
+        holder = self.frame(self.surface, padding=8)
+        holder.pack(fill="both", expand=True)
+        self.tree = self.ttk.Treeview(holder, columns=("notes", "updated"), show="tree headings",
+                                      selectmode="browse", style="Journal.Treeview")
+        style_journal_tree(self.tree)
+        self.tree.heading("#0", text="Journal")
+        self.tree.heading("notes", text="Notes")
+        self.tree.heading("updated", text="Last saved")
+        self.tree.column("#0", width=250, minwidth=140, stretch=True)
+        self.tree.column("notes", width=70, minwidth=55, anchor="e", stretch=False)
+        self.tree.column("updated", width=130, minwidth=100, anchor="w", stretch=False)
+        scroll = self.ttk.Scrollbar(holder, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        self.tree.pack(side="left", fill="both", expand=True)
+        self.tree.bind("<Double-1>", lambda _: self.open_selected())
+        self.tree.bind("<Return>", lambda _: self.open_selected())
+        self.open_button = self.ttk.Button(self.actions, text="Open journal", style="Primary.TButton",
+                                           command=self.open_selected)
+        self.open_button.pack(side="right", padx=(0, 6))
+        self.rows = []
+        self.reload()
+        self.show()
+
+    @staticmethod
+    def _format_updated(raw):
+        try:
+            return datetime.fromisoformat(raw).astimezone().strftime("%b %d, %H:%M")
+        except (ValueError, TypeError):
+            return "Saved"
+
+    def reload(self):
+        self.tree.delete(*self.tree.get_children())
+        rows, skipped = self.view.activity.list_journals()
+        self.rows = rows
+        for jid, name, count, updated in rows:
+            self.tree.insert("", "end", iid=jid, text=name,
+                             values=(str(count), self._format_updated(updated)))
+        if rows:
+            target = self.view.journal_id if self.tree.exists(self.view.journal_id) else rows[0][0]
+            self.tree.selection_set(target)
+            self.tree.focus(target)
+            self.open_button.configure(state="normal")
+            base = f"{len(rows)} saved journal(s). Double-click or press Open journal to switch."
+        else:
+            self.open_button.configure(state="disabled")
+            base = "No saved journals yet. Add a note or rename your journal to save one."
+        if skipped:
+            base += f" Skipped {skipped} unreadable journal file(s); those files were left untouched."
+        self.notice.set(base)
+
+    def open_selected(self):
+        selected = self.tree.selection()
+        if not selected:
+            self.notice.set("Select a journal first.")
+            return
+        jid = selected[0]
+        self.close()
+        self.on_open(jid)
+
+    def close(self):
+        if getattr(self.view, "_open_journal_dialog", None) is self:
+            self.view._open_journal_dialog = None
         self.root.destroy()

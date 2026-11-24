@@ -357,6 +357,8 @@ def test_new_text_scrolls_to_bottom_after_reading_older_messages(window, update)
     window.transcript.yview_moveto(0.2)
     window.root.update()
     assert window.transcript.yview()[1] < 0.9
+    before_top = window.transcript.index("@0,0")
+    before_line = window.transcript.get(f"{before_top} linestart", f"{before_top} lineend")
     if update == "reply":
         messages = messages + [Message("synthetic-latest", "assistant", "Newest reply at the bottom")]
     elif update == "growing_reply":
@@ -365,7 +367,16 @@ def test_new_text_scrolls_to_bottom_after_reading_older_messages(window, update)
     else:
         window.sent[window.selection_key] = [("Newest outgoing message", "queued", frozenset())]
     window._show(messages)
-    assert_latest_visible(window)
+    window.root.update()
+    if update == "queued_message":
+        assert_latest_visible(window)
+    else:
+        after_top = window.transcript.index("@0,0")
+        after_line = window.transcript.get(f"{after_top} linestart", f"{after_top} lineend")
+        assert after_line == before_line
+        assert window.jump_latest_button.winfo_manager()
+        window.jump_latest_button.invoke()
+        assert_latest_visible(window)
 
 
 def test_unchanged_history_keeps_manual_scroll_position(window):

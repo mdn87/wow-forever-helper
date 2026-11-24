@@ -263,6 +263,39 @@ class JournalService:
             self._write(path, data)
             return data
 
+    def rename(self, journal_id, name):
+        try:
+            bounded_text(name, 80)
+        except (ValueError, UnicodeError):
+            raise ChatError("Write a journal name between 1 and 80 characters.") from None
+        clean = name.strip()
+        with self.locked(journal_id) as (path, data):
+            data["name"] = clean
+            self._write(path, data)
+            return data
+
+    def list_journals(self):
+        """Return (rows, skipped) where rows are (journal_id, name, entry_count, updated_at) newest-first."""
+        folder = self.storage / "journals"
+        if not folder.is_dir():
+            return [], 0
+        rows = []
+        skipped = 0
+        for path in folder.glob("*.json"):
+            try:
+                jid = identifier(path.stem)
+                data = self.load(jid)
+                stat = path.stat()
+            except (ChatError, OSError):
+                skipped += 1
+                continue
+            entries = data.get("entries", [])
+            updated = (entries[-1].get("at", "") if entries
+                       else datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(timespec="seconds"))
+            rows.append((jid, data.get("name") or "My journal", len(entries), updated, stat.st_mtime))
+        rows.sort(key=lambda item: (item[4], item[3]), reverse=True)
+        return [(jid, name, count, updated) for jid, name, count, updated, _ in rows], skipped
+
 
 def advice_selection(view, message, text):
     """Freeze one reply and only evidence associated with that conversation."""

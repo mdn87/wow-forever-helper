@@ -164,6 +164,8 @@ def _classic_theme(root):
         "pressed": _button_image(root, leather, "#a38446", brightness=0.7, pressed=True),
         "disabled": _button_image(root, owner._companion_textures["leather"], "#5c5140", brightness=0.85),
         "focus": _button_image(root, leather, "#f2d887", brightness=1.15),
+        "primary": _button_image(root, leather, "#f0cf6d", brightness=1.22),
+        "primary_active": _button_image(root, leather, "#ffe99e", brightness=1.42),
     }
     # Tk tiles the material while preserving the bevels; small title controls
     # crop it instead of stretching the grain or inheriting the asset's width.
@@ -172,11 +174,20 @@ def _classic_theme(root):
                          ("disabled", images["disabled"]), ("pressed", images["pressed"]),
                          ("active", images["active"]), ("focus", images["focus"]),
                          border=5, sticky="nswe", width=24, height=24)
+    style.element_create("Companion.primary", "image", images["primary"],
+                         ("disabled", images["disabled"]), ("pressed", images["pressed"]),
+                         ("active", images["primary_active"]), ("focus", images["primary_active"]),
+                         border=5, sticky="nswe", width=24, height=24)
     style.layout("TButton", [("Companion.button", {"sticky": "nswe", "children": [
         ("Button.padding", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})]})])
     style.configure("TButton", font=display_font(root, 10), foreground=ACCENT,
                     background=BACKGROUND, padding=(6, 1), width=0, anchor="center")
     style.map("TButton", foreground=[("disabled", "#837862"), ("active", "#ffe7a0")])
+    style.layout("Primary.TButton", [("Companion.primary", {"sticky": "nswe", "children": [
+        ("Button.padding", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})]})])
+    style.configure("Primary.TButton", font=(display_font(root, 10)[0], 10, "bold"),
+                    foreground="#fff0ad", background=BACKGROUND, padding=(8, 2), width=0, anchor="center")
+    style.map("Primary.TButton", foreground=[("disabled", "#837862"), ("active", "#ffffff")])
     style.configure("Window.TButton", font=("Segoe UI", 9, "bold"), padding=(2, 0), width=2)
     style.configure("Agent.TButton", font=("Segoe UI", 8), padding=(3, 0), width=0)
     style.layout("TMenubutton", [("Companion.button", {"sticky": "nswe", "children": [

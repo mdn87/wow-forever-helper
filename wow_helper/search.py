@@ -13,10 +13,18 @@ MAX_INDEX_BYTES = 8_000_000
 SETTINGS_ACTIONS = (("interface", "Interface and transparency"), ("layouts", "Activity layouts"),
                     ("command_library", "Command library: graphics, console settings and junk selling"),
                     ("appearance", "Chat appearance"), ("setup", "Window setup"),
+                    ("live_gear", "Live gear comparison"),
+                    ("combat", "Post-fight coaching (manual notes and screenshot)"),
+                    ("voice_input", "Voice input (Keypad -)"),
+                    ("handsfree", "Hands-free voice (Lugos Voice)"),
+                    ("wow_displays", "WoW companion displays"),
+                    ("model_settings", "Model and usage settings"),
+                    ("bookmark", "Bookmark this moment"),
+                    ("pin_reply", "Pin selected reply to Play"),
                     ("build", "Build tutor and experiments"), ("route", "Dungeon route walkthrough"),
                     ("addon", "Addon troubleshooting"),
                     ("economy", "Session economy analysis"),
-                    ("fight", "Ask about the last fight"),
+                    ("fight", "Ask about the last fight (combat log)"),
                     ("goals", "Personal goals and wishlist"),
                     ("history", "Activity history"),
                     ("chain", "Selected quest chain and prerequisites"))
@@ -35,7 +43,10 @@ def search_index(manager):
     rows, notices, sessions = [], [], set()
 
     def add(kind, title, detail, target, body=""):
-        if kind != "command" and len(rows) >= MAX_RESULTS - len(TYPES) - len(SETTINGS_ACTIONS):
+        if len(rows) >= MAX_RESULTS:
+            notices.append("Search reached its result limit; some records are omitted.")
+            return
+        if kind != "command" and len(rows) >= max(0, MAX_RESULTS - len(TYPES) - len(SETTINGS_ACTIONS)):
             notices.append("Search reached its result limit; some records are omitted.")
             return
         rows.append({"kind": kind, "title": title, "detail": detail, "target": target,
@@ -103,6 +114,9 @@ def search_index(manager):
                 add("activity", LABELS[event["outcome"]], event["title"], event["id"])
         except ChatError:
             notices.append("Activity history could not be indexed; its file is kept.")
+    from .command_library import COMMANDS, describe
+    for entry in COMMANDS:
+        add("library", entry.title, f"Command · {entry.category} · {entry.command}", entry.key, describe(entry))
     for kind, (title, _) in TYPES.items():
         add("command", "Open " + title, "New companion window; no opening request", kind)
     for action, title in SETTINGS_ACTIONS:
@@ -124,12 +138,23 @@ def open_row(manager, window, row):
         manager.show_command_library(window)
     elif target == "history":
         manager.show_activity_history(window)
+    elif target == "voice_input":
+        manager.show_voice_input(window)
+    elif target == "handsfree":
+        manager.show_handsfree_voice(window)
+    elif target == "wow_displays":
+        from .wow_displays import show_display_setup
+        show_display_setup(manager, window.root)
     elif target in {"appearance", "setup"} and view:
         (view.show_appearance if target == "appearance" else view.show_setup)()
-    elif target in {"build", "route", "addon", "economy", "fight", "chain", "goals"} and view:
+    elif target in {"live_gear", "combat", "model_settings", "bookmark", "pin_reply",
+                    "build", "route", "addon", "economy", "fight", "chain", "goals"} and view:
         if target == "chain" and (view.kind != "quests" or view.quest_tree.selected() is None):
             raise ChatError("Select a quest in a Quest guide window before opening its chain.")
-        {"build": view.show_build_tutor, "route": view.show_route_notebook,
+        {"live_gear": view.show_live_gear, "combat": view.show_combat_coaching,
+         "model_settings": view.show_model_settings, "bookmark": view.bookmark_moment,
+         "pin_reply": view.pin_to_play,
+         "build": view.show_build_tutor, "route": view.show_route_notebook,
          "addon": view.show_addon_troubleshooting,
          "economy": view.show_economy_notebook, "fight": view.show_fight_question,
          "chain": view.show_quest_chain, "goals": view.show_goals}[target]()
@@ -140,19 +165,14 @@ class SearchDialog:
     def __init__(self, manager, window):
         from tkinter import ttk
         from .theme import palette
-        from .window_frame import WindowFrame
+        from .window_frame import setup_dialog
         from .task_window import text_box
         self.manager, self.window, self.parent = manager, window, window.root
         tk = manager.tk
         self.root = tk.Toplevel(manager.root)
         self.root.withdraw()
-        self.root.title("Search companion")
-        self.root.transient(window.root)
-        self.root.attributes("-topmost", window.topmost.get())
-        self.chrome = WindowFrame(self.root, title="Search companion", close=self.close, minimum=(480, 540))
-        self.chrome.place("680x660")
-        self.root.protocol("WM_DELETE_WINDOW", self.close)
-        self.root.bind("<Escape>", lambda _: self.close())
+        self.chrome = setup_dialog(self.root, window.root, title="Search companion", close=self.close,
+                                   minimum=(480, 540), size=(680, 660))
         surface = self.chrome.content
         colors = palette(self.root)
         bar = tk.Frame(surface, bg=colors.PANEL, padx=12, pady=10)
@@ -244,6 +264,8 @@ class SearchDialog:
                 text, enabled = str(error), False
         elif row and row['kind'] == 'goal':
             label = 'Open goal'
+        elif row and row['kind'] == 'library':
+            label = 'Copy command'
         replace_text(self.preview, text)
         self.open_button.configure(text=label, state="normal" if enabled else "disabled")
 
@@ -297,6 +319,17 @@ class SearchDialog:
             manager.show_activity_layouts(self.window)
             manager._layouts_dialog.selected.set(target)
             manager._layouts_dialog.preview()
+        elif kind == "library":
+            from .command_library import COMMANDS
+            entry = next((c for c in COMMANDS if c.key == target), None)
+            if entry is None:
+                raise ChatError("That library command is no longer available.")
+            try:
+                self.root.clipboard_clear()
+                self.root.clipboard_append(entry.command)
+            except self.manager.tk.TclError:
+                raise ChatError("Could not copy. Open Command library to copy manually.") from None
+            self.window.set_notice(f"Copied {entry.command}. Paste it into WoW chat when ready.")
         elif kind == "command":
             open_row(manager, self.window, row)
         else:

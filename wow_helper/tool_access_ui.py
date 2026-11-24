@@ -6,7 +6,7 @@ import json
 
 from .chat import ChatError
 from .journal import identifier
-from .journal_ui import JournalDialog
+from .journal_ui import JournalDialog, style_journal_tree
 from .publications import PublicationService
 
 
@@ -96,6 +96,7 @@ class ToolAccessDialog(JournalDialog):
         listing.pack(fill="x")
         self.records = self.ttk.Treeview(listing, columns=("state", "published"), show="tree headings",
                                           height=4, selectmode="browse", style="Journal.Treeview")
+        style_journal_tree(self.records)
         for column, title, width in (("#0", "Frozen note", 180), ("state", "Access", 90), ("published", "Published (UTC)", 130)):
             self.records.heading(column, text=title)
             self.records.column(column, width=width, minwidth=60)

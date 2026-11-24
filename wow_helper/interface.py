@@ -71,19 +71,14 @@ class InterfaceDialog:
     def __init__(self, manager, parent):
         import tkinter as tk
         from tkinter import ttk
-        from .window_frame import WindowFrame
+        from .window_frame import setup_dialog
 
         self.manager = manager
         self.parent = parent
         self.root = tk.Toplevel(manager.root)
         self.root.withdraw()
-        self.root.title("Interface & transparency")
-        self.root.transient(parent)
-        self.root.attributes("-topmost", parent.attributes("-topmost"))
-        self.root.protocol("WM_DELETE_WINDOW", self.close)
-        self.root.bind("<Escape>", lambda _: self.close())
-        self.chrome = WindowFrame(self.root, title="Interface & transparency", close=self.close, minimum=(460, 600))
-        self.chrome.place(f"500x620+{parent.winfo_x() + 24}+{parent.winfo_y() + 24}")
+        self.chrome = setup_dialog(self.root, parent, title="Interface & transparency", close=self.close,
+                                   minimum=(460, 600), size=(500, 620))
         colors = palette(self.root)
         surface = self.chrome.content
         body = tk.Frame(surface, bg=colors.PANEL, padx=20, pady=16)

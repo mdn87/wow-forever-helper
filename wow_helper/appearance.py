@@ -2,6 +2,7 @@
 
 import re
 
+from .markdown_text import extract_commands, has_formatting, parse_markdown
 from .theme import ACCENT, PANEL, TEXT, palette, is_modern
 
 DEFAULTS = {"background": PANEL, "text": TEXT, "user_text": ACCENT,
@@ -50,12 +51,30 @@ def style_text(widget, settings, *, composer=False):
                          highlightcolor=palette(widget).ACCENT, borderwidth=0, relief="flat")
         if settings.get("use_theme_colors") and is_modern(widget):
             widget.configure(bg=palette(widget).EDITOR)
+    colors = palette(widget)
     widget.tag_configure("user", foreground=settings["user_text"])
     widget.tag_configure("assistant", foreground=settings["text"])
     widget.tag_configure("body", spacing1=0, spacing2=0, spacing3=0)
     widget.tag_configure("note", foreground=settings["text"], spacing1=0, spacing3=0)
     widget.tag_configure("delivery", font=(family, max(8, size - 2), "italic"))
-    widget.tag_configure("divider", font=(family, 1), spacing1=1, spacing2=0, spacing3=1)
+    widget.tag_configure("divider", font=(family, 1), spacing1=3, spacing2=0, spacing3=3)
+    widget.tag_configure("md_h1", font=(family, min(MAX_FONT_SIZE, size + 3), "bold"), spacing1=4, spacing3=2)
+    widget.tag_configure("md_h2", font=(family, min(MAX_FONT_SIZE, size + 2), "bold"), spacing1=3, spacing3=2)
+    widget.tag_configure("md_h3", font=(family, min(MAX_FONT_SIZE, size + 1), "bold"), spacing1=2, spacing3=1)
+    widget.tag_configure("md_h4", font=(family, size, "bold"), spacing1=2, spacing3=1)
+    widget.tag_configure("md_bold", font=(family, size, "bold"))
+    widget.tag_configure("md_italic", font=(family, size, "italic"))
+    code_bg = colors.EDITOR if colors.EDITOR.lower() != settings["background"].lower() else colors.TITLE
+    widget.tag_configure("md_code", font=("Consolas", max(8, size - 1)), background=code_bg)
+    widget.tag_configure("md_code_block", font=("Consolas", max(8, size - 1)), background=code_bg,
+                         lmargin1=10, lmargin2=10, rmargin=10, spacing1=3, spacing3=3)
+    widget.tag_configure("md_link", foreground=colors.ACCENT, underline=True)
+    widget.tag_configure("md_copy", foreground=colors.ACCENT, font=(family, max(8, size - 2), "bold"), underline=True)
+    widget.tag_configure("md_action", foreground=colors.MUTED, font=(family, max(8, size - 2)))
+    widget.tag_configure("reply_selected", background=colors.SELECT)
+    widget.tag_configure("find_match", background=colors.SELECT,
+                         foreground=colors.TEXT if is_modern(widget) else colors.ACCENT)
+    widget.tag_configure("find_current", background=colors.ACCENT, foreground="#111722")
     _resize_divider(widget)
 
 
@@ -79,8 +98,8 @@ def _release_divider(widget):
         del widget._turn_divider
 
 
-def append_turn(widget, body, role, *, pending=""):
-    """Render message colors without adding speaker rows or paragraph padding."""
+def append_turn(widget, body, role, *, pending="", on_link=None, on_copy=None, on_action=None):
+    """Render message colors, safe Markdown formatting, clickable links, and inline copy controls."""
     if widget.index("end-1c") != "1.0":
         if not hasattr(widget, "_turn_divider"):
             import tkinter as tk
@@ -94,28 +113,73 @@ def append_turn(widget, body, role, *, pending=""):
         widget.insert("end", "\n", "divider")
         widget.tag_add("divider", start, "end-1c")
     role = "user" if role == "user" else "assistant"
-    widget.insert("end", body.strip("\n"), ("body", role))
+    body_start = widget.index("end-1c")
+    text = body.strip("\n")
+    counter = getattr(widget, "_md_tag_counter", 0)
+    link_map = getattr(widget, "_md_links", None)
+    if link_map is None:
+        link_map = widget._md_links = {}
+
+    def next_tag(prefix):
+        nonlocal counter
+        counter += 1
+        widget._md_tag_counter = counter
+        return f"{prefix}-{counter}"
+
+    def bind_clickable(tag, callback, url=""):
+        if url:
+            link_map[tag] = url
+        widget.tag_bind(tag, "<Button-1>", lambda _e, fn=callback: (fn(), "break")[1])
+        widget.tag_bind(tag, "<Enter>", lambda _e: widget.configure(cursor="hand2"))
+        widget.tag_bind(tag, "<Leave>", lambda _e: widget.configure(cursor="arrow"))
+
+    if not has_formatting(text):
+        widget.insert("end", text, ("body", role))
+    else:
+        blocks = parse_markdown(text)
+        for index, block in enumerate(blocks):
+            if index > 0:
+                widget.insert("end", "\n", ("body", role))
+            if block.kind == "code_block":
+                widget.insert("end", block.text, ("body", role, "md_code_block"))
+            else:
+                extra = (f"md_h{min(4, max(1, block.level))}",) if block.kind == "heading" else ()
+                if block.prefix:
+                    widget.insert("end", block.prefix, ("body", role, *extra))
+                for span in block.spans:
+                    if span.style == "bold":
+                        widget.insert("end", span.text, ("body", role, *extra, "md_bold"))
+                    elif span.style == "italic":
+                        widget.insert("end", span.text, ("body", role, *extra, "md_italic"))
+                    elif span.style == "code":
+                        widget.insert("end", span.text, ("body", role, *extra, "md_code"))
+                    elif span.style == "link" and span.url:
+                        tag = next_tag("md-link")
+                        widget.insert("end", span.text, ("body", role, *extra, "md_link", tag))
+                        if on_link is not None:
+                            bind_clickable(tag, lambda u=span.url: on_link(u), url=span.url)
+                        else:
+                            link_map[tag] = span.url
+                    else:
+                        widget.insert("end", span.text, ("body", role, *extra))
+    body_end = widget.index("end-1c")
     if pending:
         widget.insert("end", "  · " + pending.upper(), ("delivery", role))
+    return body_start, body_end
 
 
 class AppearanceDialog:
     def __init__(self, view):
         import tkinter as tk
         from tkinter import font, ttk
-        from .window_frame import WindowFrame
+        from .window_frame import setup_dialog
 
         self.view = view
         self.root = tk.Toplevel(view.root)
         self.root.withdraw()
-        self.root.title("Chat appearance")
         parent = view.root.winfo_toplevel()
-        self.root.transient(parent)
-        self.root.attributes("-topmost", parent.attributes("-topmost"))
-        self.root.geometry(f"480x500+{parent.winfo_x() + 32}+{parent.winfo_y() + 32}")
-        self.root.protocol("WM_DELETE_WINDOW", self.close)
-        self.root.bind("<Escape>", lambda _: self.close())
-        self.chrome = WindowFrame(self.root, title="Chat appearance", close=self.close, minimum=(440, 480))
+        self.chrome = setup_dialog(self.root, parent, title="Chat appearance", close=self.close,
+                                   minimum=(440, 480), size=(480, 500))
         surface = self.chrome.content
         tk.Label(surface, text="For this window's conversation and message box.", bg=palette(self.root).BACKGROUND,
                  fg=palette(self.root).MUTED, font=("Segoe UI", 9), anchor="w").pack(fill="x", padx=14, pady=(12, 8))

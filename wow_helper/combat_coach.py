@@ -67,6 +67,12 @@ class CombatNotebook(DiscussionNotebook):
     def make_fields(self):
         edition = next(key for key, value in FLAVORS.items() if value == self.view.profile["flavor"])
         self.bound_source = {key: self.initial.get(key, "") for key in ("source_provider", "source_session")}
+        intro = self.frame(self.inputs)
+        intro.pack(fill="x", pady=(0, 4))
+        self.label(intro, "Manual encounter notes, attempt comparisons & screenshots.").pack(side="left")
+        self.switch_fight_button = self.ttk.Button(intro, text="Ask with combat log…",
+                                                   command=self.open_fight_question)
+        self.switch_fight_button.pack(side="right")
         self.field("edition", "Game edition", edition, list(FLAVORS))
         self.field("encounter", "Encounter name")
         self.field("phase", "Review stage", "First attempt", ["First attempt", "Compare later attempt"])
@@ -196,6 +202,10 @@ class CombatNotebook(DiscussionNotebook):
             self.image_label.configure(image=self.photo, text="")
         except (ChatError, OSError, ValueError, Image.DecompressionBombError):
             self.image_label.configure(image="", text="Saved image unavailable. Select it again before sending.")
+
+    def open_fight_question(self):
+        self.changed()
+        self.view.show_fight_question()
 
     def close(self):
         self.photo = None

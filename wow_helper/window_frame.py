@@ -95,6 +95,71 @@ def native_frame_colors(root):
         pass
 
 
+def monitor_for(parent, areas):
+    """Return the monitor work area containing the parent window's center, or primary."""
+    if not areas:
+        return None
+    if parent is not None:
+        try:
+            top = parent.winfo_toplevel()
+            if top.winfo_exists() and top.winfo_width() > 1:
+                cx = top.winfo_x() + top.winfo_width() // 2
+                cy = top.winfo_y() + top.winfo_height() // 2
+                found = next((a for a in areas if a[0] <= cx < a[2] and a[1] <= cy < a[3]), None)
+                if found is not None:
+                    return found
+        except Exception:
+            pass
+    return areas[0]
+
+
+def dialog_geometry(root, parent, size, minimum):
+    """Compute parent-relative dialog bounds clamped to the parent's monitor."""
+    from .window_state import display_workareas, window_bounds
+    width, height = size
+    areas = display_workareas(root)
+    area = monitor_for(parent, areas)
+    raw = {"width": width, "height": height}
+    if parent is not None:
+        try:
+            top = parent.winfo_toplevel()
+            if top.winfo_exists() and top.winfo_width() > 1:
+                raw["x"] = top.winfo_x() + 24
+                raw["y"] = top.winfo_y() + 24
+        except Exception:
+            pass
+    bounds = window_bounds(raw, [area] if area is not None else areas, minimum)
+    return f"{bounds['width']}x{bounds['height']}+{bounds['x']}+{bounds['y']}"
+
+
+def setup_dialog(root, parent, *, title, close, minimum=(440, 480), size=(640, 620), bind_escape=True):
+    """Configure consistent transient, topmost, close, Escape, chrome, and parent-monitor placement."""
+    root.title(title)
+    parent_top = None
+    if parent is not None:
+        try:
+            candidate = parent.winfo_toplevel()
+            if candidate.winfo_exists() and candidate is not root._root():
+                parent_top = candidate
+        except Exception:
+            parent_top = None
+    if parent_top is not None:
+        try:
+            root.transient(parent_top)
+        except Exception:
+            pass
+        try:
+            root.attributes("-topmost", bool(parent_top.attributes("-topmost")))
+        except Exception:
+            pass
+    root.protocol("WM_DELETE_WINDOW", close)
+    if bind_escape:
+        root.bind("<Escape>", lambda _event: close())
+    chrome = WindowFrame(root, title=title, close=close, minimum=minimum)
+    chrome.place(dialog_geometry(root, parent_top, size, minimum))
+    return chrome
+
+
 class WindowFrame:
     def __init__(self, root, *, title="WoW Companion", close=None, minimum=(440, 580)):
         import tkinter as tk
@@ -234,7 +299,13 @@ class WindowFrame:
                 self.maximize_button.configure(text="❐" if state == "zoomed" else "□")
 
     def begin(self, event, kind):
-        if self.root.state() != "normal":
+        state = self.root.state()
+        if state == "zoomed" and kind == "move":
+            width = max(1, self.root.winfo_width())
+            ratio = max(0.1, min(0.9, (event.x_root - self.root.winfo_x()) / width))
+            self.drag_start = ("unzoom", event.x_root, event.y_root, ratio, 0, 0, 0)
+            return
+        if state != "normal":
             return
         self.drag_start = (kind, event.x_root, event.y_root, self.root.winfo_x(), self.root.winfo_y(),
                            self.root.winfo_width(), self.root.winfo_height())
@@ -244,6 +315,22 @@ class WindowFrame:
             return
         kind, mx, my, x, y, width, height = self.drag_start
         dx, dy = event.x_root - mx, event.y_root - my
+        if kind == "unzoom":
+            if abs(dx) + abs(dy) < 5:
+                return
+            ratio = x
+            self.root.state("normal")
+            self.root.update_idletasks()
+            new_w = max(self.minimum[0], self.root.winfo_width())
+            new_h = max(self.minimum[1], self.root.winfo_height())
+            nx = round(event.x_root - new_w * ratio)
+            ny = max(0, event.y_root - 16)
+            self.drag_start = ("move", event.x_root, event.y_root, nx, ny, new_w, new_h)
+            move = getattr(self.root, "_companion_move", None)
+            if move and move(nx, ny):
+                return
+            self.root.geometry(f"+{nx}+{ny}")
+            return
         if kind == "move":
             x, y = x + dx, y + dy
             move = getattr(self.root, "_companion_move", None)

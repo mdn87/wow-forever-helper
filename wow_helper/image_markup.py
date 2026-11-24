@@ -4,7 +4,7 @@ import math
 from .chat import ChatError
 from .screen_capture import saved_image, save_edited_image
 from .theme import palette
-from .window_frame import WindowFrame
+from .window_frame import setup_dialog
 
 MARKUP_MAX_PIXELS = 20_000_000
 MAX_OPERATIONS = 20
@@ -103,14 +103,10 @@ class ImageMarkupDialog:
 
         self.root = tk.Toplevel(view.root)
         self.root.withdraw()
-        self.root.title("Edit reviewed image")
         parent = view.root.winfo_toplevel()
-        self.root.transient(parent)
-        self.root.geometry(f"820x740+{parent.winfo_x() + 30}+{parent.winfo_y() + 30}")
-        self.root.protocol("WM_DELETE_WINDOW", self.close)
-        self.root.bind("<Escape>", lambda _event: self.close())
+        self.chrome = setup_dialog(self.root, parent, title="Edit reviewed image", close=self.close,
+                                   minimum=(640, 520), size=(820, 740))
         self.root.bind("<Control-z>", lambda _event: self.undo())
-        self.chrome = WindowFrame(self.root, title="Edit reviewed image", close=self.close, minimum=(640, 520))
         surface = self.chrome.content
         colors = palette(self.root)
         tk.Label(surface, text="Edits stay local until you save a new copy. The source image is preserved.",

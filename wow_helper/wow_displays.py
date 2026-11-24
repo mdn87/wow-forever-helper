@@ -343,28 +343,54 @@ class QuestLogDisplay:
         self.worker.shutdown(wait=False)
 
 
+def monitor_labels(areas):
+    """Describe connected monitors with resolution and position relative to primary."""
+    if not areas:
+        return []
+    primary = areas[0]
+    px = (primary[0] + primary[2]) / 2
+    py = (primary[1] + primary[3]) / 2
+    labels = []
+    for n, area in enumerate(areas):
+        w, h = area[2] - area[0], area[3] - area[1]
+        if n == 0:
+            pos = "Primary"
+        else:
+            cx, cy = (area[0] + area[2]) / 2, (area[1] + area[3]) / 2
+            dx, dy = cx - px, cy - py
+            if abs(dx) >= abs(dy):
+                pos = "Right" if dx > 0 else "Left"
+            else:
+                pos = "Below" if dy > 0 else "Above"
+        labels.append(f"Screen {n + 1} · {w} × {h} · {pos}")
+    return labels
+
+
 def show_display_setup(manager, parent):
     """Explicitly select two screens; never infer that the game monitor is free."""
     from tkinter import ttk
+    from .window_frame import setup_dialog
     from .window_state import display_workareas
     tk = manager.tk
     areas = display_workareas(manager.root)
     dialog = tk.Toplevel(parent)
-    dialog.title("WoW companion displays")
-    dialog.geometry("560x360")
-    colors = palette(parent)
-    dialog.configure(bg=colors.PANEL)
-    tk.Label(dialog, text="Choose a different screen for each view.\nThese helper windows temporarily sit above Dias.",
-             bg=colors.PANEL, fg=colors.TEXT, font=("Segoe UI", 12), justify="left").pack(padx=18, pady=18)
-    labels = [f"Screen {n + 1} · {a[2] - a[0]} × {a[3] - a[1]}" for n, a in enumerate(areas)]
+    dialog.withdraw()
+    chrome = setup_dialog(dialog, parent, title="WoW companion displays", close=dialog.destroy,
+                          minimum=(460, 340), size=(560, 380))
+    dialog._companion_frame = chrome
+    surface = chrome.content
+    colors = palette(dialog)
+    tk.Label(surface, text="Choose a different screen for each view.\nThese helper windows temporarily sit above Dias.",
+             bg=colors.PANEL, fg=colors.TEXT, font=("Segoe UI", 12), justify="left", anchor="w").pack(fill="x", padx=18, pady=14)
+    labels = monitor_labels(areas)
     picks = []
     for title in ("Quest log", "Activity cards"):
-        tk.Label(dialog, text=title, bg=colors.PANEL, fg=colors.TEXT).pack(anchor="w", padx=18)
-        picker = ttk.Combobox(dialog, values=labels, state="readonly")
-        picker.pack(fill="x", padx=18, pady=(4, 12))
+        tk.Label(surface, text=title, bg=colors.PANEL, fg=colors.TEXT).pack(anchor="w", padx=18)
+        picker = ttk.Combobox(surface, values=labels, state="readonly")
+        picker.pack(fill="x", padx=18, pady=(4, 10))
         picks.append(picker)
-    notice = tk.Label(dialog, bg=colors.PANEL, fg=colors.ACCENT, wraplength=510)
-    notice.pack(fill="x", padx=18)
+    notice = tk.Label(surface, bg=colors.PANEL, fg=colors.ACCENT, wraplength=500, justify="left", anchor="w")
+    notice.pack(fill="x", padx=18, pady=(0, 6))
     def apply():
         try:
             if any(p.current() < 0 for p in picks):
@@ -374,5 +400,10 @@ def show_display_setup(manager, parent):
             notice.configure(text=str(error))
         else:
             dialog.destroy()
-    ttk.Button(dialog, text="Open WoW displays", command=apply, padding=10).pack(side="right", padx=18, pady=12)
-    ttk.Button(dialog, text="Cancel", command=dialog.destroy, padding=10).pack(side="right", pady=12)
+    actions = tk.Frame(surface, bg=colors.PANEL, padx=18, pady=10)
+    actions.pack(side="bottom", fill="x")
+    ttk.Button(actions, text="Open WoW displays", style="Primary.TButton", command=apply, padding=8).pack(side="right", padx=(8, 0))
+    ttk.Button(actions, text="Cancel", command=dialog.destroy, padding=8).pack(side="right")
+    dialog.deiconify()
+    chrome.apply_native()
+    return dialog

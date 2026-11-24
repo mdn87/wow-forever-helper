@@ -118,6 +118,12 @@ class ActivityService:
     def add_note(self, journal_id, name, text, note_id=None, **metadata):
         return JournalService(self.storage).add(journal_id, name, text, note_id, **metadata)
 
+    def rename_journal(self, journal_id, name):
+        return JournalService(self.storage).rename(journal_id, name)
+
+    def list_journals(self):
+        return JournalService(self.storage).list_journals()
+
     def prepare(self, kind, profile, *, journal_id=None, image=None, task=None):
         reports = self.reports(profile["steps"], profile["flavor"])
         skills = [{"name": SKILLS[key], "instructions": read_note(ROOT / "skills" / key / "SKILL.md")}

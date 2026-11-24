@@ -1,12 +1,15 @@
 """One reviewed research request to the conversation already selected by the user."""
 import threading
+import time
 import uuid
 
 from .chat import ChatError
+from .markdown_text import extract_commands
 from .model_settings import choice_summary, research_prompt
+from .response_wait import elapsed
 from .task_window import replace_text, text_box
-from .theme import palette
-from .window_frame import WindowFrame
+from .theme import BusyBar, palette
+from .window_frame import setup_dialog
 
 
 def research_answer(session, request, prompt, messages, status):
@@ -34,18 +37,15 @@ class CommandResearchDialog:
     def __init__(self, library, window):
         from tkinter import ttk
         self.library, self.window, self.view = library, window, window.view
-        self.tracking = self.answer_source = None
+        self.tracking = self.answer_source = self.answer_text = self.answer_command = None
+        self._wait_started = None
         self.closed, self.review = False, None
         self.valid = threading.Event()
         self.last_state = self.timer = None
         tk = library.manager.tk
         self.root = tk.Toplevel(library.root)
-        self.root.title('Search online with your agent')
-        self.root.transient(library.root)
-        self.root.protocol('WM_DELETE_WINDOW', self.close)
-        self.root.bind('<Escape>', lambda _: self.close())
-        self.chrome = WindowFrame(self.root, title='Search online with your agent', close=self.close, minimum=(520, 610))
-        self.chrome.place('720x730')
+        self.chrome = setup_dialog(self.root, library.root, title='Search online with your agent', close=self.close,
+                                   minimum=(520, 610), size=(720, 730))
         colors = palette(self.root)
         body = tk.Frame(self.chrome.content, bg=colors.PANEL, padx=14, pady=12)
         body.pack(fill='both', expand=True)
@@ -89,10 +89,17 @@ class CommandResearchDialog:
         self.send_button.grid(row=1, column=1, sticky='ew', padx=2)
         ttk.Button(footer, text='Close', command=self.close).grid(row=1, column=2, sticky='ew', padx=2)
         self.renew_button = ttk.Button(footer, text='Allow 3 more searches', command=self.renew)
-        self.renew_button.grid(row=2, column=0, columnspan=2, sticky='ew', pady=(8, 0))
+        self.renew_button.grid(row=2, column=0, columnspan=2, sticky='ew', pady=(6, 0))
         self.view_chat = ttk.Button(footer, text='View chat', command=self.open_answer_chat, state='disabled')
-        self.view_chat.grid(row=2, column=2, sticky='ew', pady=(8, 0))
+        self.view_chat.grid(row=2, column=2, sticky='ew', pady=(6, 0))
+        self.copy_answer_button = ttk.Button(footer, text='Copy answer', command=self.copy_answer, state='disabled')
+        self.copy_answer_button.grid(row=3, column=0, sticky='ew', padx=2, pady=(6, 0))
+        self.copy_command_button = ttk.Button(footer, text='Copy command', command=self.copy_command, state='disabled')
+        self.copy_command_button.grid(row=3, column=1, sticky='ew', padx=2, pady=(6, 0))
+        self.save_journal_button = ttk.Button(footer, text='Save to Journal…', command=self.save_to_journal, state='disabled')
+        self.save_journal_button.grid(row=3, column=2, sticky='ew', padx=2, pady=(6, 0))
         footer.columnconfigure((0, 1, 2), weight=1, uniform='actions')
+        self.busy_bar = BusyBar(body, side='bottom', fill='x', pady=(4, 0), after=footer)
         self.preview = text_box(tk, body, bg=colors.EDITOR, fg=colors.TEXT, font=('Segoe UI', 10))
         self.query.trace_add('write', self.invalidate)
         self.client.trace_add('write', self.invalidate)
@@ -139,12 +146,58 @@ class CommandResearchDialog:
     def watch(self):
         if not self.closed:
             self.sync()
+            if self._wait_started is not None and self.tracking:
+                self.notice.set(f'Waiting for answer · {elapsed(self._wait_started)}. You can also view the chat.')
             self.timer = self.root.after(750, self.watch)
 
     def stop_watching(self):
         if self.tracking:
             self.view.reply_watchers.pop(self.tracking, None)
             self.tracking = None
+        self._wait_started = None
+        if hasattr(self, 'busy_bar'):
+            self.busy_bar.set(False)
+
+    def copy_answer(self):
+        if not self.answer_text:
+            return
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(self.answer_text)
+            self.notice.set('Copied research answer to the clipboard.')
+        except self.library.manager.tk.TclError:
+            self.notice.set('Could not copy. Select the answer text and copy it manually.')
+
+    def copy_command(self):
+        if not self.answer_command:
+            return
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(self.answer_command)
+            self.notice.set('Copied command from answer. Paste it into WoW chat when ready.')
+        except self.library.manager.tk.TclError:
+            self.notice.set('Could not copy. Select the command text and copy it manually.')
+
+    def save_to_journal(self):
+        if not self.answer_text or not self.answer_source:
+            return
+        from .journal_ui import SaveAdviceDialog
+        if self.view._journal_dialog is not None:
+            self.view._journal_dialog.root.lift()
+            return
+        selection = {
+            'text': self.answer_text,
+            'source': dict(self.answer_source),
+            'evidence': {
+                'text': f'Question: {self.query.get().strip()}\nClient: {self.client.get().strip()}',
+                'edition': self.client.get().strip()[:100] or 'Unknown',
+                'gaps': ['Web research reply saved from Command library search; verify in-game before relying on values.'],
+            },
+        }
+        try:
+            self.view._journal_dialog = SaveAdviceDialog(self.view, selection)
+        except ChatError as error:
+            self.notice.set(str(error))
 
     def open_answer_chat(self):
         if self.answer_source:
@@ -157,8 +210,11 @@ class CommandResearchDialog:
 
     def invalidate(self, *_):
         self.stop_watching()
-        self.answer_source = None
+        self.answer_source = self.answer_text = self.answer_command = None
         self.view_chat.configure(state='disabled')
+        self.copy_answer_button.configure(state='disabled')
+        self.copy_command_button.configure(state='disabled')
+        self.save_journal_button.configure(state='disabled')
         self.valid.clear()
         self.review = None
         self.send_button.configure(state='disabled')
@@ -207,6 +263,8 @@ class CommandResearchDialog:
                 self.answer_source = {'provider': session.provider,
                                       'session_id': session.id, 'request_id': request_id}
                 self.view_chat.configure(state='normal')
+                self._wait_started = time.time()
+                self.busy_bar.set(True)
                 self.notice.set(f'Waiting for {session.title[:50]} to answer. You can also view the chat.')
                 self.tracking = (session.key, request_id)
                 def receive(messages, status):
@@ -217,6 +275,12 @@ class CommandResearchDialog:
                     answer = research_answer(session, request_id, body, messages, status)
                     if answer:
                         self.stop_watching()
+                        self.answer_text = answer
+                        commands = extract_commands(answer)
+                        self.answer_command = commands[0] if commands else None
+                        self.copy_answer_button.configure(state='normal')
+                        self.copy_command_button.configure(state='normal' if self.answer_command else 'disabled')
+                        self.save_journal_button.configure(state='normal')
                         replace_text(self.preview, f'Answer from {session.provider.title()} · {session.title[:70]}\n\n{answer}')
                         self.notice.set('Research reply received.')
                 self.view.reply_watchers[self.tracking] = receive
@@ -224,8 +288,10 @@ class CommandResearchDialog:
                                       still_current=self.valid.is_set, on_delivery=delivered, decision_parent=self.root):
                 self.review = None
                 self.send_button.configure(state='disabled')
+                self.busy_bar.set(True)
                 self.notice.set('Checking the selected chat and provider usage…')
             else:
+                self.busy_bar.set(False)
                 self.notice.set(self.view.status.get())
         except (ChatError, OSError) as error:
             self.notice.set(str(error) if isinstance(error, ChatError) else 'Research could not be sent.')

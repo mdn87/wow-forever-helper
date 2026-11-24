@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from .chat import ChatError
 from .journal import JournalService
-from .journal_ui import FollowupDialog, JournalDialog
+from .journal_ui import FollowupDialog, JournalDialog, style_journal_tree
 from .recurrence import completed, period, rule_summary
 
 
@@ -27,6 +27,7 @@ class ChecklistDialog(JournalDialog):
         listing = self.frame(self.surface); listing.pack(fill='x', padx=8, pady=6)
         self.entries = self.ttk.Treeview(listing, columns=('state', 'period'), show='tree headings',
                                          selectmode='browse', height=4, style='Journal.Treeview')
+        style_journal_tree(self.entries)
         for column, label, width in [('#0', 'Activity', 180), ('state', 'Manual state', 100), ('period', 'Reset date', 100)]:
             self.entries.heading(column, text=label)
             self.entries.column(column, width=width, minwidth=70)

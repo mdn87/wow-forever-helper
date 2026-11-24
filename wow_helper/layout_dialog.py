@@ -3,8 +3,7 @@
 from .chat import ChatError
 from .activities import TYPES
 from .theme import palette
-from .window_frame import WindowFrame
-from .window_state import display_workareas, window_bounds
+from .window_frame import setup_dialog
 
 
 class LayoutDialog:
@@ -16,15 +15,8 @@ class LayoutDialog:
         self.plan = None
         self.root = tk.Toplevel(manager.root)
         self.root.withdraw()
-        self.root.title("Activity layouts")
-        self.root.transient(parent)
-        self.root.attributes("-topmost", parent.attributes("-topmost"))
-        self.root.protocol("WM_DELETE_WINDOW", self.close)
-        self.root.bind("<Escape>", lambda _: self.close())
-        self.chrome = WindowFrame(self.root, title="Activity layouts", close=self.close, minimum=(480, 540))
-        bounds = window_bounds({"x": parent.winfo_x() + 24, "y": parent.winfo_y() + 24,
-                                "width": 540, "height": 620}, display_workareas(self.root), (480, 540))
-        self.chrome.place(f"{bounds['width']}x{bounds['height']}+{bounds['x']}+{bounds['y']}")
+        self.chrome = setup_dialog(self.root, parent, title="Activity layouts", close=self.close,
+                                   minimum=(480, 540), size=(540, 620))
         colors = palette(self.root)
         body = tk.Frame(self.chrome.content, bg=colors.PANEL, padx=16, pady=12)
         body.pack(fill="both", expand=True)

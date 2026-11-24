@@ -44,6 +44,7 @@ class CompanionWindow:
         self.caption = ""
         tk = manager.tk
         self.root = tk.Toplevel(manager.root)
+        self.root._companion_manager = manager
         self.root.withdraw()
         self.root.configure(bg=palette(self.root).BACKGROUND)
         self.root.minsize(*self.minimum)
@@ -68,6 +69,9 @@ class CompanionWindow:
         options = self.menu_button = ttk.Menubutton(bar, text="Settings", image=settings_icon(self.root),
                                                    style="Settings.TMenubutton")
         options.pack(side="right", padx=(4, 0))
+        self.search_button = ttk.Button(bar, text="Search", style="Agent.TButton",
+                                        command=lambda: manager.show_search(self))
+        self.search_button.pack(side="right", padx=(3, 0))
         # Play-first grouping: in-play actions at the top, everything else in four submenus.
         self.options_menu = themed_menu(options)
         options.configure(menu=self.options_menu)
@@ -116,9 +120,13 @@ class CompanionWindow:
         self.preferences_menu.add_separator()
         self.preferences_menu.add_command(label="Usage study…", command=lambda: manager.show_usage_study(self))
         self.notice = tk.StringVar(master=self.root)
+        self._system_notice = ""
+        self._user_notice = ""
         self.notice_label = tk.Label(surface, textvariable=self.notice, bg=palette(self.root).BACKGROUND, fg=palette(self.root).MUTED,
                                     anchor="w", justify="left", padx=8, pady=3, wraplength=400,
                                     font=("Segoe UI", 8))
+        self.mode_bar = tk.Frame(surface, bg=palette(self.root).BACKGROUND, padx=8, pady=2)
+        self._mode_badges = []
         self.body = tk.Frame(surface, bg=palette(self.root).PANEL)
         self.body.pack(fill="both", expand=True)
         if self.kind == "play":
@@ -255,12 +263,43 @@ class CompanionWindow:
         self.root.attributes("-topmost", self.topmost.get())
         self.manager.schedule_save()
 
-    def set_notice(self, message):
-        self.notice.set(message)
-        if message:
+    def set_notice(self, message, *, system=False):
+        if system:
+            self._system_notice = message or ""
+        else:
+            self._user_notice = message or ""
+        shown = self._system_notice or self._user_notice
+        self.notice.set(shown)
+        if shown:
             self.notice_label.pack(side="bottom", fill="x", before=self.body)
         else:
             self.notice_label.pack_forget()
+
+    def refresh_mode_badges(self):
+        from tkinter import ttk
+        if self.closed:
+            return
+        for badge in self._mode_badges:
+            badge.destroy()
+        self._mode_badges = []
+        items = []
+        if self.manager.handsfree.connected and self.manager.handsfree.window is self:
+            items.append(("● Hands-free", lambda: self.manager.show_handsfree_voice(self)))
+        voice = self.manager._voice_dialog
+        if voice is not None and voice.window is self and voice.dictation is not None:
+            items.append(("● Mic (Keypad -)", lambda: self.manager.show_voice_input(self)))
+        gear = getattr(self.view, "_gear_dialog", None) if self.view else None
+        if gear is not None and not gear.closed and gear.key is not None and gear.key.available:
+            items.append(("● Live gear (Ctrl+Alt+F9)", self.view.show_live_gear))
+        for label, command in items:
+            btn = ttk.Button(self.mode_bar, text=label, style="Agent.TButton", command=command)
+            btn.pack(side="left", padx=(0, 4))
+            self._mode_badges.append(btn)
+        if items:
+            if not self.mode_bar.winfo_manager():
+                self.mode_bar.pack(before=self.body, fill="x")
+        elif self.mode_bar.winfo_manager():
+            self.mode_bar.pack_forget()
 
     def _place(self):
         b = self.bounds
@@ -824,6 +863,12 @@ class WindowManager:
             self.refresh_menus()
         self.schedule_save()
 
+    def refresh_mode_badges(self):
+        if self.closed:
+            return
+        for window in self.windows:
+            window.refresh_mode_badges()
+
     def refresh_menus(self):
         for window in self.windows:
             window.new_button.configure(state="disabled" if len(self.windows) >= MAX_WINDOWS else "normal")
@@ -961,14 +1006,14 @@ class WindowManager:
             write_json(self.layout_path, data)
         except (OSError, ChatError):
             for window in self.windows:
-                window.set_notice("Could not save windows. Keep the companion open and try again.")
+                window.set_notice("Could not save windows. Keep the companion open and try again.", system=True)
             return False
         else:
             for window in self.windows:
                 if not self.can_reopen and self.access and self.access.api:
-                    window.set_notice(f"{self.access.shortcut} unavailable. Use the launch command to reopen.")
+                    window.set_notice(f"{self.access.shortcut} unavailable. Use the launch command to reopen.", system=True)
                 else:
-                    window.set_notice("")
+                    window.set_notice("", system=True)
             return True
 
     def _callback_error(self, *_):

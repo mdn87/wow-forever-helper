@@ -52,6 +52,7 @@ class HandsFree:
         self.finished = queue.Queue()   # browser results, answered on the interface thread
         self.window = None
         self.auto = False
+        self.commands_only = False
         self.history = []
         self.listeners = []
         self.exclude = set()
@@ -63,7 +64,10 @@ class HandsFree:
         return self.window is not None and self.bridge.connected
 
     def settings(self):
-        return {"auto": self.auto, "window": self.window.id if self.window else self._saved_window}
+        data = {"auto": self.auto, "window": self.window.id if self.window else self._saved_window}
+        if self.commands_only:
+            data["commands_only"] = True
+        return data
 
     _saved_window = None
 
@@ -71,6 +75,7 @@ class HandsFree:
         """Reconnect at startup only when the player chose that in the panel."""
         data = data if isinstance(data, dict) else {}
         self.auto = data.get("auto") is True
+        self.commands_only = data.get("commands_only") is True
         self._saved_window = data.get("window") if isinstance(data.get("window"), str) else None
         if self.auto:
             window = next((w for w in self.manager.windows if w.id == self._saved_window), None)
@@ -83,6 +88,11 @@ class HandsFree:
         self.manager.schedule_save()
         self._changed()
 
+    def set_commands_only(self, value):
+        self.commands_only = bool(value)
+        self.manager.schedule_save()
+        self._changed()
+
     def connect(self, window):
         if self.connected:
             self.disconnect()
@@ -92,6 +102,7 @@ class HandsFree:
         self.bridge.connect(window.caption or "Companion window", "companion")
         self._schedule()
         self._note("", "connected", f"Connected to {window.caption or 'this window'}.")
+        self.manager.refresh_mode_badges()
         self.manager.schedule_save()
 
     def disconnect(self, reason="Hands-free voice disconnected."):
@@ -106,6 +117,7 @@ class HandsFree:
             self._after = None
         if was:
             self._note("", "disconnected", reason)
+        self.manager.refresh_mode_badges()
 
     def window_closed(self, window):
         if window is self.window:
@@ -156,6 +168,11 @@ class HandsFree:
             self._note(text, "failed", "That command could not finish.")
             return
         if outcome.kind == "chat":
+            if self.commands_only and outcome.text.strip() == text.strip():
+                detail = 'Commands-only mode is on. Say "ask the agent" or "tell the agent" before a chat question.'
+                self.bridge.report(request_id, "rejected", detail)
+                self._note(text, "refused", detail)
+                return
             self.send_chat(request_id, outcome.text)
         elif outcome.kind == "game":
             self.run_game(request_id, outcome.text, request.get("spoken_at"))

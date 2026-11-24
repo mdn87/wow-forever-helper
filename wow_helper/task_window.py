@@ -13,7 +13,7 @@ from .chat_window import ChatWindow, BACKGROUND_JOBS
 from .guidance import guidance, quest_tier
 from .theme import BusyBar, palette
 from .quest_chat import MAX_QUEST_CHATS, OPENING, QuestChat, quest_context, quest_identity
-from .window_frame import WindowFrame
+from .window_frame import WindowFrame, setup_dialog
 
 
 def text_box(tk, parent, **options):
@@ -67,6 +67,7 @@ class TaskWindow(ChatWindow):
         self._setup_dialog = self._request_dialog = None
         self._markup_dialog = None
         self._bookmark_dialog = None
+        self._open_journal_dialog = None
         self._preview_image = None
         self._source_image = None
         self._image_after = None
@@ -99,6 +100,8 @@ class TaskWindow(ChatWindow):
             self.book.add(self.panel, text=TYPES[kind][0])
             self.book.add(chat_root, text="Chat")
         super().__init__(chat_root, service, **kwargs)
+        if self.book is None:
+            self.activity_notice.trace_add("write", self._mirror_activity_notice)
         menus = self.menus
         menus.top.insert_command(0, label="Bookmark this moment…", command=self.bookmark_moment)
         menus.top.insert_command(1, label="Ask about the last fight…", command=self.show_fight_question)
@@ -109,7 +112,8 @@ class TaskWindow(ChatWindow):
         menus.tools.add_command(label="Live gear comparison…", command=self.show_live_gear)
         menus.tools.add_command(label="Post-fight coaching…", command=self.show_combat_coaching)
         menus.tools.add_command(label="Goals and wishlist…", command=self.show_goals)
-        menus.tools.add_command(label="Edit reviewed image…", command=self.edit_image)
+        menus.tools.add_command(label="Edit reviewed image…", command=self.edit_image,
+                                state="normal" if kind == "screen" else "disabled")
         menus.tools.add_separator()
         menus.tools.add_command(label="Session economy analysis…", command=self.show_economy_notebook)
         menus.tools.add_command(label="Addon troubleshooting…", command=self.show_addon_troubleshooting)
@@ -125,6 +129,12 @@ class TaskWindow(ChatWindow):
             self.book.bind("<Configure>", lambda _: self._quest_tab_labels(), add="+")
         self._view_ready = True
         self._tab_changed()
+
+    def _mirror_activity_notice(self, *_):
+        if not self.closed and self.book is None:
+            message = self.activity_notice.get()
+            if message:
+                self.status.set(message)
 
     @staticmethod
     def _valid_id(raw):
@@ -169,9 +179,11 @@ class TaskWindow(ChatWindow):
         if self.kind == "journal":
             choices = tk.Frame(self.panel, bg=palette(self.root).PANEL, padx=8, pady=3)
             choices.pack(fill="x")
-            name = ttk.Entry(choices, textvariable=self.journal_name, width=12)
+            self.journal_name_entry = name = ttk.Entry(choices, textvariable=self.journal_name, width=12)
             name.pack(side="left", fill="x", expand=True)
             name.bind("<KeyRelease>", lambda _: self.on_change())
+            name.bind("<Return>", lambda _: self.rename_journal())
+            self.rename_button = self._button(choices, "Rename", self.rename_journal)
             self._button(choices, "Open journal", self.open_journal)
             self._button(choices, "New", self.new_journal)
             self._button(choices, "Resume session", self.resume_session)
@@ -610,24 +622,40 @@ class TaskWindow(ChatWindow):
             self.show_journal({"name": "My journal", "entries": []})
             self.on_change()
 
+    def rename_journal(self):
+        if self.jobs - BACKGROUND_JOBS:
+            self.activity_notice.set("Wait for the current action to finish before renaming this journal.")
+            return
+        try:
+            data = self.activity.rename_journal(self.journal_id, self.journal_name.get())
+        except ChatError as error:
+            self.activity_notice.set(str(error))
+            return
+        self.show_journal(data)
+        self.activity_notice.set(f'Journal renamed to "{data["name"]}".')
+        self.on_change()
+
     def open_journal(self):
         if not self._can_switch_journal():
             return
-        from tkinter import filedialog
-        folder = self.activity.storage / "journals"
-        path = filedialog.askopenfilename(parent=self.root, initialdir=folder, title="Open a saved journal",
-                                          filetypes=[("Journal", "*.json")])
-        if path:
-            try:
-                if Path(path).resolve().parent != folder.resolve():
-                    raise ChatError("Choose a journal from the companion's journals folder.")
-                data = self.activity.journal(Path(path).stem)
-            except ChatError as error:
-                self.activity_notice.set(str(error))
-                return
-            self.journal_id = Path(path).stem
-            self.show_journal(data)
-            self.on_change()
+        if self._open_journal_dialog:
+            self._open_journal_dialog.reload()
+            self._open_journal_dialog.root.lift()
+            return
+        from .journal_ui import OpenJournalDialog
+        self._open_journal_dialog = OpenJournalDialog(self, self._load_journal_by_id)
+
+    def _load_journal_by_id(self, journal_id):
+        if not self._can_switch_journal():
+            return
+        try:
+            data = self.activity.journal(journal_id)
+        except ChatError as error:
+            self.activity_notice.set(str(error))
+            return
+        self.journal_id = journal_id
+        self.show_journal(data)
+        self.on_change()
 
     def reply_to_note(self):
         replies = [m for m in self.history_cache.get(self.selection_key, []) if m.role == "assistant"]
@@ -971,7 +999,7 @@ class TaskWindow(ChatWindow):
         if hasattr(self, "quest_tree"):
             self.quest_tree.close()
         for dialog in (self._setup_dialog, self._request_dialog, self._resume_dialog,
-                       self._bookmark_dialog, self._markup_dialog):
+                       self._bookmark_dialog, self._markup_dialog, self._open_journal_dialog):
             if dialog is not None:
                 dialog.close()
         self._preview_image = None
@@ -989,11 +1017,9 @@ class SetupDialog:
         tk = view.tk
         self.root = tk.Toplevel(view.root)
         self.root.withdraw()
+        self.chrome = setup_dialog(self.root, view.root, title="Window setup · " + TYPES[view.kind][0],
+                                   close=self.close, minimum=(460, 480), size=(620, 650))
         self.root.title("Window setup")
-        self.root.minsize(460, 480)
-        self.chrome = WindowFrame(self.root, close=self.close, minimum=(460, 480))
-        self.chrome.caption.set("Window setup · " + TYPES[view.kind][0])
-        self.chrome.place("620x650")
         surface = self.chrome.content
         buttons = tk.Frame(surface, bg=palette(self.root).PANEL, padx=10, pady=10)
         buttons.pack(side="bottom", fill="x")
@@ -1066,7 +1092,9 @@ class SetupDialog:
         remove = ttk.Button(actions, text="Remove selected", command=lambda: self.remove_file(key))
         remove.pack(side="left", padx=5)
         self.file_buttons[key] = (add, remove)
-        box = tk.Listbox(holder, height=4, width=1, bg=palette(self.root).BACKGROUND, fg=palette(self.root).TEXT, selectbackground="#554228")
+        box = tk.Listbox(holder, height=4, width=1, bg=palette(self.root).BACKGROUND,
+                         fg=palette(self.root).TEXT, selectbackground=palette(self.root).SELECT,
+                         selectforeground=palette(self.root).TEXT)
         box.pack(fill="both", expand=True)
         self.file_lists[key] = box
         for path in self.files[key]:
@@ -1115,11 +1143,8 @@ class RequestDialog:
         tk = view.tk
         self.root = tk.Toplevel(view.root)
         self.root.withdraw()
-        self.root.title("Review agent request")
-        self.root.minsize(440, 420)
-        self.chrome = WindowFrame(self.root, close=self.close, minimum=(440, 420))
-        self.chrome.caption.set("Review agent request")
-        self.chrome.place("640x660")
+        self.chrome = setup_dialog(self.root, view.root, title="Review agent request",
+                                   close=self.close, minimum=(440, 420), size=(640, 660))
         surface = self.chrome.content
         self.notice = tk.StringVar(master=self.root, value="Prepared for " + view.session_title + ". Nothing has been sent.")
         tk.Label(surface, textvariable=self.notice, bg=palette(self.root).PANEL, fg=palette(self.root).ACCENT, justify="left", wraplength=400,
