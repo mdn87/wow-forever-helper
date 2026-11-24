@@ -1,6 +1,6 @@
 # Companion UX improvement plan
 
-**Status:** Proposed implementation. Prepared 2026-11-23 from a code-level UX audit at baseline `cc9d46f`. No application code has been changed, and no live visual or player walkthrough has been run for these items yet. Each item below labels whether it addresses a **code-verified defect** or a **design improvement**.
+**Status:** Proposed implementation. Prepared and revised 2026-11-23 from a code-level UX audit at baseline `cc9d46f`, incorporating an Autowork `codex-astra` cross-review (`20261124-013949-cross-review`, all 3 findings accepted). No application code has been changed, and no live visual or player walkthrough has been run for these items yet. Each item below labels whether it addresses a **code-verified defect** or a **design improvement**.
 
 ## Goals and guardrails
 
@@ -127,12 +127,13 @@ This batch resolves concrete bugs verified in code that break second-screen play
 - [chat_window.py](../wow_helper/chat_window.py) binds `<Configure>` and `<Map>` directly to `_queue_scroll_to_bottom` and calls `_queue_scroll_to_bottom()` on every `_show()` redraw. Reading earlier advice while a new reply arrives, switching tabs, or resizing the window yanks the scroll position back to the bottom.
 
 **Planned changes:**
-- Record whether the transcript is pinned to bottom (`_at_bottom`, updated when `yview()[1] >= 0.98`) before redraws and on user scroll events.
-- Preserve relative scroll position when `_at_bottom` is `False` across redraws, resizes, and tab switches.
+- Track whether the transcript is pinned to the bottom (`_at_bottom`, updated when `yview()[1] >= 0.98`) before redraws and on user scroll events.
+- When `_at_bottom` is `False`, capture a **content anchor** before any redraw, resize, or font change: map the topmost visible transcript index (`@0,0`) to `(message_id, char_offset)` plus its line/pixel viewport offset (never a fractional `yview()` ratio, which drifts whenever new text is appended or lines re-wrap). After redraw or reflow, restore that exact anchored passage (falling back cleanly to the nearest surviving message if history was trimmed).
 - Always scroll to bottom right after the player sends a message or clicks a new compact **"New replies ↓"** / **"Jump to latest ↓"** bar shown only when scrolled up.
 
 **Acceptance checks:**
-- Scrolling up in a long synthetic transcript and receiving a new message or resizing the window keeps the user's reading position intact and shows the jump button; clicking the jump button or sending a message returns to the bottom.
+- Scrolling up to a specific passage in a long synthetic transcript keeps that exact passage visible after appending a long reply, changing window width, changing chat font size, or switching tabs, and shows the jump button.
+- Clicking the jump button or sending a message returns to the bottom.
 
 ---
 
@@ -242,12 +243,14 @@ This batch addresses feature sprawl behind the single cog menu, untangles overla
 **Planned changes:**
 - Replace the cramped toolbar combobox + `Start a new chat` button with one clean **Session switcher** button/pill displaying the active chat title + provider (or `Choose or start a chat…`) with generous width, opening one unified `ConversationPicker`.
 - Fold `ActiveSessions`'s live auto-refreshing discovery directly into `ConversationPicker` with clear sections/filters (**Start new: Codex / Claude**, **Active open sessions**, **Companion chats**), eliminating the redundant session picker buried inside `Change model → Advanced`.
+- Bind picker selection, highlight restoration across live refreshes, and final attachment confirmation strictly to stable `(provider, session_id)` keys—never row index or display title—using a monotonically increasing discovery generation to discard stale async results. Re-verify the chosen `(provider, session_id)` on confirmation; if a selected session disappears during discovery or before confirmation, keep the picker open with a clear notice and disable confirmation rather than silently attaching a different row.
 - Keep the route bar as a single clean **Model & effort** strip (`Next: Codex · Low effort` + **Model…** button) that opens `ModelSettingsDialog` solely for model, effort, and usage (disabled or redirected cleanly when no session is selected, never mislabeled `"Change model"` when hunting for sessions).
 - On `ModelSettingsDialog → Next message`, display a short inline note with an inline **Enable override…** toggle/link when attached to an external Codex chat so disabled presets are self-explanatory. Add an explicit unsaved-changes hint or **Save & close** button.
 - Update `WindowFrame.begin()` / `drag()` so dragging a zoomed titlebar restores `normal` state anchored cleanly under the pointer.
 
 **Acceptance checks:**
 - Opening a fresh chat shows one clear primary path to start or attach a session; active Codex/Claude sessions auto-discover inside that picker and preserve drafts when switching.
+- Refreshing discovery between selection and confirmation, reordering rows, duplicate session titles, stale out-of-order discovery results, and closing the picker mid-discovery never attach the wrong session or raise callback errors; a disappeared selected session disables confirmation and displays a clear notice.
 - At `440px` minimum width, the active session name and model summary remain legible without clipping toolbar buttons.
 - Hands-free voice commands (`switch to …`, `new Codex chat`, `new Claude chat`) continue working against the updated controls.
 
@@ -315,13 +318,16 @@ This batch elevates the specialized WoW workflows, lowers pre-send review fatigu
 **Problem:** Pre-send review screens (`RequestDialog`, `FollowupDialog`, `DiscussionNotebook`, `ChainDialog`, `ToolAccessDialog`, `SaveAdviceDialog`) dump raw `json.dumps(..., indent=2)` and full `SKILL.md` system instructions inline ([activities.py](../wow_helper/activities.py), [chain_ui.py](../wow_helper/chain_ui.py), [tool_access_ui.py](../wow_helper/tool_access_ui.py)). Pages of boilerplate induce review fatigue, undermining the safety value of explicit review.
 
 **Planned changes:**
-- Introduce a shared `ReviewSummary` presentation for pre-send review dialogs:
+- Introduce a shared `ReviewSummary` presentation for pre-send review dialogs, derived directly from the single frozen prepared request and bound destination object (never from live mutable form widgets, so the summary cannot diverge from what is dispatched):
   - **Overview tab (default):** Structured human-readable summary card showing **Destination chat**, **Model & effort**, **Game edition**, **Your question / task**, **Included items** (e.g., `14 quests snapshot (3m old) · 1 built-in skill · 0 local files · ~2.4 KB`), and **Privacy / gaps** in crisp bullet points.
   - **Full payload tab:** The exact verbatim text/JSON/SKILL bundle that will be sent, unchanged and fully inspectable.
-- Keep the exact reviewed payload frozen at prepare time so editing inputs still invalidates review before Send.
+- Keep the exact reviewed payload and destination frozen at prepare time so editing any input, attachment selection, or target conversation immediately invalidates the review and disables Send (both button and hands-free spoken Send) until prepared again.
 
 **Acceptance checks:**
-- Every review dialog shows the exact destination, edition, attachments, and privacy notes above the fold without scrolling, while preserving 100% verbatim inspection on the **Full payload** tab.
+- Every review dialog shows the exact destination, edition, attachments, and privacy notes above the fold without scrolling, derived from the same frozen prepared request shown verbatim on the **Full payload** tab.
+- Neither button Send nor hands-free spoken Send can dispatch an unprepared or invalidated review.
+- Editing form inputs, changing attachment selections, or switching the destination session invalidates the review and requires re-preparation before Send re-enables.
+- Dispatched payload and destination match the frozen reviewed request identically.
 
 ---
 
@@ -384,6 +390,16 @@ These three choices are reversible product preferences rather than defects; conf
 3. **Hands-free voice chat fallback (related to U12):** Today, any hands-free utterance that doesn't match a spoken command is sent directly to the connected chat without draft review ([handsfree.py](../wow_helper/handsfree.py)). Should we keep that default and optionally add a **"Commands only (say 'ask …' to chat)"** toggle so a misheard command cannot accidentally spend a chat turn?
 
 ---
+
+## Cross-review dispositions (`20261124-013949-cross-review`)
+
+Reviewed by `codex-astra` (`gpt-6-astra`, `high`, 2026-11-23). All three findings were accepted and folded into the plan above:
+
+| Finding | Section | Disposition | Plan revision |
+| --- | --- | --- | --- |
+| `UX-01` | [U05](#u05-smart-transcript-scrolling) | Accepted | Replaced fractional scroll preservation with a `(message_id, char_offset)` content anchor plus viewport offset, and added reflow tests for appended replies, width changes, and font-size changes. |
+| `UX-02` | [U11](#u11-unified-session-picker-and-compact-model-pill) | Accepted | Bound picker selection, live-refresh highlight, and confirmation to stable `(provider, session_id)` keys with discovery generation tracking, explicit disappeared-session handling, and race-condition tests. |
+| `UX-03` | [U15](#u15-scannable-pre-send-review-previews) | Accepted | Required Overview summary derivation from the same frozen prepared request as Full payload, and added acceptance tests for button and hands-free spoken Send refusal on unprepared/invalidated reviews plus exact payload/destination match. |
 
 ## Verification and landing cadence
 
