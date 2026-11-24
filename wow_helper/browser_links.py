@@ -273,13 +273,25 @@ def validate_browser_reply(data):
     return answer, ValidatedRequest(link=link, title=sanitize_title(raw_title))
 
 
+def _helper_executable():
+    executable = Path(sys.executable)
+    if os.name == "nt":
+        executable = executable.with_name("pythonw.exe")
+        if not executable.is_file():
+            return None
+    return str(executable)
+
+
 def launch_url(url, *, timeout=HELPER_TIMEOUT, popen=None):
     """Launch a validated URL via a short-lived bounded helper subprocess (`shell=False`)."""
     link = validate_browser_url(url)
+    executable = _helper_executable()
+    if not executable:
+        return "failed"
     spawn = popen or subprocess.Popen
     try:
         proc = spawn(
-            [sys.executable, "-m", "wow_helper.browser_links"],
+            [executable, "-m", "wow_helper.browser_links"],
             cwd=ROOT,
             stdin=subprocess.PIPE,
             stdout=subprocess.DEVNULL,

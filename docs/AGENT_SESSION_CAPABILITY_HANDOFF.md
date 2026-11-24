@@ -1,6 +1,6 @@
 # Planning handoff: typed agent capabilities and browser links
 
-**Status:** Research and planning handoff, updated 2026-10-17 after the Autowork review. The [implementation plan](AGENT_SESSION_CAPABILITY_PLAN.md) contains the current decisions, four milestones, acceptance checks, and dispositions of all 18 review findings. This document and the plan propose future behavior; no feature code has changed or been verified by implementation.
+**Status:** Historical research and planning handoff, updated 2026-10-17 after the Autowork review. Milestones 1–4 of the [implementation plan](AGENT_SESSION_CAPABILITY_PLAN.md) were implemented and verified with synthetic tests plus live synthetic CLI/Windows helper smoke checks on 2026-11-23; see that plan for current delivered status, observed versions, and remaining live-desktop verification limits. The sections below are retained as the original handoff record.
 
 ## Goal
 

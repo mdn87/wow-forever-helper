@@ -509,3 +509,202 @@ def test_m4_setup_dialog_capabilities_and_browser_receipt_ui(manager_factory, mo
     assert revoked == [managed_sess.key]
     assert "Manual links only" in view.browser_status.get()
     assert not view.stop_browser_button.winfo_manager()
+
+
+def test_m2_claude_chat_browser_v1_new_resumed_and_revoked_text_envelope(tmp_path, monkeypatch):
+    monkeypatch.setattr(agents, "claude_command", lambda: ["synthetic-claude"])
+    monkeypatch.setattr(agents.subprocess, "Popen", lambda *a, **kw: object())
+
+    cap_store = cap.CapabilityStore(tmp_path)
+    win_id = uid(101)
+    cap_store.set_window_browser_approval(win_id, True)
+    manifest = cap.build_manifest(
+        kind="quests", origin_window_id=win_id, web_research=True,
+        browser_approved=True, browser_generation=0, purpose="interactive", platform_supported=True,
+    )
+    store = agents.AgentSessions(tmp_path / "agents", capability_storage=tmp_path)
+    ok_probe = lambda _p: cap.ProbeResult(True, "2.1.325 (Claude Code)", "")
+    session = store.create("claude", "Claude browser chat", creation_id=uid(102), manifest=manifest)
+
+    native_sid = uid(103)
+    seen_args = []
+    seen_inputs = []
+    launched = []
+
+    def run_fake_claude(req_id, events):
+        class FakeClaudeCli:
+            def __init__(self, args, **kwargs):
+                self.returncode = 0
+                seen_args.append(list(args))
+                kwargs["stdout"].write(b"\n".join(json.dumps(e).encode() for e in events))
+                kwargs["stdout"].flush()
+            def communicate(self, input=None, timeout=None):
+                seen_inputs.append(input)
+                return None, None
+            def poll(self): return 0
+            def kill(self): pass
+
+        monkeypatch.setattr(agents.subprocess, "Popen", FakeClaudeCli)
+        agents.run_turn(
+            store.storage, session.id, req_id,
+            launcher=lambda u: launched.append(u) or "launch_accepted",
+            platform_supported=True, probe_fn=ok_probe,
+        )
+
+    # Turn 1 (new Claude session): passes --json-schema and dispatches validated link once.
+    req1 = uid(104)
+    store.send(session, "Open example.com", req1, platform_supported=True, probe_fn=ok_probe)
+    run_fake_claude(req1, [
+        {"type": "system", "session_id": native_sid},
+        {"type": "result", "session_id": native_sid, "is_error": False, "structured_output": {
+            "answer": "Opened https://example.com/.",
+            "browser_request": {"url": "https://example.com/", "title": "Example Domain"},
+        }},
+    ])
+    assert "--json-schema" in seen_args[0]
+    assert "--resume" not in seen_args[0]
+    assert launched == ["https://example.com/"]
+    assert store.browser_receipts(session)[req1]["outcome"] == "launch_accepted"
+
+    # Turn 2 (resumed Claude session): passes --resume <native_id> and --json-schema, includes prior receipt.
+    req2 = uid(105)
+    monkeypatch.setattr(agents.subprocess, "Popen", lambda *a, **kw: object())
+    store.send(session, "Now open example.org", req2, platform_supported=True, probe_fn=ok_probe)
+    run_fake_claude(req2, [
+        {"type": "result", "session_id": native_sid, "is_error": False, "structured_output": {
+            "answer": "Opened https://example.org/.",
+            "browser_request": {"url": "https://example.org/", "title": "Example Org"},
+        }},
+    ])
+    assert "--resume" in seen_args[1] and native_sid in seen_args[1]
+    assert "--json-schema" in seen_args[1]
+    assert b"Prior browser action receipt" in seen_inputs[1]
+    assert launched == ["https://example.com/", "https://example.org/"]
+
+    # Turn 3 (after per-session revocation): switches to text_v1 without --json-schema.
+    # Even if the model repeats an old JSON envelope, answer is decoded cleanly and NOTHING opens.
+    cap_store.revoke_session(session.id)
+    req3 = uid(106)
+    monkeypatch.setattr(agents.subprocess, "Popen", lambda *a, **kw: object())
+    store.send(session, "Summarize without opening links", req3, platform_supported=True, probe_fn=ok_probe)
+    assert store.result(session.id, req3)["protocol"] == "text_v1"
+    run_fake_claude(req3, [
+        {"type": "assistant", "session_id": native_sid, "message": {"id": "m1", "content": [{
+            "type": "text",
+            "text": json.dumps({
+                "answer": "Readable answer after revocation.",
+                "browser_request": {"url": "https://example.net/", "title": "Ignored"},
+            }),
+        }]}},
+        {"type": "result", "session_id": native_sid, "is_error": False},
+    ])
+    assert "--json-schema" not in seen_args[2]
+    assert store.result(session.id, req3)["response"] == "Readable answer after revocation."
+    assert launched == ["https://example.com/", "https://example.org/"]
+
+
+def test_m3_background_research_and_attached_sessions_cannot_enter_dispatcher(tmp_path, monkeypatch):
+    from wow_helper.chat import Session
+    from wow_helper.guidance import Guidance
+
+    monkeypatch.setattr(agents, "codex_executable", lambda: "synthetic-codex")
+    monkeypatch.setattr(agents.subprocess, "Popen", lambda *a, **kw: object())
+
+    # Even when a window approves browser links, background Guidance sessions stay research/custom_schema only.
+    cap_store = cap.CapabilityStore(tmp_path)
+    cap_store.set_window_browser_approval(uid(110), True)
+    guide_svc = Guidance(tmp_path)
+    key = guide_svc.request("quest", {"quest": {"id": 1, "title": "Synthetic Quest"}}, "Classic Forever", "obvious", "codex")
+    rec = guide_svc.get(key)
+    meta = guide_svc.agents.session_meta(rec["session"])
+    assert meta["manifest"]["purpose"] == "research"
+    assert meta["manifest"]["browser_links"] is False
+    req = guide_svc.agents.result(rec["session"], rec["request"])
+    assert req["protocol"] == "custom_schema"
+
+    # Attached external sessions (managed=False) never receive capability manifests, receipts, or revocation writes.
+    service = ChatService(state=tmp_path)
+    external = Session("codex", uid(111), "External terminal", "proj", "idle", managed=False)
+    assert service.effective_capabilities(external) is None
+    assert service.browser_receipts(external) == {}
+    before = cap_store.path.read_bytes()
+    service.revoke_browser(external)
+    assert cap_store.path.read_bytes() == before
+
+
+def test_m3_browser_helper_requires_pythonw_on_windows(monkeypatch):
+    if bl.os.name != "nt":
+        pytest.skip("Windows pythonw.exe requirement check")
+    seen = []
+
+    class FakeProc:
+        returncode = 0
+        def communicate(self, input=None, timeout=None):
+            return b"", b""
+
+    def fake_popen(args, **kw):
+        seen.append(args)
+        return FakeProc()
+
+    assert bl.launch_url("https://example.org/", popen=fake_popen) == "launch_accepted"
+    assert seen and bl.Path(seen[0][0]).name.lower() == "pythonw.exe"
+
+    monkeypatch.setattr(bl, "_helper_executable", lambda: None)
+    called = []
+    assert bl.launch_url("https://example.org/", popen=lambda *a, **kw: called.append(a)) == "failed"
+    assert called == []
+
+
+def test_m4_app_restart_reloads_receipt_without_replaying_browser_launch(tmp_path, monkeypatch, manager_factory):
+    class DummyCodex:
+        def sessions(self):
+            return []
+        def close(self):
+            pass
+
+    monkeypatch.setattr(agents, "codex_executable", lambda: "synthetic-codex")
+    monkeypatch.setattr(bl, "launch_url", lambda *a, **kw: (_ for _ in ()).throw(AssertionError("must not replay on restart")))
+
+    state = tmp_path / "chat"
+    cap_store = cap.CapabilityStore(state)
+    win_id = uid(120)
+    cap_store.set_window_browser_approval(win_id, True)
+    manifest = cap.build_manifest(
+        kind="chat", origin_window_id=win_id, web_research=True,
+        browser_approved=True, browser_generation=0, purpose="interactive", platform_supported=True,
+    )
+    store = agents.AgentSessions(state / "agents", capability_storage=state)
+    session = store.create("codex", "Restart test chat", creation_id=uid(121), manifest=manifest)
+    req_id = uid(122)
+    link = bl.validate_browser_url("https://example.org/guide")
+    bl.claim_attempt(store.folder(session.id), session.id, req_id, link, "Example Guide")
+    bl.write_terminal_receipt(store.folder(session.id), session.id, req_id, "launch_accepted", link, "Example Guide")
+    meta = store.session_meta(session.id)
+    meta["requests"] = [req_id]
+    write_json(store.folder(session.id) / "session.json", meta)
+    write_json(store.folder(session.id) / "requests" / (req_id + ".json"), {
+        "id": req_id, "body": "Open guide", "status": "completed",
+        "response": "Opened https://example.org/guide", "at": 100.0, "protocol": "chat_browser_v1",
+    })
+
+    # Reopen a fresh ChatService + WindowManager over the saved state: discovers, reconciles,
+    # and renders the persisted receipt without launching the browser again.
+    def make_service():
+        svc = ChatService(state=state, codex=DummyCodex())
+        svc.claude_home = tmp_path / "empty-claude"
+        return svc
+
+    manager = manager_factory(
+        path=tmp_path / "windows-restart.json",
+        service=make_service,
+        activity=lambda: ActivityService(state),
+    )
+    view = manager.windows[0].view
+    settle(view)
+    found = [s for s in view.sessions if s.id == session.id]
+    assert len(found) == 1
+    view._select_session(found[0])
+    settle(view)
+    assert view.browser_bar.winfo_manager()
+    assert view.browser_status.get() == "https://example.org"
+    assert "Sent link to browser" in view.browser_detail.get()

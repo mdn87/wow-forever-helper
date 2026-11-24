@@ -555,7 +555,13 @@ def run_turn(storage, session_id, request_id, *, launcher=None, platform_support
                             }
                             write_json(folder / "session.json", latest_meta)
         else:
-            request.update(status="completed", response=body, structured=structured)
+            display_text = body
+            if (protocol == "text_v1" and isinstance(structured, dict)
+                    and set(structured) == {"answer", "browser_request"}
+                    and isinstance(structured.get("answer"), str)
+                    and "\0" not in structured["answer"]):
+                display_text = structured["answer"][:MAX_RESPONSE]
+            request.update(status="completed", response=display_text, structured=structured)
     except Exception as error:
         if claimed:
             request = read_json(path)
