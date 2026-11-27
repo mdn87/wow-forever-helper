@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "projectId": "wow-forever-helper",
   "projectLabel": "WoW Helper",
-  "assessmentState": "unassessed",
+  "assessmentState": "scored",
   "assessmentScope": "current-milestone",
-  "percentComplete": null,
-  "milestonePhase": "closeout",
+  "percentComplete": 0,
+  "milestonePhase": "build-and-validate",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-11-24T03:05:00Z",
+  "assessedAt": "2026-11-27T08:36:00Z",
   "confidence": "authoritative",
-  "currentMilestone": "Deferred until a later WoW session: close out real-use observations and qualify the context probe.",
-  "remainingSummary": "Automated synthetic tests now cover F09-F11, F15, F18, F19 stage one, UX batches 1-4 (U01-U18), and typed session capabilities with validated browser links. Deferred to a live WoW session: visual/operator review, live provider/browser checks, real Journalator exports and recordings, gear, speech, and context-probe qualification. MDT decoding needs codec qualification.",
-  "nextChipId": null,
+  "currentMilestone": "Goal: complete all 7 Battle.net Forever API integration slices (bnet-api-client-cache through bnet-live-verification-closeout) with synthetic tests, Terms compliance, and live Forever verification.",
+  "remainingSummary": "Queued 7 vertical slices for Battle.net Forever API integration: OAuth client and 30-day TTL cache (ready), read-only AH and commodity price CLI, item metadata enrichment with 404 fallback, quest reward enrichment, Forever catalogs and ruleset status, hands-free item and market lookup, and live verification closeout. Earlier live-WoW closeout chips (21-23) remain planned and deferred.",
+  "nextChipId": "bnet-api-client-cache",
   "source": {
-    "label": "UX batches 1-4 and typed session capabilities implemented with synthetic tests; live checks deferred",
-    "updatedAt": "2026-11-23"
+    "label": "Battle.net Forever API survey chunked into 7 vertical board slices; goal set to all slices completed",
+    "updatedAt": "2026-11-27"
   }
 }

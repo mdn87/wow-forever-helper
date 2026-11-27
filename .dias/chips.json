@@ -859,6 +859,192 @@
           "message": "Local importer and reviewed Journal workflow implemented from pinned author source. Tests, UI, providers, restart, and actual exports remain unverified and deferred."
         }
       ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "bnet-api-client-cache",
+      "projectId": "wow-forever-helper",
+      "title": "Build Battle.net Forever OAuth client and TTL cache",
+      "summary": "Add stdlib client-credentials client reading env vars, rate-limited requests, ignored runtime cache with strict 30-day TTL ceiling, attribution, and 404 or 429 handling.",
+      "stage": "ready",
+      "sequence": 24,
+      "prereqs": [],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-11-27T08:36:00Z",
+        "updatedAt": "2026-11-27T08:36:00Z"
+      },
+      "evidence": [
+        {
+          "entryId": "bnet-api-client-cache-created",
+          "at": "2026-11-27T08:36:00Z",
+          "kind": "created",
+          "message": "Planned from the 2026-11-27 Battle.net Forever API survey. Shared foundation enforcing user env credentials, 30-day max TTL, Blizzard attribution, and synthetic tests."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "bnet-forever-market-cli",
+      "projectId": "wow-forever-helper",
+      "title": "Add read-only Forever AH and commodity price CLI",
+      "summary": "Fetch one chosen ruleset and auction house snapshot into short-TTL cache and report min buyout, median price, and supply for an item ID or search query.",
+      "stage": "planned",
+      "sequence": 25,
+      "prereqs": [
+        "bnet-api-client-cache"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-11-27T08:36:00Z",
+        "updatedAt": "2026-11-27T08:36:00Z"
+      },
+      "evidence": [
+        {
+          "entryId": "bnet-forever-market-cli-created",
+          "at": "2026-11-27T08:36:00Z",
+          "kind": "created",
+          "message": "Top-ranked survey opportunity and smallest net-new slice: 149k auctions and 99k commodities per house with zero player-name fields and no user login."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "bnet-item-enrichment",
+      "projectId": "wow-forever-helper",
+      "title": "Enrich character gear and upgrade guides with item metadata",
+      "summary": "Resolve item IDs via static Forever item API for names, weapon DPS, stats, procs, and vendor prices in Character status and guidance, falling back cleanly on 404.",
+      "stage": "planned",
+      "sequence": 26,
+      "prereqs": [
+        "bnet-api-client-cache"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-11-27T08:36:00Z",
+        "updatedAt": "2026-11-27T08:36:00Z"
+      },
+      "evidence": [
+        {
+          "entryId": "bnet-item-enrichment-created",
+          "at": "2026-11-27T08:36:00Z",
+          "kind": "created",
+          "message": "Replaces raw numeric item IDs where available; must keep graceful fallback because roughly half of equipped Forever items currently return HTTP 404."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "bnet-quest-rewards-enrichment",
+      "projectId": "wow-forever-helper",
+      "title": "Enrich quests with Forever reward items, XP, and repeatability",
+      "summary": "Look up quest IDs via static Forever quest API to show reward items, XP, reputation, and repeatability in Quest guide and Quest chat alongside SavedVariables.",
+      "stage": "planned",
+      "sequence": 27,
+      "prereqs": [
+        "bnet-api-client-cache",
+        "bnet-item-enrichment"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-11-27T08:36:00Z",
+        "updatedAt": "2026-11-27T08:36:00Z"
+      },
+      "evidence": [
+        {
+          "entryId": "bnet-quest-rewards-enrichment-created",
+          "at": "2026-11-27T08:36:00Z",
+          "kind": "created",
+          "message": "Adds reward items, XP, reputation, and repeatability; complements quest-chain web research because Blizzard quest endpoints omit prerequisites and objectives."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "bnet-forever-catalogs-status",
+      "projectId": "wow-forever-helper",
+      "title": "Add Forever ruleset status and static reference catalogs",
+      "summary": "Cache Forever ruleset UP status and static race, spec, profession, achievement, mount, and pet indexes in local runtime cache for Wishlist and Build tutor pickers.",
+      "stage": "planned",
+      "sequence": 28,
+      "prereqs": [
+        "bnet-api-client-cache"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-11-27T08:36:00Z",
+        "updatedAt": "2026-11-27T08:36:00Z"
+      },
+      "evidence": [
+        {
+          "entryId": "bnet-forever-catalogs-status-created",
+          "at": "2026-11-27T08:36:00Z",
+          "kind": "created",
+          "message": "Uses verified static Forever indexes (excluding empty dungeon journal index) cached only under ignored runtime storage to keep Blizzard data out of git."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "bnet-handsfree-item-market-lookup",
+      "projectId": "wow-forever-helper",
+      "title": "Add hands-free voice item and market lookups",
+      "summary": "Route spoken item-stat and AH price queries to cached Battle.net lookups with attribution, falling back to the voice browser on 404 or spell queries.",
+      "stage": "planned",
+      "sequence": 29,
+      "prereqs": [
+        "bnet-forever-market-cli",
+        "bnet-item-enrichment"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-11-27T08:36:00Z",
+        "updatedAt": "2026-11-27T08:36:00Z"
+      },
+      "evidence": [
+        {
+          "entryId": "bnet-handsfree-item-market-lookup-created",
+          "at": "2026-11-27T08:36:00Z",
+          "kind": "created",
+          "message": "Gives sub-second spoken item and AH answers without launching Chrome; preserves voice-browser fallback because static spell endpoints return HTTP 404."
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "chipId": "bnet-live-verification-closeout",
+      "projectId": "wow-forever-helper",
+      "title": "Verify Battle.net slices live and confirm Forever house mapping",
+      "summary": "Run live smoke checks across all Battle.net slices, confirm which of the 15 auction houses maps to the player, and verify TTL expiry and Blizzard attribution.",
+      "stage": "planned",
+      "sequence": 30,
+      "prereqs": [
+        "bnet-forever-market-cli",
+        "bnet-item-enrichment",
+        "bnet-quest-rewards-enrichment",
+        "bnet-forever-catalogs-status",
+        "bnet-handsfree-item-market-lookup"
+      ],
+      "linkedRunIds": [],
+      "confidence": "authoritative",
+      "timestamps": {
+        "createdAt": "2026-11-27T08:36:00Z",
+        "updatedAt": "2026-11-27T08:36:00Z"
+      },
+      "evidence": [
+        {
+          "entryId": "bnet-live-verification-closeout-created",
+          "at": "2026-11-27T08:36:00Z",
+          "kind": "created",
+          "message": "Final closeout gate separating synthetic CI proof from live Forever verification; character profile sync stays out of scope without explicit approval."
+        }
+      ]
     }
   ]
 }
