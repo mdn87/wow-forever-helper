@@ -1,6 +1,6 @@
 # Battle.net Forever API integration
 
-Status: Slices 24–29 are implemented and verified with synthetic offline tests plus live non-character API smoke checks on 2026-11-27. Slice 30 (`bnet-live-verification-closeout`) remains open only for the in-game player-to-house mapping check and live spoken voice verification.
+Status: Slices 24–29 are implemented and verified with synthetic offline tests plus live non-character API smoke checks on 2026-11-27. Slice 30 (`bnet-live-verification-closeout`) is parked by operator decision (2026-11-27): its in-game player-to-house mapping check and live spoken voice verification are not planned for now, so both remain unverified.
 
 ## Architecture and boundaries
 
@@ -24,4 +24,4 @@ All Battle.net calls flow through `wow_helper/bnet_api.py` (standard library onl
 
 - **Synthetic offline tests:** `tests/test_bnet_api.py`, `tests/test_bnet_market.py`, `tests/test_bnet_items.py`, `tests/test_bnet_quests.py`, `tests/test_bnet_catalogs.py`, `tests/test_bnet_voice.py`, `tests/test_handsfree.py`, `tests/test_cli.py`, and `tests/test_no_input.py`.
 - **Live non-character API smoke check (2026-11-27, US region):** Verified live HTTP 200 responses and caching for `market` (item 2589 on ruleset 1, house 110: 19,155 units across 275 listings), `market --compare-houses --faction alliance` across all 5 Alliance houses (`110`, `111`, `112`, `119`, `123`), `bnet_items.lookup_item` (200 on item 19019 and graceful `not_found` fallback on item 17719), `bnet_quests.lookup_quest` (quest 11 rewards), `bnet_catalogs` (ruleset 1 `Up`, Forever Skyborne races), `bnet_voice.BnetVoiceLookup` (cached market + item answers), live 1-second TTL expiry purge with zero secrets/tokens written to cache files, `--enrich-bnet` CLI against synthetic fixtures, and zero-credential `python -m wow_helper market --cache-only --text`.
-- **Remaining unverified (Slice 30):** Confirming in game which of the 15 auction houses per ruleset corresponds to the player's character, and verifying live spoken voice turns through the installed Lugos Voice listener.
+- **Unverified (Slice 30, parked 2026-11-27):** Which of the 15 auction houses per ruleset corresponds to the player's character, and live spoken voice turns through the installed Lugos Voice listener. Neither check is planned for now.

@@ -1064,7 +1064,7 @@
       "projectId": "wow-forever-helper",
       "title": "Verify Battle.net slices live and confirm Forever house mapping",
       "summary": "Run live smoke checks across all Battle.net slices, confirm which of the 15 auction houses maps to the player, and verify TTL expiry and Blizzard attribution.",
-      "stage": "ready",
+      "stage": "planned",
       "sequence": 30,
       "prereqs": [
         "bnet-forever-market-cli",
@@ -1077,7 +1077,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-11-27T08:36:00Z",
-        "updatedAt": "2026-11-27T09:06:00Z"
+        "updatedAt": "2026-11-27T22:30:42Z"
       },
       "evidence": [
         {
@@ -1097,6 +1097,12 @@
           "at": "2026-11-27T09:15:00Z",
           "kind": "note",
           "message": "Live US checks passed for --compare-houses across all 5 ruleset 1 Alliance houses, 1s TTL expiry purge with zero secrets cached, and UI/activity Forever enrichment."
+        },
+        {
+          "entryId": "bnet-live-closeout-parked-20261127",
+          "at": "2026-11-27T22:30:42Z",
+          "kind": "note",
+          "message": "Operator decision, 2026-11-27: the in-game house mapping and live spoken voice checks are not needed for now. Parked as planned; both remain unverified."
         }
       ]
     }
