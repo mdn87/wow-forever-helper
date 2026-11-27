@@ -896,7 +896,7 @@
       "projectId": "wow-forever-helper",
       "title": "Add read-only Forever AH and commodity price CLI",
       "summary": "Fetch one chosen ruleset and auction house snapshot into short-TTL cache and report min buyout, median price, and supply for an item ID or search query.",
-      "stage": "ready",
+      "stage": "done",
       "sequence": 25,
       "prereqs": [
         "bnet-api-client-cache"
@@ -905,7 +905,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-11-27T08:36:00Z",
-        "updatedAt": "2026-11-27T08:45:00Z"
+        "updatedAt": "2026-11-27T09:06:00Z"
       },
       "evidence": [
         {
@@ -919,6 +919,12 @@
           "at": "2026-11-27T08:45:00Z",
           "kind": "stage-change",
           "message": "Prerequisite bnet-api-client-cache is complete with synthetic tests. Ready to build the read-only Forever AH and commodity price CLI."
+        },
+        {
+          "entryId": "bnet-forever-market-cli-done",
+          "at": "2026-11-27T09:06:00Z",
+          "kind": "stage-change",
+          "message": "Delivered bnet_market.py and market CLI with synthetic unit/CLI tests plus live US ruleset 1 house 110 smoke check and zero-credential cache-only verification."
         }
       ]
     },
@@ -928,7 +934,7 @@
       "projectId": "wow-forever-helper",
       "title": "Enrich character gear and upgrade guides with item metadata",
       "summary": "Resolve item IDs via static Forever item API for names, weapon DPS, stats, procs, and vendor prices in Character status and guidance, falling back cleanly on 404.",
-      "stage": "ready",
+      "stage": "done",
       "sequence": 26,
       "prereqs": [
         "bnet-api-client-cache"
@@ -937,7 +943,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-11-27T08:36:00Z",
-        "updatedAt": "2026-11-27T08:45:00Z"
+        "updatedAt": "2026-11-27T09:06:00Z"
       },
       "evidence": [
         {
@@ -945,6 +951,12 @@
           "at": "2026-11-27T08:36:00Z",
           "kind": "created",
           "message": "Replaces raw numeric item IDs where available; must keep graceful fallback because roughly half of equipped Forever items currently return HTTP 404."
+        },
+        {
+          "entryId": "bnet-item-enrichment-done",
+          "at": "2026-11-27T09:06:00Z",
+          "kind": "stage-change",
+          "message": "Delivered bnet_items.py, task_window equipment names, guidance context enrichment, and character --enrich-bnet; synthetic tests plus live 200 and 404 fallback checks passed."
         }
       ]
     },
@@ -954,7 +966,7 @@
       "projectId": "wow-forever-helper",
       "title": "Enrich quests with Forever reward items, XP, and repeatability",
       "summary": "Look up quest IDs via static Forever quest API to show reward items, XP, reputation, and repeatability in Quest guide and Quest chat alongside SavedVariables.",
-      "stage": "planned",
+      "stage": "done",
       "sequence": 27,
       "prereqs": [
         "bnet-api-client-cache",
@@ -964,7 +976,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-11-27T08:36:00Z",
-        "updatedAt": "2026-11-27T08:36:00Z"
+        "updatedAt": "2026-11-27T09:06:00Z"
       },
       "evidence": [
         {
@@ -972,6 +984,12 @@
           "at": "2026-11-27T08:36:00Z",
           "kind": "created",
           "message": "Adds reward items, XP, reputation, and repeatability; complements quest-chain web research because Blizzard quest endpoints omit prerequisites and objectives."
+        },
+        {
+          "entryId": "bnet-quest-rewards-enrichment-done",
+          "at": "2026-11-27T09:06:00Z",
+          "kind": "stage-change",
+          "message": "Delivered bnet_quests.py, quest text/chat reward enrichment, and quests --enrich-bnet; synthetic tests and live Forever quest 11 reward check passed."
         }
       ]
     },
@@ -981,7 +999,7 @@
       "projectId": "wow-forever-helper",
       "title": "Add Forever ruleset status and static reference catalogs",
       "summary": "Cache Forever ruleset UP status and static race, spec, profession, achievement, mount, and pet indexes in local runtime cache for Wishlist and Build tutor pickers.",
-      "stage": "ready",
+      "stage": "done",
       "sequence": 28,
       "prereqs": [
         "bnet-api-client-cache"
@@ -990,7 +1008,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-11-27T08:36:00Z",
-        "updatedAt": "2026-11-27T08:45:00Z"
+        "updatedAt": "2026-11-27T09:06:00Z"
       },
       "evidence": [
         {
@@ -998,6 +1016,12 @@
           "at": "2026-11-27T08:36:00Z",
           "kind": "created",
           "message": "Uses verified static Forever indexes (excluding empty dungeon journal index) cached only under ignored runtime storage to keep Blizzard data out of git."
+        },
+        {
+          "entryId": "bnet-forever-catalogs-status-done",
+          "at": "2026-11-27T09:06:00Z",
+          "kind": "stage-change",
+          "message": "Delivered bnet_catalogs.py and catalog CLI for ruleset status and 10 static Forever indexes; synthetic tests and live ruleset 1 plus Skyborne races check passed."
         }
       ]
     },
@@ -1007,7 +1031,7 @@
       "projectId": "wow-forever-helper",
       "title": "Add hands-free voice item and market lookups",
       "summary": "Route spoken item-stat and AH price queries to cached Battle.net lookups with attribution, falling back to the voice browser on 404 or spell queries.",
-      "stage": "planned",
+      "stage": "done",
       "sequence": 29,
       "prereqs": [
         "bnet-forever-market-cli",
@@ -1017,7 +1041,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-11-27T08:36:00Z",
-        "updatedAt": "2026-11-27T08:36:00Z"
+        "updatedAt": "2026-11-27T09:06:00Z"
       },
       "evidence": [
         {
@@ -1025,6 +1049,12 @@
           "at": "2026-11-27T08:36:00Z",
           "kind": "created",
           "message": "Gives sub-second spoken item and AH answers without launching Chrome; preserves voice-browser fallback because static spell endpoints return HTTP 404."
+        },
+        {
+          "entryId": "bnet-handsfree-item-market-lookup-done",
+          "at": "2026-11-27T09:06:00Z",
+          "kind": "stage-change",
+          "message": "Delivered bnet_voice.py, voice_commands grammar, and handsfree worker with voice-browser fallback; synthetic tests and live cached lookup smoke checks passed."
         }
       ]
     },
@@ -1034,7 +1064,7 @@
       "projectId": "wow-forever-helper",
       "title": "Verify Battle.net slices live and confirm Forever house mapping",
       "summary": "Run live smoke checks across all Battle.net slices, confirm which of the 15 auction houses maps to the player, and verify TTL expiry and Blizzard attribution.",
-      "stage": "planned",
+      "stage": "ready",
       "sequence": 30,
       "prereqs": [
         "bnet-forever-market-cli",
@@ -1047,7 +1077,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-11-27T08:36:00Z",
-        "updatedAt": "2026-11-27T08:36:00Z"
+        "updatedAt": "2026-11-27T09:06:00Z"
       },
       "evidence": [
         {
@@ -1055,6 +1085,12 @@
           "at": "2026-11-27T08:36:00Z",
           "kind": "created",
           "message": "Final closeout gate separating synthetic CI proof from live Forever verification; character profile sync stays out of scope without explicit approval."
+        },
+        {
+          "entryId": "bnet-live-api-smoke-passed",
+          "at": "2026-11-27T09:06:00Z",
+          "kind": "note",
+          "message": "Live US API smoke checks passed for market, item 200/404, quest 11, ruleset 1, Skyborne races, voice lookup, and cache-only CLI. In-game house mapping remains."
         }
       ]
     }

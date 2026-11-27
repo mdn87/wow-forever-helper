@@ -261,6 +261,8 @@ def as_text(result):
     for step in result["plan"]:
         detail = [step["zone"]] if step["zone"] else []
         detail += step["remaining"][:3] + step["notes"]
+        if step.get("bnet_rewards_text"):
+            detail.append(step["bnet_rewards_text"])
         suffix = f" ({'; '.join(detail)})" if detail else ""
         lines.append(f"{step['step']}. {verbs[step['action']]}: {step['title']}{suffix}")
     nearby = result.get("available")
@@ -274,4 +276,6 @@ def as_text(result):
     if result.get("completed_count") is not None:
         lines.append(f"{result['completed_count']} quests completed on this character.")
     lines += result["warnings"]
+    if result.get("bnet_attribution"):
+        lines.append(result["bnet_attribution"])
     return "\n".join(lines)

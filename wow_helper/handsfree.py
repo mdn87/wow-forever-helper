@@ -12,6 +12,7 @@ import queue
 import sqlite3
 import threading
 
+from .bnet_voice import BnetVoiceLookup
 from .chat import ROOT
 from .voice_bridge import VoiceBridge
 from .voice_browser import Browser, BrowserError
@@ -44,12 +45,13 @@ def is_game_command(text):
 
 class HandsFree:
     def __init__(self, manager, *, bridge_factory=VoiceBridge, assistant_factory=default_assistant,
-                 browser_factory=Browser):
+                 browser_factory=Browser, bnet_factory=BnetVoiceLookup):
         self.manager = manager
         self.bridge = bridge_factory()
         self.assistant_factory = assistant_factory
         self.browser_factory, self._browser = browser_factory, None
-        self.finished = queue.Queue()   # browser results, answered on the interface thread
+        self.bnet_factory, self._bnet = bnet_factory, None
+        self.finished = queue.Queue()   # browser and Battle.net results, answered on the interface thread
         self.window = None
         self.auto = False
         self.commands_only = False
@@ -178,6 +180,8 @@ class HandsFree:
             self.run_game(request_id, outcome.text, request.get("spoken_at"))
         elif outcome.kind == "browser":
             self.run_browser(request_id, text, outcome.detail, outcome.text)
+        elif outcome.kind == "bnet":
+            self.run_bnet(request_id, text, outcome.detail, outcome.text)
         elif outcome.kind == "refused":
             self.bridge.report(request_id, "rejected", outcome.detail)
             self._note(text, "refused", outcome.detail)
@@ -257,6 +261,33 @@ class HandsFree:
             self.finished.put((request_id, text) + result)
 
         threading.Thread(target=work, name="voice-browser", daemon=True).start()
+
+    @property
+    def bnet(self):
+        if self._bnet is None:
+            self._bnet = self.bnet_factory()
+        return self._bnet
+
+    def run_bnet(self, request_id, text, action, argument):
+        """Run a cached Battle.net lookup off the UI thread; fall back to the voice browser when signaled."""
+        def work():
+            try:
+                outcome = self.bnet.run(action, argument)
+                if outcome.status == "fallback" and outcome.fallback_query:
+                    try:
+                        browser_reply = self.browser.run("classic", outcome.fallback_query)
+                        result = ("done", f"Not in the Forever item API; checked Classic Wowhead instead. {browser_reply}")
+                    except BrowserError as error:
+                        result = ("rejected", f"{outcome.detail} {error}")
+                    except Exception:
+                        result = ("failed", f"{outcome.detail} The voice browser fallback did not answer.")
+                else:
+                    result = (outcome.status, outcome.detail)
+            except Exception:
+                result = ("failed", "The Battle.net lookup did not finish. Nothing else was changed.")
+            self.finished.put((request_id, text) + result)
+
+        threading.Thread(target=work, name="bnet-lookup", daemon=True).start()
 
     def answer_finished(self):
         while True:

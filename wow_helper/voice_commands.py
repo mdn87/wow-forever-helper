@@ -232,6 +232,10 @@ class Interpreter:
         (r"(?:open|open up|start|launch|show|bring up|pull up|get) (?:the |my |a |your )?(?:voice )?browser(?: window)?",
          "browser_open"),
         (r"(?:close|quit|shut) (?:down )?(?:the |my |your )?(?:voice )?browser(?: window)?", "browser_close"),
+        (r"(?:price check|check (?:the )?price (?:of|for)|what(?:'s| is) the price (?:of|for)|how much is|auction house price (?:of|for)|ah price (?:of|for)) (.+?)(?: on (?:the )?(?:auction house|ah))?",
+         "bnet_market"),
+        (r"(?:item stats (?:of|for)|stats (?:of|on|for)|what are the stats (?:of|on|for)|forever item) (.+)",
+         "bnet_item"),
         (r"(?:google|search google for|search the web for|web search for|web search|search online for) (.+?)" + AT,
          "browser_web"),
         (r"(?:look up|lookup|look for|search for|search wowhead for|search|wowhead|find|find me|check wowhead for|pull up) (.+?) (?:on|in) classic(?: wowhead)?" + AT, "browser_classic"),
@@ -313,6 +317,13 @@ class Interpreter:
 
     def browser_where(self):
         return Outcome("browser", "where")
+
+    # -- cached Battle.net Forever item and auction house lookups (off the UI thread)
+    def bnet_item(self, query):
+        return Outcome("bnet", "item", query)
+
+    def bnet_market(self, query):
+        return Outcome("bnet", "market", query)
 
     # -- general
     def help(self):

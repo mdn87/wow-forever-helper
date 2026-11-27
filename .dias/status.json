@@ -4,17 +4,17 @@
   "projectLabel": "WoW Helper",
   "assessmentState": "scored",
   "assessmentScope": "current-milestone",
-  "percentComplete": 14,
-  "milestonePhase": "build-and-validate",
+  "percentComplete": 86,
+  "milestonePhase": "closeout",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-11-27T08:45:00Z",
+  "assessedAt": "2026-11-27T09:06:00Z",
   "confidence": "authoritative",
   "currentMilestone": "Goal: complete all 7 Battle.net Forever API integration slices (bnet-api-client-cache through bnet-live-verification-closeout) with synthetic tests, Terms compliance, and live Forever verification.",
-  "remainingSummary": "Slice 24 (bnet-api-client-cache) is complete with synthetic tests and docs. Remaining 6 slices: read-only AH and commodity price CLI (next), item metadata enrichment with 404 fallback, quest reward enrichment, Forever catalogs and ruleset status, hands-free item and market lookup, and live verification closeout. Earlier live-WoW closeout chips (21-23) remain planned and deferred.",
-  "nextChipId": "bnet-forever-market-cli",
+  "remainingSummary": "Slices 24-29 are implemented and verified with synthetic tests plus live US non-character API smoke checks (market, item 200/404, quest rewards, ruleset status, Skyborne races, voice lookup, and cache-only CLI). Remaining for Slice 30 closeout: confirm in game which of the 15 auction houses maps to the player and run a live spoken turn through Lugos Voice. Earlier live-WoW closeout chips (21-23) remain planned and deferred.",
+  "nextChipId": "bnet-live-verification-closeout",
   "source": {
-    "label": "Slice 24 (bnet-api-client-cache) implemented and verified synthetically; Slice 25 is next",
+    "label": "Slices 24-29 complete with synthetic tests and live API smoke checks; Slice 30 in-game house check remains",
     "updatedAt": "2026-11-27"
   }
 }

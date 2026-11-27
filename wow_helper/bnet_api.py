@@ -207,8 +207,8 @@ def _safe_unlink(path: Path) -> bool:
 class BnetCache:
     """File-backed JSON cache under ignored runtime storage with strict <=30-day TTL."""
 
-    def __init__(self, cache_dir: Path | str = DEFAULT_CACHE_DIR, *, clock=time.time):
-        self.cache_dir = Path(cache_dir)
+    def __init__(self, cache_dir: Path | str | None = None, *, clock=time.time):
+        self.cache_dir = Path(DEFAULT_CACHE_DIR if cache_dir is None else cache_dir)
         self._clock = clock
 
     def key_for(
@@ -384,7 +384,7 @@ class BnetClient:
         region: str = DEFAULT_REGION,
         locale: str = DEFAULT_LOCALE,
         cache: BnetCache | None = None,
-        cache_dir: Path | str = DEFAULT_CACHE_DIR,
+        cache_dir: Path | str | None = None,
         env: dict[str, str] | None = None,
         transport=None,
         clock=time.time,

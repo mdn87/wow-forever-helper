@@ -612,7 +612,11 @@ class TaskWindow(ChatWindow):
     def _format_equipment_table(gear):
         if not gear:
             return "EQUIPMENT\nNo equipped gear recorded in this snapshot."
-        header = f"{'Slot':<14} {'Item ID':<10} {'iLvl':<7} {'Durability'}"
+        has_names = any(isinstance(item, dict) and item.get("name") for item in gear)
+        if has_names:
+            header = f"{'Slot':<14} {'Item':<28} {'Item ID':<8} {'iLvl':<6} {'Durability'}"
+        else:
+            header = f"{'Slot':<14} {'Item ID':<10} {'iLvl':<7} {'Durability'}"
         rule = "-" * len(header)
         rows = [header, rule]
         low_slots = []
@@ -628,7 +632,11 @@ class TaskWindow(ChatWindow):
                 low_slots.append(slot)
             else:
                 dur_str = f"{dur}%"
-            rows.append(f"{slot:<14} {item_id:<10} {ilvl:<7} {dur_str}")
+            if has_names:
+                name = str(item.get("name") or f"#{item_id}")[:28]
+                rows.append(f"{slot:<14} {name:<28} {item_id:<8} {ilvl:<6} {dur_str}")
+            else:
+                rows.append(f"{slot:<14} {item_id:<10} {ilvl:<7} {dur_str}")
         if low_slots:
             rows.append(f"\nRepair check: low durability (<35%) on {', '.join(low_slots)}.")
         return "EQUIPMENT\n" + "\n".join(rows)

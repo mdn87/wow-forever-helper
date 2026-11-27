@@ -44,12 +44,41 @@ def main(argv=None):
     quests.add_argument("--file", help="Read this SavedVariables file instead of searching the install")
     quests.add_argument("--flavor", help="Search only this game folder for this report, for example _forever_; cannot combine with --file")
     quests.add_argument("--wow-root", help="WoW install folder (the one holding _retail_ or _classic_ folders); remembered")
+    quests.add_argument("--enrich-bnet", action="store_true", help="Attach Forever quest rewards and repeatability from Battle.net API")
     quests.add_argument("--text", action="store_true", help="Print readable lines instead of JSON")
     character = commands.add_parser("character", help="Show gold, rested XP, gear, durability, and bag space from the companion addon")
     character.add_argument("--file", help="Read this SavedVariables file instead of searching the install")
     character.add_argument("--flavor", help="Search only this game folder for this report, for example _forever_; cannot combine with --file")
     character.add_argument("--wow-root", help="WoW install folder; remembered")
+    character.add_argument("--enrich-bnet", action="store_true", help="Resolve equipped item IDs via Battle.net Forever item API (with 404 fallback)")
     character.add_argument("--text", action="store_true", help="Print readable lines instead of JSON")
+    market = commands.add_parser("market", help="Read-only Forever Auction House and commodity price lookup via Battle.net API")
+    market.add_argument("--region", default="us", choices=("us", "eu", "kr", "tw"))
+    market.add_argument("--ruleset", type=int, default=1, help="Forever ruleset ID (default 1)")
+    market.add_argument("--house", type=int, help="Auction house ID from --list-houses")
+    market.add_argument("--item", type=int, help="Numeric item ID to price")
+    market.add_argument("--query", help="Item name search query")
+    market.add_argument("--list-rulesets", action="store_true", help="List Forever rulesets")
+    market.add_argument("--list-houses", action="store_true", help="List auction houses for --ruleset")
+    market.add_argument("--ttl", type=int, default=900, help="Cache TTL in seconds (max 30 days)")
+    market.add_argument("--cache-only", action="store_true", help="Read local runtime cache only; do not call network")
+    market.add_argument("--force-refresh", action="store_true", help="Bypass fresh cache and fetch anew")
+    market.add_argument("--text", action="store_true", help="Print readable lines instead of JSON")
+    catalog = commands.add_parser("catalog", help="Read-only Forever ruleset status and static reference catalogs via Battle.net API")
+    catalog.add_argument("--region", default="us", choices=("us", "eu", "kr", "tw"))
+    catalog_actions = catalog.add_subparsers(dest="catalog_action", required=True)
+    cat_rs = catalog_actions.add_parser("ruleset", help="Show Forever ruleset UP status")
+    cat_rs.add_argument("--ruleset", type=int, help="Specific ruleset ID (omit for all)")
+    cat_rs.add_argument("--cache-only", action="store_true")
+    cat_rs.add_argument("--force-refresh", action="store_true")
+    cat_rs.add_argument("--text", action="store_true")
+    cat_list = catalog_actions.add_parser("list", help="List or search one Forever static catalog")
+    cat_list.add_argument("kind", choices=("races", "specs", "professions", "item-classes", "achievements", "mounts", "pets", "creature-families", "quest-areas", "quest-categories"))
+    cat_list.add_argument("--query", help="Optional case-insensitive filter")
+    cat_list.add_argument("--limit", type=int, default=20)
+    cat_list.add_argument("--cache-only", action="store_true")
+    cat_list.add_argument("--force-refresh", action="store_true")
+    cat_list.add_argument("--text", action="store_true")
     check = commands.add_parser("check-snapshot", help="Report which addon assumptions the newest snapshot confirms; prints no names or paths")
     check.add_argument("--file", help="Read this SavedVariables file instead of searching the install")
     check.add_argument("--flavor", help="Search only this game folder for this report, for example _forever_; cannot combine with --file")
@@ -157,6 +186,65 @@ def main(argv=None):
         except OSError:
             print(json.dumps({"status": "error", "message": "Local chat storage is unavailable."}))
             return 3
+    if args.command == "market":
+        from .bnet_api import BnetApiError, BnetClient
+        from . import bnet_market
+        try:
+            client = BnetClient(region=args.region)
+            if args.list_rulesets:
+                result = bnet_market.list_rulesets(client, cache_only=args.cache_only, force_refresh=args.force_refresh)
+            elif args.list_houses:
+                result = bnet_market.list_houses(client, args.ruleset, cache_only=args.cache_only, force_refresh=args.force_refresh)
+            else:
+                if args.house is None:
+                    raise BnetApiError("Specify --house <id> (or use --list-houses to inspect available auction houses).")
+                result = bnet_market.price_summary(
+                    client,
+                    ruleset_id=args.ruleset,
+                    house_id=args.house,
+                    item_id=args.item,
+                    query=args.query,
+                    ttl_seconds=args.ttl,
+                    cache_only=args.cache_only,
+                    force_refresh=args.force_refresh,
+                )
+            print(bnet_market.as_text(result) if args.text else json.dumps(result, allow_nan=False))
+            return 0
+        except (BnetApiError, ValueError) as error:
+            print(json.dumps({"status": "error", "message": str(error)}))
+            return 2
+    if args.command == "catalog":
+        from .bnet_api import BnetApiError, BnetClient
+        from . import bnet_catalogs
+        try:
+            client = BnetClient(region=args.region)
+            if args.catalog_action == "ruleset":
+                result = bnet_catalogs.ruleset_status(
+                    client,
+                    args.ruleset,
+                    cache_only=args.cache_only,
+                    force_refresh=args.force_refresh,
+                )
+            elif args.query:
+                result = bnet_catalogs.search_catalog(
+                    client,
+                    args.kind,
+                    args.query,
+                    limit=args.limit,
+                    cache_only=args.cache_only,
+                )
+            else:
+                result = bnet_catalogs.fetch_catalog(
+                    client,
+                    args.kind,
+                    cache_only=args.cache_only,
+                    force_refresh=args.force_refresh,
+                )
+            print(bnet_catalogs.as_text(result) if args.text else json.dumps(result, allow_nan=False))
+            return 0
+        except (BnetApiError, ValueError) as error:
+            print(json.dumps({"status": "error", "message": str(error)}))
+            return 2
     if args.command in {"quests", "character", "check-snapshot", "install-addon"}:
         return companion(args)
     if args.command == "context-probe":
@@ -232,9 +320,17 @@ def companion(args, *, now=None, wait=1.0):
             return 0
         if args.command == "character":
             result = character.report(parsed, mtime, flavor=flavor, now=time.time() if now is None else now)
+            if getattr(args, "enrich_bnet", False):
+                from .bnet_api import BnetClient
+                from .bnet_items import enrich_character_report
+                result = enrich_character_report(result, BnetClient())
             print(character.as_text(result) if args.text else json.dumps(result))
             return 0
         result = quests.report(quests.load(parsed), mtime, flavor=flavor, now=now)
+        if getattr(args, "enrich_bnet", False):
+            from .bnet_api import BnetClient
+            from .bnet_quests import enrich_quest_report
+            result = enrich_quest_report(result, BnetClient())
         print(quests.as_text(result) if args.text else json.dumps(result))
         return 0
     except SavedVariablesError as error:
