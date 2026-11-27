@@ -211,6 +211,8 @@ def _classic_theme(root):
                     padding=(14, 9), font=("Segoe UI", 11))
     style.map("Touch.TNotebook.Tab", background=[("selected", PANEL), ("active", TITLE)],
               foreground=[("selected", ACCENT), ("active", TEXT)])
+    style.configure("TFrame", background=PANEL)
+    style.configure("TLabel", background=PANEL, foreground=TEXT)
     style.configure("TCheckbutton", background=PANEL, foreground=TEXT, font=("Segoe UI", 10))
     style.map("TCheckbutton", background=[("active", PANEL)], foreground=[("active", ACCENT)])
     style.configure("TRadiobutton", background=PANEL, foreground=TEXT, font=("Segoe UI", 10),
@@ -219,11 +221,15 @@ def _classic_theme(root):
     style.configure("Horizontal.TScale", background=EDGE, troughcolor=EDITOR, bordercolor=EDGE,
                     lightcolor=EDGE, darkcolor=BACKGROUND)
     style.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT,
-                    rowheight=24, font=("Segoe UI", 10), borderwidth=0)
+                    rowheight=24, font=("Segoe UI", 10), borderwidth=0,
+                    bordercolor=EDGE, lightcolor=EDGE, darkcolor=EDGE)
     style.map("Treeview", background=[("selected", "#554228")], foreground=[("selected", ACCENT)])
+    style.configure("Treeview.Heading", background=TITLE, foreground=TEXT,
+                    bordercolor=EDGE, lightcolor=EDGE, darkcolor=EDGE)
     for name in ("TEntry", "TSpinbox"):
         style.configure(name, foreground=TEXT, fieldbackground=EDITOR, background=TITLE,
-                        bordercolor=EDGE, arrowcolor=ACCENT, insertcolor=TEXT, padding=3)
+                        bordercolor=EDGE, lightcolor=EDGE, darkcolor=BACKGROUND,
+                        arrowcolor=ACCENT, insertcolor=TEXT, padding=3)
     style.configure("TCombobox", font=("Segoe UI", 10), foreground=TEXT,
                     fieldbackground=EDITOR, background=TITLE, bordercolor=EDGE,
                     lightcolor=EDGE, darkcolor=BACKGROUND, arrowcolor=ACCENT, padding=2)
@@ -238,6 +244,9 @@ def _classic_theme(root):
                     bordercolor=BACKGROUND, arrowcolor=ACCENT, lightcolor=EDGE,
                     darkcolor="#302719", arrowsize=13)
     style.map("Vertical.TScrollbar", background=[("active", "#8c7043"), ("pressed", "#b49352")])
+    # The waiting bar under a chat (BusyBar) otherwise keeps clam's light-grey trough.
+    style.configure("Horizontal.TProgressbar", background="#8c7043", troughcolor=EDITOR,
+                    bordercolor=EDGE, lightcolor="#b49352", darkcolor="#5c4a30")
 
 
 def _modern_theme(root):

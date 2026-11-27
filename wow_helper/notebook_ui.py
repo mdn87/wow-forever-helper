@@ -24,13 +24,14 @@ def notebook_drafts(raw):
 class DiscussionNotebook(JournalDialog):
     kind, title = 'build', 'Build tutor and experiment notebook'
     prepare_form = staticmethod(prepare_build)
+    minimum = (440, 480)
 
     def __init__(self, view):
         self.packet = self.reviewed_form = self.source = None
         self.attempted = False
         self.fields, self.editors = {}, {}
         self.initial = view.notebook_drafts.get(self.kind, {})
-        super().__init__(view, self.title)
+        super().__init__(view, self.title, minimum=self.minimum)
         self.root.protocol('WM_DELETE_WINDOW', self.close)
         self.book = self.ttk.Notebook(self.surface)
         self.book.pack(fill='both', expand=True, padx=8)
@@ -70,8 +71,9 @@ class DiscussionNotebook(JournalDialog):
     def editor(self, key, title, help_text, parent=None):
         tab = parent or self.tab(title)
         label = self.label(tab, help_text)
-        label.configure(wraplength=390, justify='left')
+        label.configure(wraplength=380, justify='left')
         label.pack(anchor='w')
+        tab.bind('<Configure>', lambda e: label.configure(wraplength=max(200, e.width - 20)), add='+')
         widget = self.text(tab, self.initial.get(key, ''), editable=True)
         widget.edit_modified(False)
         self.editors[key] = widget

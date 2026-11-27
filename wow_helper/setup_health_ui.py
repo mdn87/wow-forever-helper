@@ -112,7 +112,7 @@ class SetupHealthDialog(JournalDialog):
             from types import SimpleNamespace
             from .appearance import DEFAULTS
             view = SimpleNamespace(tk=manager.tk, root=window.root, appearance=dict(DEFAULTS))
-        super().__init__(view, "WoW setup & addon health", size=(640, 620), minimum=(460, 440))
+        super().__init__(view, "WoW setup & addon health", size=(640, 620), minimum=(460, 580))
         self.notice.set(
             f"Shipped companion addon v{check.ADDON_VERSION}. Installing copies the addon into your WoW "
             "Interface/AddOns folder only when you press Install addon; the companion never reloads WoW."
@@ -128,11 +128,15 @@ class SetupHealthDialog(JournalDialog):
         folder_lbl = self.tk.Label(status_row, textvariable=self.folder_status,
                                    bg=folder_box.cget("bg"), fg=self.label(status_row, "").cget("fg"),
                                    anchor="w", justify="left")
-        folder_lbl.pack(side="left", fill="x", expand=True)
         self.clear_folder_button = self.ttk.Button(status_row, text="Auto-detect", command=self.clear_folder)
         self.clear_folder_button.pack(side="right", padx=(4, 0))
         self.choose_folder_button = self.ttk.Button(status_row, text="Choose folder…", command=self.choose_folder)
         self.choose_folder_button.pack(side="right")
+        # The buttons pack first; a long folder status wraps instead of pushing them out.
+        folder_lbl.pack(side="left", fill="x", expand=True)
+        status_row.bind("<Configure>", lambda e: folder_lbl.configure(wraplength=max(
+            120, e.width - self.choose_folder_button.winfo_reqwidth() - self.clear_folder_button.winfo_reqwidth() - 12)),
+            add="+")
 
         # Per-edition status table.
         table_box = self.frame(self.surface, padding=6)
@@ -186,16 +190,19 @@ class SetupHealthDialog(JournalDialog):
         )
 
         # Assistive input status (read-only + explicit safety Stop).
+        # Packed ahead of the report so the safety Stop stays visible; the report text shrinks instead.
         assist_box = self.frame(self.surface, padding=6)
-        assist_box.pack(fill="x", padx=4, pady=(0, 4))
+        assist_box.pack(side="bottom", fill="x", padx=4, pady=(0, 4), before=report_box)
         self.assist_status = self.tk.StringVar(master=self.root)
         assist_lbl = self.tk.Label(assist_box, textvariable=self.assist_status,
                                    bg=assist_box.cget("bg"), fg=self.label(assist_box, "").cget("fg"),
-                                   anchor="w", justify="left", wraplength=440)
-        assist_lbl.pack(side="left", fill="x", expand=True)
+                                   anchor="w", justify="left", wraplength=300)
         self.stop_assist_button = self.ttk.Button(assist_box, text="Stop assistive input",
                                                   command=self.stop_assistive, state="disabled")
         self.stop_assist_button.pack(side="right", padx=(6, 0))
+        assist_lbl.pack(side="left", fill="x", expand=True)
+        assist_box.bind("<Configure>", lambda e: assist_lbl.configure(
+            wraplength=max(120, e.width - self.stop_assist_button.winfo_reqwidth() - 20)), add="+")
 
         self.refresh()
         self.show()

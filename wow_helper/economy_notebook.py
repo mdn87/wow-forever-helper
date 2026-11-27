@@ -11,6 +11,8 @@ from .chat import ChatError
 
 class EconomyNotebook(DiscussionNotebook):
     kind, title = 'economy', 'Session economy analysis'
+    # Five tabs need about 451 px in Classic; at 440 Tk squeezed them and cut their labels.
+    minimum = (460, 480)
     prepare_form = staticmethod(prepare_economy)
 
     def make_fields(self):

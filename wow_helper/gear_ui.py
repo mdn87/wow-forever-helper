@@ -52,14 +52,18 @@ class GearDialog(JournalDialog):
         self.canvas.bind('<B1-Motion>', self.drag_move)
         self.canvas.bind('<ButtonRelease-1>', self.drag_end)
         self.destination = self.label(self.review, '')
-        self.destination.configure(wraplength=420, justify='left')
+        self.destination.configure(wraplength=380, justify='left')
         self.destination.pack(fill='x', pady=8)
         self.review_label = self.label(self.review, 'Select and review a region first.')
         self.review_label.pack(fill='both', expand=True)
         self.progress = self.tk.StringVar(master=self.root)
         self.progress_label = self.label(self.result, '')
-        self.progress_label.configure(textvariable=self.progress, wraplength=400, justify='left')
+        self.progress_label.configure(textvariable=self.progress, wraplength=380, justify='left')
         self.progress_label.pack(fill='x')
+        # Fixed 400-420 px wraps ran past the tabs at the 440 px minimum width.
+        for tab, label in ((self.review, self.destination), (self.result, self.progress_label)):
+            tab.bind('<Configure>', lambda e, label=label: label.configure(wraplength=max(200, e.width - 20)),
+                     add='+')
         self.output = self.text(self.result, 'No comparison requested yet.')
         self.evidence_label = self.label(self.evidence_tab, 'The next requested capture will appear here.')
         self.evidence_label.pack(fill='both', expand=True)

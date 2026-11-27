@@ -406,12 +406,16 @@ def show_display_setup(manager, parent):
     dialog = tk.Toplevel(parent)
     dialog.withdraw()
     chrome = setup_dialog(dialog, parent, title="WoW companion displays", close=dialog.destroy,
-                          minimum=(460, 340), size=(560, 380))
+                          minimum=(460, 400), size=(560, 420))
     dialog._companion_frame = chrome
     surface = chrome.content
     colors = palette(dialog)
-    tk.Label(surface, text="Choose a different screen for each view.\nThese helper windows temporarily sit above Dias.",
-             bg=colors.PANEL, fg=colors.TEXT, font=("Segoe UI", 12), justify="left", anchor="w").pack(fill="x", padx=18, pady=14)
+    # Packed first so the touch-sized buttons keep their height in a short window.
+    actions = tk.Frame(surface, bg=colors.PANEL, padx=18, pady=10)
+    actions.pack(side="bottom", fill="x")
+    intro = tk.Label(surface, text="Choose a different screen for each view.\nThese helper windows temporarily sit above Dias.",
+                     bg=colors.PANEL, fg=colors.TEXT, font=("Segoe UI", 12), justify="left", anchor="w", wraplength=400)
+    intro.pack(fill="x", padx=18, pady=14)
     labels = monitor_labels(areas)
     picks = []
     for title in ("Quest log", "Activity cards"):
@@ -419,8 +423,10 @@ def show_display_setup(manager, parent):
         picker = ttk.Combobox(surface, values=labels, state="readonly")
         picker.pack(fill="x", padx=18, pady=(4, 10))
         picks.append(picker)
-    notice = tk.Label(surface, bg=colors.PANEL, fg=colors.ACCENT, wraplength=500, justify="left", anchor="w")
+    notice = tk.Label(surface, bg=colors.PANEL, fg=colors.ACCENT, wraplength=400, justify="left", anchor="w")
     notice.pack(fill="x", padx=18, pady=(0, 6))
+    surface.bind("<Configure>", lambda e: [label.configure(wraplength=max(200, e.width - 40))
+                                           for label in (intro, notice)], add="+")
     def apply():
         try:
             if any(p.current() < 0 for p in picks):
@@ -430,8 +436,6 @@ def show_display_setup(manager, parent):
             notice.configure(text=str(error))
         else:
             dialog.destroy()
-    actions = tk.Frame(surface, bg=colors.PANEL, padx=18, pady=10)
-    actions.pack(side="bottom", fill="x")
     ttk.Button(actions, text="Open WoW displays", style="Primary.TButton", command=apply, padding=8).pack(side="right", padx=(8, 0))
     ttk.Button(actions, text="Cancel", command=dialog.destroy, padding=8).pack(side="right")
     dialog.deiconify()

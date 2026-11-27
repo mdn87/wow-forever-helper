@@ -5,6 +5,8 @@ from pathlib import Path
 import time
 import uuid
 
+import pytest
+
 from test_workspace import SESSIONS, SyntheticActivities, manager_factory, settle  # noqa: F401
 from wow_helper.assist import Assistant
 from wow_helper.chat import ChatError
@@ -262,6 +264,35 @@ def test_u15_review_overview_full_payload_and_codex_ux03_invariants(manager_fact
     assert fup.packet is not None and str(fup.send_button["state"]) == "normal"
     resume.close()
     manager.handsfree.disconnect()
+
+
+@pytest.mark.parametrize("theme,scaling", [("classic", None), ("classic", 1.33), ("modern", 1.67)])
+def test_u16_goal_presets_stay_fully_visible_at_minimum_size(manager_factory, theme, scaling):
+    manager = manager_factory()
+    manager.preview_interface({"theme": theme})
+    view = manager.windows[0].view
+    settle(view)
+    view._select_session(SESSIONS[0])
+    settle(view)
+    original = view.root.tk.call("tk", "scaling")
+    if scaling:
+        view.root.tk.call("tk", "scaling", scaling)
+    try:
+        view.show_goals()
+        resume = view._resume_dialog
+        resume.edit_goal(new=True)
+        goal = resume.goal_dialog
+        goal.root.geometry("%dx%d" % goal.root.minsize())
+        goal.book.select(goal.book.tabs()[-1])
+        manager.root.update()
+        for label, button in goal.preset_buttons.items():
+            row = button.master
+            assert button.winfo_ismapped(), label
+            assert button.winfo_width() >= button.winfo_reqwidth(), label
+            assert button.winfo_x() + button.winfo_width() <= row.winfo_width(), label
+        resume.close()
+    finally:
+        view.root.tk.call("tk", "scaling", original)
 
 
 def test_u16_goal_presets_economy_checkbutton_and_bookmark_now(manager_factory):

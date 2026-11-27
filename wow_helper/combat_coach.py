@@ -63,16 +63,22 @@ def prepare_manual_coaching(form, storage):
 
 class CombatNotebook(DiscussionNotebook):
     kind, title = "combat", "Post-fight coaching"
+    minimum = (440, 580)  # the Inputs form is fixed fields with no text area to shrink
 
     def make_fields(self):
         edition = next(key for key, value in FLAVORS.items() if value == self.view.profile["flavor"])
         self.bound_source = {key: self.initial.get(key, "") for key in ("source_provider", "source_session")}
         intro = self.frame(self.inputs)
         intro.pack(fill="x", pady=(0, 4))
-        self.label(intro, "Manual encounter notes, attempt comparisons & screenshots.").pack(side="left")
+        # Packed first so a narrow window wraps the summary instead of cutting the button.
         self.switch_fight_button = self.ttk.Button(intro, text="Ask with combat log…",
                                                    command=self.open_fight_question)
-        self.switch_fight_button.pack(side="right")
+        self.switch_fight_button.pack(side="right", anchor="n")
+        summary = self.label(intro, "Manual encounter notes, attempt comparisons & screenshots.")
+        summary.configure(justify="left", anchor="w")
+        summary.pack(side="left", fill="x", expand=True)
+        intro.bind("<Configure>", lambda e: summary.configure(
+            wraplength=max(120, e.width - self.switch_fight_button.winfo_reqwidth() - 8)), add="+")
         self.field("edition", "Game edition", edition, list(FLAVORS))
         self.field("encounter", "Encounter name")
         self.field("phase", "Review stage", "First attempt", ["First attempt", "Compare later attempt"])

@@ -10,6 +10,7 @@ from .activities import FLAVORS, SKILLS, STEPS, TYPES, ActivityService, current_
 from .appearance import style_text
 from .chat import ChatError, ChatService, read_json, write_json
 from .chat_window import ChatWindow, BACKGROUND_JOBS
+from .flow_row import FlowRow
 from .guidance import guidance, quest_tier
 from .theme import BusyBar, palette
 from .quest_chat import MAX_QUEST_CHATS, OPENING, QuestChat, quest_context, quest_identity
@@ -150,7 +151,11 @@ class TaskWindow(ChatWindow):
         from tkinter import ttk
         options = {"style": "Touch.TButton"} if self.touch else {}
         button = ttk.Button(parent, text=label, command=command, **options)
-        button.pack(side="left", padx=(0, 4))
+        row = getattr(parent, "_flow_row", None)
+        if row is not None:
+            row.add(button)
+        else:
+            button.pack(side="left", padx=(0, 4))
         self.buttons.append(button)
         return button
 
@@ -159,6 +164,8 @@ class TaskWindow(ChatWindow):
         tk = self.tk
         actions = tk.Frame(self.panel, bg=palette(self.root).PANEL, padx=8, pady=5)
         actions.pack(fill="x")
+        # Wraps at the 440 px minimum instead of cutting off Setup and the setup prompt.
+        actions._flow_row = self.action_row = FlowRow(actions)
         if self.kind == "screen":
             self.capture_button = self._button(actions, "Capture WoW", self.capture)
             self.import_button = self._button(actions, "Open image", self.open_image)
@@ -178,6 +185,7 @@ class TaskWindow(ChatWindow):
             actions, text="WoW setup & addon…", style="Primary.TButton",
             command=self.open_setup_health,
         )
+        self.action_row.add(self.setup_health_button, visible=False)
         footer = tk.Label(self.panel, textvariable=self.activity_notice, bg=palette(self.root).PANEL, fg=palette(self.root).ACCENT,
                           anchor="w", justify="left", wraplength=370, padx=8, pady=5, font=("Segoe UI", 9))
         footer.pack(side="bottom", fill="x")
@@ -186,8 +194,9 @@ class TaskWindow(ChatWindow):
         if self.kind == "journal":
             choices = tk.Frame(self.panel, bg=palette(self.root).PANEL, padx=8, pady=3)
             choices.pack(fill="x")
-            self.journal_name_entry = name = ttk.Entry(choices, textvariable=self.journal_name, width=12)
-            name.pack(side="left", fill="x", expand=True)
+            choices._flow_row = FlowRow(choices)
+            self.journal_name_entry = name = ttk.Entry(choices, textvariable=self.journal_name, width=16)
+            choices._flow_row.add(name)
             name.bind("<KeyRelease>", lambda _: self.on_change())
             name.bind("<Return>", lambda _: self.rename_journal())
             self.rename_button = self._button(choices, "Rename", self.rename_journal)
@@ -644,11 +653,11 @@ class TaskWindow(ChatWindow):
     def _report_result(self, result, error):
         if error:
             self.activity_notice.set(error)
-            if hasattr(self, "setup_health_button") and not self.setup_health_button.winfo_manager():
-                self.setup_health_button.pack(side="right", padx=(4, 0))
+            if hasattr(self, "setup_health_button"):
+                self.action_row.show(self.setup_health_button)
             return
-        if hasattr(self, "setup_health_button") and self.setup_health_button.winfo_manager():
-            self.setup_health_button.pack_forget()
+        if hasattr(self, "setup_health_button"):
+            self.action_row.show(self.setup_health_button, False)
         self.panel_report = result
         self._report_generation += 1
         report = result[self.kind]
@@ -1146,8 +1155,9 @@ class SetupDialog:
         )
         self.web_research = tk.BooleanVar(master=self.root, value=bool(view.profile.get("web_research", True)))
         ttk.Checkbutton(caps, text="Built-in web research tools", variable=self.web_research).pack(anchor="w", pady=(2, 2))
-        tk.Label(caps, text=RESEARCH_SCOPE_HELP, bg=palette(self.root).PANEL, fg=palette(self.root).MUTED,
-                 justify="left", wraplength=420, anchor="w").pack(fill="x", pady=(0, 10))
+        research_note = tk.Label(caps, text=RESEARCH_SCOPE_HELP, bg=palette(self.root).PANEL,
+                                 fg=palette(self.root).MUTED, justify="left", wraplength=380, anchor="w")
+        research_note.pack(fill="x", pady=(0, 10))
         try:
             current_browser, _ = CapabilityStore(view.activity.storage).window_approval(view.window_id)
             self._cap_error = ""
@@ -1164,8 +1174,12 @@ class SetupDialog:
             BROWSER_APPROVAL_HELP if platform_supports_browser()
             else "Manual links only — automatic browser opening is disabled on this platform."
         )
-        tk.Label(caps, text=browser_note, bg=palette(self.root).PANEL, fg=palette(self.root).MUTED,
-                 justify="left", wraplength=420, anchor="w").pack(fill="x", pady=(0, 8))
+        browser_label = tk.Label(caps, text=browser_note, bg=palette(self.root).PANEL, fg=palette(self.root).MUTED,
+                                 justify="left", wraplength=380, anchor="w")
+        browser_label.pack(fill="x", pady=(0, 8))
+        # A fixed 420 px wrap ran past the tab at the 460 px minimum width.
+        caps.bind("<Configure>", lambda e: [note.configure(wraplength=max(200, e.width - 24))
+                                            for note in (research_note, browser_label)], add="+")
         self.startup = {}
         for key, label in (("refresh_on_open", "Refresh reports when creating a window"),
                            ("startup_context", "Load preparation, skills and context for new chats"),

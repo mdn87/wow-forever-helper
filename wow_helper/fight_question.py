@@ -7,6 +7,7 @@ from .activities import FLAVORS
 from .build_tutor import bounded, discussion_packet
 from .chat import ChatError
 from .imports import import_record
+from .flow_row import FlowRow
 from .notebook_ui import DiscussionNotebook
 
 DIGEST_LIMIT = 24_000
@@ -43,35 +44,41 @@ def prepare_fight_question(form):
 class FightQuestion(DiscussionNotebook):
     kind, title = "fight", "Ask about the last fight"
     prepare_form = staticmethod(prepare_fight_question)
+    minimum = (440, 540)
 
     def make_fields(self):
         edition = next(key for key, value in FLAVORS.items() if value == self.view.profile["flavor"])
         self.field("edition", "Game edition", edition, list(FLAVORS))
-        self.editor("question", "Question", "What should the agent look into? For example: why did we wipe "
-                    "so fast on that pull?", parent=self.inputs)
-        self.editors["question"].configure(height=5)
+        # Packed before the question so a short window shrinks the question box, not these controls.
+        tail = self.frame(self.inputs)
+        tail.pack(side="bottom", fill="x")
         self.fields["names"] = self.tk.StringVar(master=self.root, value=self.initial.get("names", "0"))
         self.fields["names"].trace_add("write", lambda *_: self.changed())
-        self.ttk.Checkbutton(self.inputs, text="Include player names in the digest (otherwise Player 1, 2…)",
+        self.ttk.Checkbutton(tail, text="Include player names in the digest (otherwise Player 1, 2…)",
                              variable=self.fields["names"], onvalue="1", offvalue="0").pack(anchor="w", pady=(6, 0))
         # Kept only while this dialog is open; never written to drafts or Journal.
         self.own_name = self.tk.StringVar(master=self.root)
-        self.label(self.inputs, "Your character name, to label you as You (optional, not saved)").pack(anchor="w", pady=(5, 0))
-        self.ttk.Entry(self.inputs, textvariable=self.own_name).pack(fill="x")
+        self.label(tail, "Your character name, to label you as You (optional, not saved)").pack(anchor="w", pady=(5, 0))
+        self.ttk.Entry(tail, textvariable=self.own_name).pack(fill="x")
         self.fields["digest_status"] = self.tk.StringVar(master=self.root, value=self.initial.get("digest_status", ""))
-        bar = self.frame(self.inputs)
+        bar = self.frame(tail)
         bar.pack(fill="x", pady=(8, 0))
-        self.read_button = self.ttk.Button(bar, text="Read combat log", command=self.read_log)
-        self.read_button.pack(side="left")
-        self.ttk.Button(bar, text="Remove digest", command=self.remove_digest).pack(side="left", padx=4)
-        self.switch_coach_button = self.ttk.Button(bar, text="Manual notes & screenshot…",
-                                                   command=self.open_manual_coaching)
-        self.switch_coach_button.pack(side="right")
-        self.log_status = self.label(self.inputs, "Uses the local /combatlog digest for a quick fight question. "
+        row = FlowRow(bar)
+        self.read_button = row.add(self.ttk.Button(bar, text="Read combat log", command=self.read_log))
+        row.add(self.ttk.Button(bar, text="Remove digest", command=self.remove_digest))
+        self.switch_coach_button = row.add(self.ttk.Button(bar, text="Manual notes & screenshot…",
+                                                           command=self.open_manual_coaching))
+        self.log_status = self.label(tail, "Uses the local /combatlog digest for a quick fight question. "
                                      "Reading starts only when you press Read combat log. "
                                      "For manual attempt comparisons or screenshots, use Manual notes & screenshot.")
-        self.log_status.configure(wraplength=390, justify="left")
-        self.log_status.pack(anchor="w", pady=(4, 0))
+        self.log_status.configure(wraplength=390, justify="left", anchor="w")
+        self.log_status.pack(fill="x", pady=(4, 0))
+        tail.bind("<Configure>", lambda e: self.log_status.configure(wraplength=max(200, e.width - 8)), add="+")
+        self.editor("question", "Question", "What should the agent look into? For example: why did we wipe "
+                    "so fast on that pull?", parent=self.inputs)
+        self.editors["question"].configure(height=5)
+        # Created after the controls below it; keep the keyboard order question first.
+        self.editors["question"].master.lower(tail)
         self.editor("digest", "Digest", "What will be sent from the combat log. Edit or remove anything before "
                     "preparing the review.")
         self._results = queue.Queue()

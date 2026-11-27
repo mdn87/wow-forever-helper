@@ -136,13 +136,14 @@ class BookmarkDialog(JournalDialog):
         self.image_photo = None
         super().__init__(view, "Bookmark this moment")
         self.notice.set("Save a note manually. No recording, screenshot, or agent request starts here.")
-        self.label(self.surface, "Moment note").pack(anchor="w", padx=8, pady=(4, 0))
+        note_label = self.label(self.surface, "Moment note")
         self.body = self.text(self.surface, editable=True)
         self.body.configure(height=7)
         self.body.pack(fill="both", expand=True, padx=8, pady=4)
+        note_box = self.body.master
+        note_box.pack_forget()  # packed again below, after the options and times
 
         options = self.frame(self.surface, padding=8)
-        options.pack(fill="x")
         has_source = self._source_metadata() is not None
         self.include_source = self.tk.BooleanVar(master=self.root, value=has_source)
         self.ttk.Checkbutton(options, text="Keep the selected conversation reference", variable=self.include_source,
@@ -159,7 +160,6 @@ class BookmarkDialog(JournalDialog):
             self._show_image_preview(options)
 
         times = self.frame(self.surface, padding=8)
-        times.pack(fill="x")
         self.label(times, "Image capture time (optional ISO 8601 with time zone)").pack(anchor="w")
         time_row = self.frame(times)
         time_row.pack(fill="x", pady=(0, 4))
@@ -171,6 +171,12 @@ class BookmarkDialog(JournalDialog):
         self.label(times, "Manual time correction in minutes (optional, from −1440 to 1440)").pack(anchor="w")
         self.correction = self.ttk.Entry(times)
         self.correction.pack(fill="x")
+        # The note packs last, so a short window or a large chat font shrinks the note box
+        # instead of pressing the options and times below it flat.
+        times.pack(side="bottom", fill="x")
+        options.pack(side="bottom", fill="x")
+        note_label.pack(anchor="w", padx=8, pady=(4, 0))
+        note_box.pack(fill="both", expand=True)
         self.ttk.Button(self.actions, text="Save bookmark", command=self.save).pack(side="right", padx=6)
         self.show()
 

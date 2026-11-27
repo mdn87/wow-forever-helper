@@ -21,7 +21,7 @@ class ModelSettingsDialog:
         title = 'Change model' if view.selected else 'Find active sessions'
         self.root = tk.Toplevel(parent or view.root)
         self.chrome = setup_dialog(self.root, parent or view.root, title=title, close=self.close,
-                                   minimum=(430, 475), size=(620, 580))
+                                   minimum=(430, 575), size=(620, 600))
         self.show_session(advanced=view.selected is None)
         self.chrome.apply_native()
 

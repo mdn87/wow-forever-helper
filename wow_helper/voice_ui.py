@@ -2,6 +2,7 @@
 
 from .chat import MAX_MESSAGE
 from .journal_ui import JournalDialog
+from .theme import palette
 from .voice_input import Dictation, PushToTalkKey
 
 
@@ -12,11 +13,12 @@ class VoiceDialog(JournalDialog):
         self.dictation = self.key = None
         self.target = None
         self.after = None
-        super().__init__(window.view, 'Voice input · Keypad -', size=(430, 310), minimum=(360, 230))
+        super().__init__(window.view, 'Voice input · Keypad -', size=(430, 360), minimum=(360, 350))
         self.notice.set('Enable voice for this window, then hold Keypad - to record for this chat. '
                         'Speak when Recording appears; release to transcribe into the draft.')
         info = self.label(self.surface, 'Local Whisper · English · default mic · 30s max · no audio saved · other apps unaffected.')
-        info.configure(wraplength=390, justify='left'); info.pack(fill='x', padx=8, pady=(2, 6))
+        info.configure(wraplength=330, justify='left', anchor='w'); info.pack(fill='x', padx=8, pady=(2, 6))
+        self.surface.bind('<Configure>', lambda e: info.configure(wraplength=max(200, e.width - 24)), add='+')
         self.enable_button = self.ttk.Button(self.surface, text='Enable for this chat window', style='Primary.TButton', command=self.enable)
         self.enable_button.pack(fill='x', padx=8)
         self.hold = self.ttk.Button(self.surface, text='Or hold here to talk', state='disabled')
@@ -145,7 +147,7 @@ class HandsFreeDialog(JournalDialog):
         from .voice_commands import HELP
         self.manager, self.window = manager, window
         self.controller = manager.handsfree
-        super().__init__(window.view, 'Hands-free voice · Lugos Voice')
+        super().__init__(window.view, 'Hands-free voice · Lugos Voice', minimum=(440, 540))
         self.controller.exclude.add(str(self.root))
         info = self.label(self.surface, 'Say the wake phrase, speak, then say "end turn". Lugos Voice listens; '
                           'this companion only receives its finished turns and answers each one aloud. '
@@ -166,10 +168,14 @@ class HandsFreeDialog(JournalDialog):
                              variable=self.auto, command=lambda: self.controller.set_auto(self.auto.get())
                              ).pack(anchor='w', padx=8)
         self.commands_only = self.tk.BooleanVar(master=self.root, value=getattr(self.controller, 'commands_only', False))
-        self.ttk.Checkbutton(self.surface, text='Commands only (require "ask the agent …" or "tell the agent …" to chat)',
+        self.ttk.Checkbutton(self.surface, text='Commands only',
                              variable=self.commands_only,
                              command=lambda: self.controller.set_commands_only(self.commands_only.get())
-                             ).pack(anchor='w', padx=8, pady=(2, 4))
+                             ).pack(anchor='w', padx=8, pady=(2, 0))
+        hint = self.label(self.surface, 'Chat then needs "ask the agent …" or "tell the agent …".')
+        hint.configure(fg=palette(self.root).MUTED, justify='left', anchor='w', wraplength=360)
+        hint.pack(fill='x', padx=(28, 8), pady=(0, 4))
+        self.surface.bind('<Configure>', lambda e: hint.configure(wraplength=max(160, e.width - 44)), add='+')
         book = self.ttk.Notebook(self.surface)
         book.pack(fill='both', expand=True, padx=8, pady=(4, 0))
         turns_tab = self.frame(book, padding=4)

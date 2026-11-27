@@ -205,6 +205,35 @@ def test_u04_conversation_picker_selection_contrast_is_accessible(manager_factor
     picker.close()
 
 
+@pytest.mark.parametrize("theme", ["classic", "modern"])
+def test_u04_plain_ttk_frames_labels_and_tree_headings_use_the_theme(desktop, theme):
+    # Unstyled ttk.Frame/ttk.Label rows (Change model's active sessions, Provider
+    # usage, Command library search) and default Treeview headings (Activity
+    # history, Search, Command library) must not fall back to stock grey or white.
+    from tkinter import ttk
+    from wow_helper.theme import apply_theme, palette
+
+    _, root = desktop
+    previous = getattr(root, "_companion_theme", "classic")
+    apply_theme(root, theme)
+    try:
+        style, colors = ttk.Style(root), palette(root)
+        assert style.lookup("TFrame", "background").lower() == colors.PANEL.lower()
+        assert style.lookup("TLabel", "background").lower() == colors.PANEL.lower()
+        assert style.lookup("TLabel", "foreground").lower() == colors.TEXT.lower()
+        surfaces = {colors.PANEL.lower(), colors.TITLE.lower()}
+        for state in ([], ["active"]):
+            assert style.lookup("Treeview.Heading", "background", state).lower() in surfaces
+        assert style.lookup("Treeview.Heading", "foreground").lower() == colors.TEXT.lower()
+        assert style.lookup("Treeview", "lightcolor").lower() == colors.EDGE.lower()
+        for name in ("TEntry", "TSpinbox"):  # match the combobox edge instead of a white bevel
+            assert style.lookup(name, "lightcolor").lower() == colors.EDGE.lower(), name
+        # The waiting bar under a chat (BusyBar) kept a stock light-grey trough in Classic.
+        assert style.lookup("Horizontal.TProgressbar", "troughcolor").lower() == colors.EDITOR.lower()
+    finally:
+        apply_theme(root, previous)
+
+
 def test_u05_smart_scroll_preserves_anchored_passage_across_append_resize_and_font_change(manager_factory):
     manager = manager_factory()
     window = manager.windows[0]

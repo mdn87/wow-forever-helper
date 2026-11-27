@@ -181,12 +181,13 @@ class CompanionWindow:
     def show_chooser(self):
         tk = self.manager.tk
         from tkinter import ttk
-        chooser = tk.Frame(self.body, bg=palette(self.root).PANEL, padx=20, pady=16)
+        # Spacing is tight enough for every choice to fit at the 440 x 580 minimum.
+        chooser = tk.Frame(self.body, bg=palette(self.root).PANEL, padx=20, pady=10)
         chooser.pack(fill="both", expand=True)
         tk.Label(chooser, text="New window", bg=palette(self.root).PANEL, fg=palette(self.root).TEXT, anchor="w",
                  font=display_font(self.root, 21)).pack(fill="x")
         tk.Label(chooser, text="Choose what to open here.", bg=palette(self.root).PANEL, fg=palette(self.root).MUTED,
-                 font=("Segoe UI", 10), anchor="w").pack(fill="x", pady=(4, 10))
+                 font=("Segoe UI", 10), anchor="w").pack(fill="x", pady=(2, 6))
         self.type_buttons = {}
         for kind, (title, description) in TYPES.items():
             button = ttk.Button(chooser, text="Open agent chat" if kind == "chat" else title,
@@ -194,7 +195,7 @@ class CompanionWindow:
             button.pack(fill="x", pady=(4, 0))
             self.type_buttons[kind] = button
             tk.Label(chooser, text=description, bg=palette(self.root).PANEL, fg=palette(self.root).MUTED, font=("Segoe UI", 9),
-                     wraplength=340, justify="left", anchor="w").pack(fill="x", pady=(3, 6))
+                     wraplength=340, justify="left", anchor="w").pack(fill="x", pady=(2, 4))
         self.chat_button = self.type_buttons["chat"]
         ttk.Button(chooser, text="Set up two WoW displays…",
                    command=lambda: show_display_setup(self.manager, self.root)).pack(fill="x", pady=(4, 0))

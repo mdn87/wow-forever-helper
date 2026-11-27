@@ -20,7 +20,7 @@ class GoalDialog(JournalDialog):
         self.manual_title = owner.view.session_title if key else 'None selected'
         self.note_id = entry['id'] if entry else str(uuid.uuid4())
         self.fields, self.editors = {}, {}
-        super().__init__(owner.view, 'Personal goal')
+        super().__init__(owner.view, 'Personal goal', minimum=(440, 520))
         if selection:
             # The reply destination picker adds two controls above the goal fields.
             self.chrome.minimum = (440, 540)
@@ -33,21 +33,25 @@ class GoalDialog(JournalDialog):
         main, plan, decisions, evidence = [self.tab(title) for title in ('Goal', 'Plan', 'Decisions', 'Evidence')]
         repeat = self.tab('Repeat')
         from .recurrence import DAYS, RESET_PRESETS, local_timezone_name
+        from .flow_row import FlowRow
         preset_row = self.frame(repeat)
         preset_row.pack(fill='x', pady=(0, 6))
-        self.label(preset_row, 'Quick presets:').pack(side='left', padx=(0, 4))
+        # Wraps instead of clipping: one row cut off the last preset at the 440 px minimum width,
+        # and a fixed two-per-row grid pushed the Repeat fields below out of the tab.
+        flow = FlowRow(preset_row, gap=3)
+        flow.add(self.label(preset_row, 'Quick presets:'))
         self.preset_buttons = {}
         for preset_label, preset in RESET_PRESETS:
             btn = self.ttk.Button(preset_row, text=preset_label, style='Agent.TButton',
                                   command=lambda p=preset: self._apply_preset(p))
-            btn.pack(side='left', padx=(0, 3))
+            flow.add(btn)
             self.preset_buttons[preset_label] = btn
         local_btn = self.ttk.Button(preset_row, text='Local daily', style='Agent.TButton',
                                     command=lambda: self._apply_preset({
                                         'frequency': 'Daily', 'zone': local_timezone_name() or 'UTC',
                                         'time': '08:00', 'weekday': 'Monday',
                                     }))
-        local_btn.pack(side='left')
+        flow.add(local_btn)
         self.preset_buttons['Local daily'] = local_btn
         self.field(repeat, 'frequency', 'Repeat', choices=['None', 'Daily', 'Weekly'])
         self.field(repeat, 'zone', 'IANA time zone (for example America/New_York)')
