@@ -232,6 +232,16 @@ class Interpreter:
         (r"(?:open|open up|start|launch|show|bring up|pull up|get) (?:the |my |a |your )?(?:voice )?browser(?: window)?",
          "browser_open"),
         (r"(?:close|quit|shut) (?:down )?(?:the |my |your )?(?:voice )?browser(?: window)?", "browser_close"),
+        (r"(?:start|begin|resume|run) (?:the )?(?:live |in[- ]?game )?tests?(?: walkthrough| guide| checklist)?|next(?: live)? test",
+         "live_test_next"),
+        (r"(?:repeat|read|reread|what(?:'s| is)) (?:the )?(?:current )?(?:live )?test(?: instructions?)?",
+         "live_test_repeat"),
+        (r"(?:live )?test status|how many tests?(?: are)? left", "live_test_status"),
+        (r"(?:go to|jump to|select|start) (?:live )?test (\d+)", "live_test_goto"),
+        (r"(?:pass(?:ed)?(?: the)?(?: live)? test|test passed)(?:[,:]? (.+))?", "live_test_pass"),
+        (r"(?:fail(?:ed)?(?: the)?(?: live)? test|test failed)(?:[,:]? (.+))?", "live_test_fail"),
+        (r"skip(?: the)?(?: live)? test(?:[,:]? (.+))?", "live_test_skip"),
+        (r"reset (?:the )?live tests?", "live_test_reset"),
         (r"(?:price check|check (?:the )?price (?:of|for)|what(?:'s| is) the price (?:of|for)|how much is|auction house price (?:of|for)|ah price (?:of|for)) (.+?)(?: on (?:the )?(?:auction house|ah))?",
          "bnet_market"),
         (r"(?:item stats (?:of|for)|stats (?:of|on|for)|what are the stats (?:of|on|for)|forever item) (.+)",
@@ -324,6 +334,38 @@ class Interpreter:
 
     def bnet_market(self, query):
         return Outcome("bnet", "market", query)
+
+    # -- spoken in-game live-test walkthrough (local runtime state only)
+    def _live_tests(self):
+        from .live_test_guide import LiveTestGuide
+        return LiveTestGuide()
+
+    def live_test_next(self):
+        return Outcome("done", self._live_tests().next_prompt())
+
+    def live_test_repeat(self):
+        return Outcome("done", self._live_tests().repeat_prompt())
+
+    def live_test_status(self):
+        return Outcome("done", self._live_tests().status_spoken())
+
+    def live_test_goto(self, number):
+        return Outcome("done", self._live_tests().goto(int(number)))
+
+    def live_test_pass(self, note=None):
+        _, spoken = self._live_tests().record("pass", note=note or "")
+        return Outcome("done", spoken)
+
+    def live_test_fail(self, note=None):
+        _, spoken = self._live_tests().record("fail", note=note or "")
+        return Outcome("done", spoken)
+
+    def live_test_skip(self, note=None):
+        _, spoken = self._live_tests().record("skipped", note=note or "")
+        return Outcome("done", spoken)
+
+    def live_test_reset(self):
+        return Outcome("done", self._live_tests().reset())
 
     # -- general
     def help(self):

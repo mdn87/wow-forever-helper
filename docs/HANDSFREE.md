@@ -39,6 +39,8 @@ A whole turn must match one of these forms; anything else is a chat message. Eve
 | "open the browser" / "close the browser" | Opens or closes the voice browser, a separate Chrome window the companion owns. It opens in the background, so the game keeps the foreground. Drag it to a side monitor once; Chrome remembers the spot. |
 | "price check Linen Cloth", "how much is Linen Cloth on the auction house" | Queries cached Forever Auction House and commodity prices via Battle.net API (ruleset/house from `WFH_BNET_RULESET_ID` / `WFH_BNET_HOUSE_ID`, default `1` / `110`) with Blizzard attribution. |
 | "item stats for Thunderfury", "what are the stats on …" | Looks up Forever item stats, weapon DPS, and effects via Battle.net API with Blizzard attribution; falls back to Classic Wowhead in the voice browser when an item is absent (HTTP 404) or credentials are not set. |
+| "start live test" / "next test", "repeat test", "go to test 4", "test status" | Speaks step-by-step instructions for each remaining in-game verification item (`#30`, `#21`, `#22`, `#23`) while both hands stay on WoW. |
+| "pass test …", "fail test …", "skip test", "reset live tests" | Records pass, fail, or skip (plus an optional short spoken note) into ignored `.runtime/live-test-results.json` and immediately speaks the next test's instructions. |
 | "look up frostbolt", "look up Thunder Bluff on classic", "search the web for …" | Searches Wowhead, Wowhead Classic or Bing in the voice browser and says the page title. |
 | "browse to wowhead dot com" | Opens a spoken address. Anything that is not an address is looked up on Wowhead. |
 | "open the first result", "open result 3", "follow the link Rank 2 trainer" | Opens a result from the search page, or the page link whose text matches. |
