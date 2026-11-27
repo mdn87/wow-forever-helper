@@ -866,14 +866,14 @@
       "projectId": "wow-forever-helper",
       "title": "Build Battle.net Forever OAuth client and TTL cache",
       "summary": "Add stdlib client-credentials client reading env vars, rate-limited requests, ignored runtime cache with strict 30-day TTL ceiling, attribution, and 404 or 429 handling.",
-      "stage": "ready",
+      "stage": "done",
       "sequence": 24,
       "prereqs": [],
       "linkedRunIds": [],
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-11-27T08:36:00Z",
-        "updatedAt": "2026-11-27T08:36:00Z"
+        "updatedAt": "2026-11-27T08:45:00Z"
       },
       "evidence": [
         {
@@ -881,6 +881,12 @@
           "at": "2026-11-27T08:36:00Z",
           "kind": "created",
           "message": "Planned from the 2026-11-27 Battle.net Forever API survey. Shared foundation enforcing user env credentials, 30-day max TTL, Blizzard attribution, and synthetic tests."
+        },
+        {
+          "entryId": "bnet-api-client-cache-done",
+          "at": "2026-11-27T08:45:00Z",
+          "kind": "stage-change",
+          "message": "Implemented stdlib Battle.net OAuth client, strict 30-day TTL runtime cache, attribution, rate limiting, and 404/429/5xx handling with synthetic tests and docs."
         }
       ]
     },
@@ -890,7 +896,7 @@
       "projectId": "wow-forever-helper",
       "title": "Add read-only Forever AH and commodity price CLI",
       "summary": "Fetch one chosen ruleset and auction house snapshot into short-TTL cache and report min buyout, median price, and supply for an item ID or search query.",
-      "stage": "planned",
+      "stage": "ready",
       "sequence": 25,
       "prereqs": [
         "bnet-api-client-cache"
@@ -899,7 +905,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-11-27T08:36:00Z",
-        "updatedAt": "2026-11-27T08:36:00Z"
+        "updatedAt": "2026-11-27T08:45:00Z"
       },
       "evidence": [
         {
@@ -907,6 +913,12 @@
           "at": "2026-11-27T08:36:00Z",
           "kind": "created",
           "message": "Top-ranked survey opportunity and smallest net-new slice: 149k auctions and 99k commodities per house with zero player-name fields and no user login."
+        },
+        {
+          "entryId": "bnet-forever-market-cli-ready",
+          "at": "2026-11-27T08:45:00Z",
+          "kind": "stage-change",
+          "message": "Prerequisite bnet-api-client-cache is complete with synthetic tests. Ready to build the read-only Forever AH and commodity price CLI."
         }
       ]
     },
@@ -916,7 +928,7 @@
       "projectId": "wow-forever-helper",
       "title": "Enrich character gear and upgrade guides with item metadata",
       "summary": "Resolve item IDs via static Forever item API for names, weapon DPS, stats, procs, and vendor prices in Character status and guidance, falling back cleanly on 404.",
-      "stage": "planned",
+      "stage": "ready",
       "sequence": 26,
       "prereqs": [
         "bnet-api-client-cache"
@@ -925,7 +937,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-11-27T08:36:00Z",
-        "updatedAt": "2026-11-27T08:36:00Z"
+        "updatedAt": "2026-11-27T08:45:00Z"
       },
       "evidence": [
         {
@@ -969,7 +981,7 @@
       "projectId": "wow-forever-helper",
       "title": "Add Forever ruleset status and static reference catalogs",
       "summary": "Cache Forever ruleset UP status and static race, spec, profession, achievement, mount, and pet indexes in local runtime cache for Wishlist and Build tutor pickers.",
-      "stage": "planned",
+      "stage": "ready",
       "sequence": 28,
       "prereqs": [
         "bnet-api-client-cache"
@@ -978,7 +990,7 @@
       "confidence": "authoritative",
       "timestamps": {
         "createdAt": "2026-11-27T08:36:00Z",
-        "updatedAt": "2026-11-27T08:36:00Z"
+        "updatedAt": "2026-11-27T08:45:00Z"
       },
       "evidence": [
         {

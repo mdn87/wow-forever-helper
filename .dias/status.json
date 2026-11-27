@@ -4,17 +4,17 @@
   "projectLabel": "WoW Helper",
   "assessmentState": "scored",
   "assessmentScope": "current-milestone",
-  "percentComplete": 0,
+  "percentComplete": 14,
   "milestonePhase": "build-and-validate",
   "portfolioGroup": "personal-tools",
   "displayPriority": 100,
-  "assessedAt": "2026-11-27T08:36:00Z",
+  "assessedAt": "2026-11-27T08:45:00Z",
   "confidence": "authoritative",
   "currentMilestone": "Goal: complete all 7 Battle.net Forever API integration slices (bnet-api-client-cache through bnet-live-verification-closeout) with synthetic tests, Terms compliance, and live Forever verification.",
-  "remainingSummary": "Queued 7 vertical slices for Battle.net Forever API integration: OAuth client and 30-day TTL cache (ready), read-only AH and commodity price CLI, item metadata enrichment with 404 fallback, quest reward enrichment, Forever catalogs and ruleset status, hands-free item and market lookup, and live verification closeout. Earlier live-WoW closeout chips (21-23) remain planned and deferred.",
-  "nextChipId": "bnet-api-client-cache",
+  "remainingSummary": "Slice 24 (bnet-api-client-cache) is complete with synthetic tests and docs. Remaining 6 slices: read-only AH and commodity price CLI (next), item metadata enrichment with 404 fallback, quest reward enrichment, Forever catalogs and ruleset status, hands-free item and market lookup, and live verification closeout. Earlier live-WoW closeout chips (21-23) remain planned and deferred.",
+  "nextChipId": "bnet-forever-market-cli",
   "source": {
-    "label": "Battle.net Forever API survey chunked into 7 vertical board slices; goal set to all slices completed",
+    "label": "Slice 24 (bnet-api-client-cache) implemented and verified synthetically; Slice 25 is next",
     "updatedAt": "2026-11-27"
   }
 }
