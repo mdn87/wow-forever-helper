@@ -145,3 +145,29 @@ def test_search_items_returns_matches(tmp_path):
     assert res["status"] == "ok"
     assert res["results"][0]["id"] == 2589
     assert res["results"][0]["name"] == "Synthetic Cloth"
+
+
+def test_activities_maybe_enrich_forever_uses_cache_only_without_creds(tmp_path, monkeypatch):
+    from wow_helper import activities, bnet_api
+
+    routes = {"/data/wow/item/19019": (200, _synthetic_weapon_payload(19019))}
+    seeded = BnetClient(cache_dir=tmp_path, env=FAKE_ENV, transport=_make_transport(routes), min_interval=0.0)
+    lookup_item(seeded, 19019)
+
+    monkeypatch.setattr(bnet_api, "DEFAULT_CACHE_DIR", tmp_path)
+    monkeypatch.delenv(ENV_CLIENT_ID, raising=False)
+    monkeypatch.delenv(ENV_CLIENT_SECRET, raising=False)
+
+    base = {"status": "ok", "gear": [{"slot": "main hand", "id": 19019, "ilvl": 80, "durability_percent": 100}]}
+    enriched = activities._maybe_enrich_forever("character", base, "_forever_")
+    assert enriched["gear"][0]["name"] == "Synthetic Stormblade"
+    assert enriched["bnet_attribution"] == ATTRIBUTION
+
+    # Non-Forever edition is left untouched
+    retail = activities._maybe_enrich_forever("character", base, "_retail_")
+    assert "name" not in retail["gear"][0]
+
+    # Uncached Forever item with no credentials leaves report untouched
+    uncached = {"status": "ok", "gear": [{"slot": "head", "id": 99999, "ilvl": 10, "durability_percent": 100}]}
+    untouched = activities._maybe_enrich_forever("character", uncached, "_forever_")
+    assert "bnet_attribution" not in untouched

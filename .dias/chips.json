@@ -1091,6 +1091,12 @@
           "at": "2026-11-27T09:06:00Z",
           "kind": "note",
           "message": "Live US API smoke checks passed for market, item 200/404, quest 11, ruleset 1, Skyborne races, voice lookup, and cache-only CLI. In-game house mapping remains."
+        },
+        {
+          "entryId": "bnet-live-ttl-and-compare-houses",
+          "at": "2026-11-27T09:15:00Z",
+          "kind": "note",
+          "message": "Live US checks passed for --compare-houses across all 5 ruleset 1 Alliance houses, 1s TTL expiry purge with zero secrets cached, and UI/activity Forever enrichment."
         }
       ]
     }

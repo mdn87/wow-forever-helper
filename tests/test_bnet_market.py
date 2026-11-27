@@ -165,3 +165,37 @@ def test_market_cli_cache_only_and_missing_house_refusal(tmp_path, monkeypatch, 
     err_json = json.loads(capsys.readouterr().out)
     assert err_json["status"] == "error"
     assert "--house" in err_json["message"]
+
+
+def test_compare_houses_filters_faction_and_formats_table(tmp_path):
+    from wow_helper.bnet_market import compare_houses
+
+    routes = {
+        "/data/wow/item/2589": (200, {"id": 2589, "name": "Synthetic Cloth"}),
+        "/data/wow/ruleset/1/auctions/?": (
+            200,
+            {
+                "auctions": [
+                    {"id": 110, "name": "Alliance Auction House"},
+                    {"id": 111, "name": "Alliance Auction House"},
+                    {"id": 113, "name": "Horde Auction House"},
+                ]
+            },
+        ),
+        "/data/wow/ruleset/1/auctions/110/commodities": (
+            200,
+            {"auctions": [{"id": 1, "item": {"id": 2589}, "quantity": 10, "unit_price": 29, "time_left": "LONG"}]},
+        ),
+        "/data/wow/ruleset/1/auctions/111/commodities": (
+            200,
+            {"auctions": [{"id": 2, "item": {"id": 2589}, "quantity": 40, "unit_price": 45, "time_left": "LONG"}]},
+        ),
+    }
+    client = BnetClient(cache_dir=tmp_path, env=FAKE_ENV, transport=_make_transport(routes), min_interval=0.0)
+    res = compare_houses(client, ruleset_id=1, faction="alliance", item_id=2589)
+    assert res["status"] == "ok"
+    assert [row["house_id"] for row in res["comparisons"]] == [110, 111]
+    text = as_text(res)
+    assert "House 110 (Alliance Auction House): min 29c" in text
+    assert "House 111 (Alliance Auction House): min 45c" in text
+    assert ATTRIBUTION in text

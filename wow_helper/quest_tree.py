@@ -309,6 +309,9 @@ class QuestTree:
             self.detail.insert("end", "\nNotes\n", ("heading",))
             for note in quest["notes"]:
                 self.detail.insert("end", f"• {note}\n")
+        if quest.get("bnet_rewards_text"):
+            self.detail.insert("end", "\nRewards (Blizzard API)\n", ("heading",))
+            self.detail.insert("end", f"• {quest['bnet_rewards_text']}\n")
 
         self.detail.insert("end", f"\nAI Guide · {tier.title()}\n", ("heading",))
         guide = record.get("guide")

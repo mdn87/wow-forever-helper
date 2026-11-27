@@ -60,6 +60,9 @@ def main(argv=None):
     market.add_argument("--query", help="Item name search query")
     market.add_argument("--list-rulesets", action="store_true", help="List Forever rulesets")
     market.add_argument("--list-houses", action="store_true", help="List auction houses for --ruleset")
+    market.add_argument("--compare-houses", action="store_true", help="Compare one item across auction houses for --ruleset (useful for matching your in-game AH)")
+    market.add_argument("--faction", choices=("alliance", "horde", "blackwater"), help="Filter --compare-houses to one auction house faction")
+    market.add_argument("--include-auctions", action="store_true", help="Also scan non-commodity auctions during --compare-houses")
     market.add_argument("--ttl", type=int, default=900, help="Cache TTL in seconds (max 30 days)")
     market.add_argument("--cache-only", action="store_true", help="Read local runtime cache only; do not call network")
     market.add_argument("--force-refresh", action="store_true", help="Bypass fresh cache and fetch anew")
@@ -195,6 +198,18 @@ def main(argv=None):
                 result = bnet_market.list_rulesets(client, cache_only=args.cache_only, force_refresh=args.force_refresh)
             elif args.list_houses:
                 result = bnet_market.list_houses(client, args.ruleset, cache_only=args.cache_only, force_refresh=args.force_refresh)
+            elif args.compare_houses:
+                result = bnet_market.compare_houses(
+                    client,
+                    ruleset_id=args.ruleset,
+                    faction=args.faction,
+                    item_id=args.item,
+                    query=args.query,
+                    ttl_seconds=args.ttl,
+                    include_auctions=args.include_auctions,
+                    cache_only=args.cache_only,
+                    force_refresh=args.force_refresh,
+                )
             else:
                 if args.house is None:
                     raise BnetApiError("Specify --house <id> (or use --list-houses to inspect available auction houses).")

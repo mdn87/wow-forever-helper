@@ -663,6 +663,8 @@ class TaskWindow(ChatWindow):
         body = report["text"]
         if self.kind == "character":
             body += "\n\n" + self._format_equipment_table(report["data"].get("gear", []))
+            if (report["data"].get("bnet_summary") or {}).get("resolved", 0) > 0 and report["data"].get("bnet_attribution"):
+                body += "\n\n" + report["data"]["bnet_attribution"]
         replace_text(self.report_text, body)
         self._panel_base = body
         if self.kind == "character" and self._gear_guide:

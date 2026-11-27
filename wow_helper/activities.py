@@ -92,6 +92,34 @@ def read_note(path):
         raise ChatError("A selected text or skill file could not be read as UTF-8. Choose it again in Window setup.") from None
 
 
+def _maybe_enrich_forever(step, data, flavor):
+    """Best-effort Forever Battle.net enrichment for Character status and Quest guide.
+
+    Uses local runtime cache when credentials are absent, and live API when
+    WFH_BNET_CLIENT_ID and WFH_BNET_CLIENT_SECRET are set. Never blocks or fails
+    snapshot loading on network/API errors, and leaves reports untouched when
+    nothing resolves.
+    """
+    if current_flavor(flavor) != "_forever_":
+        return data
+    import os
+    from .bnet_api import BnetApiError, BnetClient, ENV_CLIENT_ID, ENV_CLIENT_SECRET
+    has_creds = bool((os.environ.get(ENV_CLIENT_ID) or "").strip() and (os.environ.get(ENV_CLIENT_SECRET) or "").strip())
+    try:
+        client = BnetClient()
+        if step == "character":
+            from .bnet_items import enrich_character_report
+            enriched = enrich_character_report(data, client, cache_only=not has_creds)
+        else:
+            from .bnet_quests import enrich_quest_report
+            enriched = enrich_quest_report(data, client, resolve_reward_items=False, cache_only=not has_creds)
+    except BnetApiError:
+        return data
+    if (enriched.get("bnet_summary") or {}).get("resolved", 0) > 0:
+        return enriched
+    return data
+
+
 class ActivityService:
     def __init__(self, storage=CHAT_STATE, *, settings=None):
         self.storage = Path(storage)
@@ -111,6 +139,7 @@ class ActivityService:
             for step in steps:
                 data = (quests.report(quests.load(parsed), mtime, flavor=flavor, now=now) if step == "quests"
                         else character.report(parsed, mtime, flavor=flavor, now=now))
+                data = _maybe_enrich_forever(step, data, flavor)
                 result[step] = {"snapshot_at": mtime, "data": data,
                                 "text": quests.as_text(data) if step == "quests" else character.as_text(data)}
             return result

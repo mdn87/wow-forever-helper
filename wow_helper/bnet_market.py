@@ -343,8 +343,96 @@ def price_summary(
     }
 
 
+def compare_houses(
+    client: BnetClient,
+    *,
+    ruleset_id: int = DEFAULT_RULESET_ID,
+    faction: str | None = None,
+    item_id: int | None = None,
+    query: str | None = None,
+    ttl_seconds: int = DEFAULT_MARKET_TTL,
+    include_commodities: bool = True,
+    include_auctions: bool = False,
+    cache_only: bool = False,
+    force_refresh: bool = False,
+) -> dict:
+    """Compare one item's prices across matching Forever auction houses on a ruleset."""
+    rid = _positive_int(ruleset_id, "ruleset_id")
+    if faction is not None and faction not in {"alliance", "horde", "blackwater"}:
+        raise BnetConfigError("faction must be alliance, horde, or blackwater.")
+    resolved_id, item_name, item_lookup_status, _ = resolve_item_target(
+        client,
+        item_id=item_id,
+        query=query,
+        cache_only=cache_only,
+    )
+    listed = list_houses(client, rid, cache_only=cache_only, force_refresh=force_refresh)
+    if listed["status"] != "ok":
+        return {
+            "status": listed["status"],
+            "region": client.region,
+            "ruleset_id": rid,
+            "faction": faction,
+            "item_id": resolved_id,
+            "item_name": item_name,
+            "comparisons": [],
+            "attribution": ATTRIBUTION,
+        }
+    houses = listed["houses"]
+    if faction:
+        houses = [h for h in houses if faction in h["name"].casefold()]
+    comparisons = []
+    for house in houses:
+        one = price_summary(
+            client,
+            ruleset_id=rid,
+            house_id=house["id"],
+            item_id=resolved_id,
+            ttl_seconds=ttl_seconds,
+            include_commodities=include_commodities,
+            include_auctions=include_auctions,
+            cache_only=cache_only,
+            force_refresh=force_refresh,
+        )
+        comparisons.append(
+            {
+                "house_id": house["id"],
+                "house_name": house["name"],
+                "status": one["status"],
+                "summary": one["summary"],
+            }
+        )
+    return {
+        "status": "ok",
+        "region": client.region,
+        "ruleset_id": rid,
+        "faction": faction,
+        "item_id": resolved_id,
+        "item_name": item_name,
+        "item_lookup_status": item_lookup_status,
+        "comparisons": comparisons,
+        "attribution": ATTRIBUTION,
+    }
+
+
 def as_text(result: dict) -> str:
     """Short, speakable summary of a market or index lookup with Blizzard attribution."""
+    if "comparisons" in result:
+        label = f"{result['item_name']} (#{result['item_id']})" if result.get("item_name") else f"Item {result['item_id']}"
+        fac = f" ({result['faction']})" if result.get("faction") else ""
+        lines = [f"{label} across ruleset {result['ruleset_id']}{fac} auction houses:"]
+        for row in result["comparisons"]:
+            s = row["summary"]
+            if row["status"] == "cache_miss":
+                detail = "no cached snapshot"
+            elif not s["listing_count"]:
+                detail = "no listings"
+            else:
+                detail = f"min {s['min_unit_gold']}, median {s['median_unit_gold']} ({s['total_quantity']:,} units, {s['listing_count']:,} listings)"
+            lines.append(f"- House {row['house_id']} ({row['house_name']}): {detail}")
+        lines.append(result.get("attribution", ATTRIBUTION))
+        return "\n".join(lines)
+
     if "rulesets" in result:
         items = ", ".join(f"{r['id']}: {r['name']}" for r in result["rulesets"]) or "none"
         return f"Forever rulesets ({result.get('region', 'us')}): {items}.\n{result.get('attribution', ATTRIBUTION)}"
