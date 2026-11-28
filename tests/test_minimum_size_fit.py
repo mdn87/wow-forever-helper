@@ -346,3 +346,15 @@ def test_saved_advice_reading_pane_keeps_three_lines_at_minimum_size(manager_fac
         assert not cut_controls(top)
     finally:
         root.tk.call("tk", "scaling", original)
+
+
+def test_classic_theme_styles_panedwindow_sash_and_checkbutton_indicator(desktop):
+    from tkinter import ttk
+    from wow_helper.theme import EDITOR, PANEL, apply_theme
+
+    _tk, root = desktop
+    apply_theme(root, "classic")
+    style = ttk.Style(root)
+    assert style.lookup("TPanedwindow", "background") == PANEL
+    assert style.lookup("Sash", "background") == PANEL
+    assert style.lookup("TCheckbutton", "indicatorbackground") == EDITOR

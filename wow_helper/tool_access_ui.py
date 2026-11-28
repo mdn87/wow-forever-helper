@@ -126,13 +126,14 @@ class ToolAccessDialog(JournalDialog):
 
     def _publication_overview(self, selection):
         payload = selection.get("payload", {})
+        evidence = payload.get("evidence") if isinstance(payload.get("evidence"), dict) else {}
+        edition = evidence.get("edition") or payload.get("edition") or "Unknown"
         raw_bytes = len(json.dumps(payload, ensure_ascii=False).encode("utf-8", errors="replace"))
         size_text = f"{raw_bytes} B" if raw_bytes < 1024 else f"{raw_bytes / 1024:.1f} KB"
         lines = [
-            f"SAVED NOTE: {selection.get('saved_at', 'Unknown')}",
+            f"SAVED NOTE: {selection.get('saved_at', 'Unknown')} · ~{size_text}",
             f"ORIGINAL CONVERSATION: {self.source['provider'].title()} · …{self.source['session_id'][-8:]}",
-            f"EDITION: {payload.get('edition', 'Unknown')}",
-            f"PAYLOAD SIZE: ~{size_text}",
+            f"EDITION: {edition}",
             "",
             "NOTE SUMMARY",
             str(payload.get("note", ""))[:400],

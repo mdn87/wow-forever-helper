@@ -215,8 +215,13 @@ def _classic_theme(root):
               foreground=[("selected", ACCENT), ("active", TEXT)])
     style.configure("TFrame", background=PANEL)
     style.configure("TLabel", background=PANEL, foreground=TEXT)
-    style.configure("TCheckbutton", background=PANEL, foreground=TEXT, font=("Segoe UI", 10))
-    style.map("TCheckbutton", background=[("active", PANEL)], foreground=[("active", ACCENT)])
+    style.configure("TPanedwindow", background=PANEL)
+    style.configure("Sash", background=PANEL, bordercolor=EDGE, lightcolor=EDGE,
+                    darkcolor=BACKGROUND, sashthickness=6, gripcount=5)
+    style.configure("TCheckbutton", background=PANEL, foreground=TEXT, font=("Segoe UI", 10),
+                    indicatorbackground=EDITOR, indicatorforeground=ACCENT)
+    style.map("TCheckbutton", background=[("active", PANEL)], foreground=[("active", ACCENT)],
+              indicatorbackground=[("selected", "#554228")])
     style.configure("TRadiobutton", background=PANEL, foreground=TEXT, font=("Segoe UI", 10),
                     indicatorbackground=EDITOR, indicatorforeground=ACCENT)
     style.map("TRadiobutton", background=[("active", PANEL)], foreground=[("active", ACCENT)])

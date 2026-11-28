@@ -253,3 +253,16 @@ def test_close_cancels_refresh_and_clears_setup(env, open_dialog, desktop):
     dialog.poll_access()
     desktop[1].update()
     dialog.close()
+
+
+def test_overview_reads_evidence_edition_and_fits_without_scrolling(env, open_dialog, desktop):
+    env.note()
+    dialog = open_dialog()
+    dialog.root.geometry("560x640+80+80")
+    desktop[1].update_idletasks()
+    desktop[1].update()
+    overview = text_of(dialog.overview)
+    assert "EDITION: Classic" in overview
+    assert "EDITION: Unknown" not in overview
+    assert "PRIVACY & BOUNDARY" in overview
+    assert dialog.overview.yview()[1] >= 0.999
