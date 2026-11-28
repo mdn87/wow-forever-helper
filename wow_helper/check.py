@@ -8,7 +8,7 @@ issue or a commit message as evidence of what a game client confirmed.
 import re
 
 from .character import zeroed_unload_reads
-from .quests import SCHEMA, STALE_AFTER, VARIABLE, _age, _int, _str
+from .quests import SCHEMA, STALE_AFTER, VARIABLE, _int, _str, age_span, age_text
 from .savedvars import SavedVariablesError, as_list
 from .wtf import ADDON_SOURCE
 
@@ -145,7 +145,7 @@ def report(parsed, mtime, *, flavor=None, now, interfaces=None):
     age = max(0, int(now - mtime))
     warnings = []
     if age > STALE_AFTER:
-        warnings.append(f"The snapshot is {age // 60} minutes old; /reload in game and check again.")
+        warnings.append(f"The snapshot is {age_span(age)} old; /reload in game and check again.")
     counts = {r: sum(1 for c in checks if c["result"] == r) for r in (CONFIRMED, MISSING, MISMATCH)}
     return {"status": "ok", "age_seconds": age, "flavor": flavor,
             "addon": {"version": addon, "schema": schema, "api": api}, "client": client, "sources": sources,
@@ -156,7 +156,7 @@ def as_text(result):
     """Readable lines: a summary, one line per check, then warnings. Safe to paste as evidence."""
     counts = result["counts"]
     edition = f" (edition {result['flavor']})" if result["flavor"] else ""
-    lines = [f"Snapshot check from {_age(result['age_seconds'])}{edition}: {counts[CONFIRMED]} confirmed, "
+    lines = [f"Snapshot check from {age_text(result['age_seconds'])}{edition}: {counts[CONFIRMED]} confirmed, "
              f"{counts[MISSING]} missing, {counts[MISMATCH]} mismatched."]
     lines += [f"  {c['result']:<10} {c['check']}: {c['detail']}" for c in result["checks"]]
     return "\n".join(lines + result["warnings"])

@@ -9,6 +9,7 @@ import uuid
 
 from .activities import FLAVORS, current_flavor, profile_settings
 from .chat import ChatError
+from .quests import age_text
 from .task_window import TaskWindow, replace_text
 from .theme import BusyBar, palette, display_font
 
@@ -147,7 +148,7 @@ class ActivityDeck:
                     report["text"] = (quests if kind == "quests" else character).as_text(report["data"])
                     view._report_result(cached, None)
                     view.activity_notice.set("Saved report restored; Refresh reads the latest export. "
-                                             f"Snapshot age: {report['data']['age_seconds'] // 60} minutes.")
+                                             f"Snapshot saved {age_text(report['data']['age_seconds'])}.")
                 except (ValueError, TypeError, KeyError, AttributeError):
                     view.activity_notice.set("Saved report unavailable. Refresh to read it again; your drafts are kept.")
         self.cards.pack_forget()
@@ -293,8 +294,8 @@ class QuestLogDisplay:
         if self.saved_at is None:
             text = "Snapshot time unknown · reload in WoW to save current data"
         else:
-            minutes = max(0, int(time.time() - self.saved_at)) // 60
-            text = f"Saved {minutes} minutes ago · {'stale' if minutes >= 15 else 'saved snapshot, not live'}"
+            elapsed = max(0, time.time() - self.saved_at)
+            text = f"Saved {age_text(elapsed)} · {'stale' if elapsed >= 15 * 60 else 'saved snapshot, not live'}"
         self.age.configure(text=text)
         self._after = self.root.after(250, self.tick)
 

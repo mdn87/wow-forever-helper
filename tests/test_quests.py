@@ -231,3 +231,15 @@ def test_the_addon_declares_its_saved_variable_and_file():
     assert "## SavedVariables: WoWCompanionDB" in toc and "WoWCompanion.lua" in toc
     lua = (wtf.ADDON_SOURCE / "WoWCompanion.lua").read_text(encoding="utf-8")
     assert "WoWCompanionDB" in lua and "print(" not in lua
+
+
+def test_snapshot_ages_move_to_hours_and_days():
+    # A save from days ago was reported in thousands of minutes.
+    from wow_helper.tool_access_ui import age
+    assert [quests.age_text(s) for s in (30, 20 * 60, 5 * 3600, 3 * 86400)] == [
+        "just now", "20 minutes ago", "5 hours ago", "3 days ago"]
+    assert quests.age_span(60) == "1 minute"
+    old = quests.report(snapshot(), mtime=1000, now=1000 + 3 * 86400)
+    assert any("3 days old" in w for w in old["warnings"])
+    assert quests.as_text(old).startswith("Quest log from 3 days ago")
+    assert [age(None), age(30), age(2 * 3600)] == ["Unknown", "30 seconds", "2 hours"]

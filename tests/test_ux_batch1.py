@@ -234,6 +234,24 @@ def test_u04_plain_ttk_frames_labels_and_tree_headings_use_the_theme(desktop, th
         apply_theme(root, previous)
 
 
+@pytest.mark.parametrize("theme", ["classic", "modern"])
+def test_u04_notebook_tab_outlines_use_the_theme_edge(desktop, theme):
+    # Classic tabs and the tab page frame kept clam's light grey bevel instead of the gold edge.
+    from tkinter import ttk
+    from wow_helper.theme import apply_theme, palette
+
+    _, root = desktop
+    previous = getattr(root, "_companion_theme", "classic")
+    apply_theme(root, theme)
+    try:
+        style, colors = ttk.Style(root), palette(root)
+        for name in ("TNotebook", "TNotebook.Tab", "Touch.TNotebook", "Touch.TNotebook.Tab"):
+            for option in ("bordercolor", "lightcolor", "darkcolor"):
+                assert style.lookup(name, option).lower() == colors.EDGE.lower(), (name, option)
+    finally:
+        apply_theme(root, previous)
+
+
 def test_u05_smart_scroll_preserves_anchored_passage_across_append_resize_and_font_change(manager_factory):
     manager = manager_factory()
     window = manager.windows[0]

@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 
-from test_workspace import CreatingService, manager_factory, settle  # noqa: F401
+from test_workspace import SESSIONS, CreatingService, manager_factory, settle  # noqa: F401
 from wow_helper.model_settings import Preferences
 
 
@@ -206,3 +206,22 @@ def test_managed_presets_and_model_controls_fit_at_minimum(manager_factory, them
         dialog.close()
     finally:
         view.root.tk.call('tk', 'scaling', original)
+
+
+def test_saved_draft_preview_reads_like_the_message_box(manager_factory):
+    # The preview was a bare Text in Tk's fixed-width font.
+    from tkinter import font
+    manager = manager_factory()
+    view = manager.windows[0].view
+    settle(view)
+    view._select_session(SESSIONS[0])
+    settle(view)
+    view.set_appearance({**view.appearance, "font_size": 14})
+    view.saved_drafts[view.selection_key] = "Synthetic saved draft"
+    view.show_saved_draft()
+    preview = view._draft_dialog.preview
+    shown = font.Font(root=preview, font=preview.cget("font")).actual()
+    composer = font.Font(root=preview, font=view.editor.cget("font")).actual()
+    assert (shown["family"], shown["size"]) == (composer["family"], composer["size"]) == ("Segoe UI", 14)
+    assert preview.cget("fg") == view.editor.cget("fg")
+    view._draft_dialog.close()

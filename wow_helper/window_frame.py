@@ -284,6 +284,35 @@ class WindowFrame:
             self.root.minsize(*minimum)
             self.root.update_idletasks()
 
+    def fit_text(self, text, *, lines=None):
+        """Keep `text` tall enough for `lines` lines of its own font, or for all of its content.
+
+        The window's minimum height rises with a larger font (never above the screen) and falls
+        back to the dialog's own minimum, and a window shorter than the new minimum grows.
+        Returns the check so a caller can rerun it after changing the font or content.
+        """
+        from tkinter import font
+        base = self.minimum
+
+        def fit(_event=None):
+            if not text.winfo_ismapped() or self.root.state() == "zoomed":
+                return
+            inset = 2 * sum(int(text.cget(option)) for option in ("pady", "borderwidth", "highlightthickness"))
+            if lines is None:
+                wanted = int(text.tk.call(text._w, "count", "-update", "-ypixels", "1.0", "end"))
+            else:
+                wanted = lines * font.Font(root=text, font=text.cget("font")).metrics("linespace")
+            height = self.root.winfo_height() + wanted + inset - text.winfo_height()
+            height = max(base[1], min(height, self.root.winfo_screenheight() - 80))
+            if self.minimum != (base[0], height):
+                self.minimum = (base[0], height)
+                self.root.minsize(*self.minimum)
+            if self.root.winfo_height() < height:
+                self.root.geometry(f"{self.root.winfo_width()}x{height}")
+
+        text.bind("<Configure>", fit, add="+")
+        return fit
+
     def maximize(self, _event=None):
         self.drag_start = None
         if self.root.state() == "zoomed":

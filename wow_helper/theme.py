@@ -201,9 +201,11 @@ def _classic_theme(root):
     style.layout("Settings.TMenubutton", [("Companion.button", {"sticky": "nswe", "children": [
         ("Menubutton.padding", {"sticky": "nswe", "children": [("Menubutton.label", {"sticky": "nswe"})]})]})])
     style.configure("Settings.TMenubutton", padding=(2, 0), width=0)
-    style.configure("TNotebook", background=PANEL, bordercolor=EDGE, tabmargins=(3, 2, 3, 0))
-    style.configure("TNotebook.Tab", background=BACKGROUND, foreground=MUTED,
-                    padding=(10, 4), font=("Segoe UI", 9))
+    # clam draws tab and page outlines in its own light grey unless all three edge colors are set.
+    style.configure("TNotebook", background=PANEL, bordercolor=EDGE, lightcolor=EDGE, darkcolor=EDGE,
+                    tabmargins=(3, 2, 3, 0))
+    style.configure("TNotebook.Tab", background=BACKGROUND, foreground=MUTED, bordercolor=EDGE,
+                    lightcolor=EDGE, darkcolor=EDGE, padding=(10, 4), font=("Segoe UI", 9))
     style.map("TNotebook.Tab", background=[("selected", PANEL), ("active", TITLE)],
               foreground=[("selected", ACCENT), ("active", TEXT)])
     style.configure("Touch.TNotebook", background=PANEL, bordercolor=EDGE, tabmargins=(4, 4, 4, 0))

@@ -230,6 +230,8 @@ class AppearanceDialog:
         append_turn(self.preview, "How should this conversation look?", "user")
         append_turn(self.preview, "Choose colors and a font that are easy to read.", "assistant")
         self.preview.configure(state="disabled")
+        # A larger font grows the dialog so both sample messages stay whole.
+        self._fit_preview = self.chrome.fit_text(self.preview)
         self._traces = [(variable, variable.trace_add("write", lambda *_, name=key: self._changed(name)))
                         for key, variable in self.variables.items()]
         self.update_preview()
@@ -269,6 +271,7 @@ class AppearanceDialog:
         self.error.set("")
         style_text(self.preview, settings)
         self.preview.yview_moveto(0)
+        self._fit_preview()
         settings = resolved_appearance(settings, self.root)
         for key, swatch in self.swatches.items():
             swatch.configure(bg=settings[key], activebackground=settings[key],

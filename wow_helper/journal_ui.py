@@ -8,7 +8,7 @@ import uuid
 import weakref
 
 from .activities import FLAVORS, current_edition, packet_overview, packet_preview
-from .appearance import style_text
+from .appearance import DEFAULTS, style_text
 from .chat import ChatError, write_json
 from .chat_window import BACKGROUND_JOBS
 from .journal import JournalService
@@ -76,7 +76,9 @@ def review_notebook(tk, ttk, parent, appearance, initial_overview="", initial_pa
     book.add(payload_tab, text="Full payload")
     overview = text_box(tk, overview_tab)
     payload = text_box(tk, payload_tab)
-    style_text(overview, appearance)
+    # The Overview summary must fit above the fold, so a chat font larger than the default
+    # applies to the Full payload only (U15).
+    style_text(overview, {**appearance, "font_size": min(appearance["font_size"], DEFAULTS["font_size"])})
     style_text(payload, appearance)
     replace_text(overview, initial_overview)
     replace_text(payload, initial_payload)
@@ -402,6 +404,8 @@ class ResumeDialog(JournalDialog):
         self.ttk.Button(buttons, text="Edit / make goal…", command=self.edit_goal).grid(row=2, column=1, sticky="ew", padx=5, pady=(5, 0))
         buttons.columnconfigure((0, 1), weight=1)
         self.preview = self.text(self.surface)
+        # Keep three lines of the selected entry readable at the minimum size, whatever the font.
+        self.chrome.fit_text(self.preview, lines=3)
         self.ttk.Button(self.actions, text='Today / This week…', command=self.show_checklist).pack(side='left')
         self.ttk.Button(self.actions, text='Tool access…', command=self.show_tool_access).pack(side='left', padx=4)
         self.reload()

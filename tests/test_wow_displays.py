@@ -316,6 +316,8 @@ def test_age_label_marks_stale_snapshots(manager_factory, monkeypatch):
 
     assert label(time.time() - 5 * 60, "not live") == "Saved 5 minutes ago · saved snapshot, not live"
     assert label(time.time() - 20 * 60, "stale") == "Saved 20 minutes ago · stale"
+    assert label(time.time() - 5 * 3600, "hours ago · stale") == "Saved 5 hours ago · stale"
+    assert label(time.time() - 3 * 86400, "days ago · stale") == "Saved 3 days ago · stale"
     assert label(None, "Snapshot time unknown").startswith("Snapshot time unknown")
 
 

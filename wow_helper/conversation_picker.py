@@ -2,6 +2,7 @@
 from collections import Counter
 from pathlib import Path
 
+from .appearance import style_text
 from .theme import palette, is_modern
 from .window_frame import WindowFrame, setup_dialog
 
@@ -267,7 +268,9 @@ class SavedDraftDialog:
         for title, command in [('Use saved draft', lambda: self.apply(False)),
                                ('Append to draft', lambda: self.apply(True)), ('Close', self.close)]:
             ttk.Button(actions, text=title, command=command).pack(side='left', padx=2)
-        self.preview = tk.Text(body, height=3, width=1, wrap='word', bg=colors.EDITOR, fg=colors.TEXT)
+        self.preview = tk.Text(body, height=3, width=1, wrap='word', relief='flat', padx=8, pady=5)
+        # Show the draft in the message box's own font and colors, not Tk's fixed-width default.
+        style_text(self.preview, view.appearance, composer=True)
         self.preview.pack(fill='both', expand=True)
         self.preview.insert('1.0', view.saved_drafts[self.key])
         self.preview.configure(state='disabled')

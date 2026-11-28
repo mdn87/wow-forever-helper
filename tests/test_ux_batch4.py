@@ -266,6 +266,77 @@ def test_u15_review_overview_full_payload_and_codex_ux03_invariants(manager_fact
     manager.handsfree.disconnect()
 
 
+@pytest.mark.parametrize("theme,scaling", [("classic", 1.33), ("modern", 1.67)])
+def test_u15_review_overview_fits_without_scrolling_at_a_large_chat_font(manager_factory, theme, scaling):
+    # The Overview took the 20-point chat font and needed scrolling; Full payload keeps the chat font.
+    from tkinter import font
+    from wow_helper.task_window import RequestDialog
+    manager = manager_factory()
+    manager.preview_interface({"theme": theme})
+    view = manager.windows[0].view
+    settle(view)
+    view._select_session(SESSIONS[0])
+    settle(view)
+    view.set_appearance({**view.appearance, "font_size": 20})
+    original = view.root.tk.call("tk", "scaling")
+    view.root.tk.call("tk", "scaling", scaling)
+    try:
+        packet = {"window": "Journal", "edition": "Classic Forever", "task": "Summarize my notes.",
+                  "instructions": "Be concise.", "skills": [], "reports": {}, "context_files": [], "prepared_at": 1000.0}
+        req = view._request_dialog = RequestDialog(view, packet, SESSIONS[0].key)
+        manager.root.update()
+        assert req.overview.winfo_ismapped()
+        assert req.overview.yview() == (0.0, 1.0)
+        assert font.Font(root=req.preview, font=req.preview.cget("font")).actual("size") == 20
+        req.close()
+
+        view.show_fight_question()
+        fight = view._notebooks["fight"]
+        fight.editors["question"].insert("1.0", "Why did tank take spike damage?")
+        fight.editors["digest"].insert("1.0", "Example Cleave hit You for 4200 damage.")
+        fight.changed()
+        fight.prepare()
+        manager.root.update()
+        assert fight.overview.winfo_ismapped()
+        assert fight.overview.yview() == (0.0, 1.0)
+        fight.close()
+    finally:
+        view.root.tk.call("tk", "scaling", original)
+
+
+def test_u14_quest_guide_states_read_in_the_detail_pane(manager_factory, tmp_path):
+    # A failed read left "Loading the saved quest snapshot…" in the list, cut by the column at 20 points.
+    class NoSnapshot(SyntheticActivities):
+        def reports(self, steps, flavor):
+            raise ChatError("No snapshot for this edition. Enable WoW Companion and /reload in game, then Refresh.")
+
+    manager = manager_factory(activity=lambda: NoSnapshot(tmp_path / "missing"))
+    window = manager.new_window(kind="quests")
+    tree = window.view.quest_tree
+    assert tree.tree.get_children() == ()
+    assert tree.detail_title.get() == "Loading quests…"
+    assert "Reading the saved quest snapshot" in tree.detail.get("1.0", "end-1c")
+    settle(window.view)
+    assert tree.tree.get_children() == ()
+    assert tree.detail_title.get() == "No quests loaded"
+    assert "No snapshot for this edition" in tree.detail.get("1.0", "end-1c")
+    assert str(tree.research_button["state"]) == "disabled"
+
+    # An empty snapshot says so in the pane as well.
+    tree.load({"plan": [], "available": []}, "_forever_")
+    assert tree.tree.get_children() == ()
+    assert tree.detail_title.get() == "No quests in this snapshot"
+
+    # A failed refresh keeps quests that were already read.
+    loaded = manager_factory(path=tmp_path / "loaded.json").new_window(kind="quests")
+    settle(loaded.view)
+    quests_before = loaded.view.quest_tree.tree.get_children()
+    assert quests_before
+    loaded.view._report_result(None, "Synthetic read failure")
+    assert loaded.view.quest_tree.tree.get_children() == quests_before
+    assert loaded.view.quest_tree.detail_title.get() != "No quests loaded"
+
+
 @pytest.mark.parametrize("theme,scaling", [("classic", None), ("classic", 1.33), ("modern", 1.67)])
 def test_u16_goal_presets_stay_fully_visible_at_minimum_size(manager_factory, theme, scaling):
     manager = manager_factory()

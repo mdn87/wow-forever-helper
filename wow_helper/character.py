@@ -3,7 +3,7 @@
 Advice for the player to read, like quests.py. Nothing here sends input or chooses an action.
 """
 
-from .quests import STALE_AFTER, VARIABLE, _age, _int, _str
+from .quests import STALE_AFTER, VARIABLE, _int, _str, age_span, age_text
 from .savedvars import SavedVariablesError, as_list
 
 SLOTS = {1: "head", 2: "neck", 3: "shoulders", 4: "shirt", 5: "chest", 6: "waist", 7: "legs", 8: "feet",
@@ -64,7 +64,7 @@ def report(parsed, mtime, *, flavor=None, now):
     age = max(0, int(now - mtime))
     warnings = []
     if age > STALE_AFTER:
-        warnings.append(f"The snapshot is {age // 60} minutes old; /reload in game for current status.")
+        warnings.append(f"The snapshot is {age_span(age)} old; /reload in game for current status.")
     if zeroed_unload_reads(db):
         money = rested = None
         warnings.append(UNLOAD_WARNING)
@@ -99,5 +99,5 @@ def as_text(result):
         parts.append(f"most worn item {result['lowest_durability']['percent']}% ({result['lowest_durability']['slot']})")
     if result["average_item_level"]:
         parts.append(f"average item level {result['average_item_level']:g}")
-    line = f"Character status from {_age(result['age_seconds'])}: " + (", ".join(parts) or "no details saved") + "."
+    line = f"Character status from {age_text(result['age_seconds'])}: " + (", ".join(parts) or "no details saved") + "."
     return "\n".join([line] + result["warnings"])

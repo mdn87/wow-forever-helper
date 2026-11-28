@@ -113,7 +113,10 @@ class QuestTree:
         self._resize_after = None
         self.font = ("Segoe UI", 10)
         self._measure = 7
-        self.tree.insert("", "end", text="Loading the saved quest snapshot…")
+        # Loading, failed and empty states read in the detail pane, which wraps; a list row is cut
+        # by the Quest column at large fonts.
+        self.status = ("Loading quests…", "Reading the saved quest snapshot…")
+        self._render_detail()
 
     @staticmethod
     def key(quest, edition):
@@ -125,6 +128,7 @@ class QuestTree:
         if self.quests:
             self.opened = set(self.open_ids())
         previous_selected = self.selected()
+        self.status = None
         self.report, self.tier = report, tier
         self.edition = edition
         self.quests = {self.key(quest, edition): quest for quest in report.get("plan", [])}
@@ -166,7 +170,8 @@ class QuestTree:
                     self.tree.insert(gid, "end", iid=pid, text=title, values=("Pickup", "Snapshot"))
 
             if not self.quests and not available:
-                self.tree.insert("", "end", text="No quests in this saved snapshot.")
+                self.status = ("No quests in this snapshot",
+                               "The saved snapshot has no quests. Pick some up, /reload in game, then Refresh.")
             elif previous_selected and previous_selected in self.quests:
                 self.tree.focus(previous_selected)
                 self.tree.selection_set(previous_selected)
@@ -283,6 +288,10 @@ class QuestTree:
                 self.research_button.configure(state="disabled")
                 self.detail.insert("end", "Not yet in your saved quest log.\n", ("muted",))
                 self.detail.insert("end", "Listed as available in the last snapshot; current in-game availability is unverified.\n")
+            elif self.status:
+                self.detail_title.set(self.status[0])
+                self.research_button.configure(state="disabled")
+                self.detail.insert("end", self.status[1] + "\n", ("muted",))
             else:
                 self.detail_title.set("Select a quest for details & guide")
                 self.research_button.configure(state="disabled")
@@ -343,6 +352,13 @@ class QuestTree:
             }.get(record.get("status"), "Press Research quest (or expand the quest when Guide on expand is enabled) to fetch a guide.")
             self.detail.insert("end", status_text + "\n", ("muted",))
         self.detail.configure(state="disabled")
+
+    def failed(self, message):
+        """Explain a failed read in the detail pane; quests that were already read stay listed."""
+        if self.quests or self.pickups:
+            return
+        self.status = ("No quests loaded", str(message))
+        self._render_detail()
 
     def _forget_links(self, item):
         self.links.pop(item, None)

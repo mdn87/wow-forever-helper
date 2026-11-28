@@ -14,6 +14,7 @@ from .flow_row import FlowRow
 from .guidance import guidance, quest_tier
 from .theme import BusyBar, palette
 from .quest_chat import MAX_QUEST_CHATS, OPENING, QuestChat, quest_context, quest_identity
+from .quests import age_text
 from .window_frame import WindowFrame, setup_dialog
 
 
@@ -655,6 +656,8 @@ class TaskWindow(ChatWindow):
             self.activity_notice.set(error)
             if hasattr(self, "setup_health_button"):
                 self.action_row.show(self.setup_health_button)
+            if self.kind == "quests":
+                self.quest_tree.failed(error)
             return
         if hasattr(self, "setup_health_button"):
             self.action_row.show(self.setup_health_button, False)
@@ -665,7 +668,7 @@ class TaskWindow(ChatWindow):
             self._guide_queue.clear()
             self.quest_tree.load(report["data"], self.profile["flavor"], self.profile["guide_tier"])
             self.guide_keys = {key: value for key, value in self.guide_keys.items() if key in self.quest_tree.quests}
-            self.activity_notice.set(f"{report['data']['quest_count']} quests · snapshot {report['data']['age_seconds']}s old. "
+            self.activity_notice.set(f"{report['data']['quest_count']} quests · snapshot saved {age_text(report['data']['age_seconds'])}. "
                                      + " ".join(report["data"]["warnings"]))
             self.on_change()
             return

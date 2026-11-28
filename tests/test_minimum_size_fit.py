@@ -5,7 +5,14 @@ dialog bodies pressing their buttons flat once a window was shrunk to its minimu
 Every surface below opens at its own minimum size, in Classic at 1.33 scaling and
 Modern Synth at 1.67, with the default and a 20-point chat font, and every tab is visited.
 Notebook tabs must also keep the width they have in a wide window, or their labels are cut.
+Text areas that show a preview keep enough height for their own font size.
+
+Tk keeps a point-size font at the scaling in effect when it was first made, for as long as
+any widget uses it, so a case can draw some fonts at the other case's scaling. The checks
+measure the widgets as drawn, so they hold either way, but sizes differ by test order.
 """
+
+from tkinter import font
 
 import pytest
 
@@ -181,6 +188,24 @@ def open_live_gear(manager, _tmp):
     return dialog.root
 
 
+def open_appearance(manager, _tmp):
+    view = manager.windows[0].view
+    view.show_appearance()
+    return view._appearance_dialog.root
+
+
+def open_resume(manager, _tmp):
+    view = manager.windows[0].view
+    view.resume_session()
+    return view._resume_dialog.root
+
+
+def open_goals(manager, _tmp):
+    view = manager.windows[0].view
+    view.show_goals()
+    return view._resume_dialog.root
+
+
 def open_voice(manager, _tmp):
     return VoiceDialog(manager, manager.windows[0], dictation_factory=FakeDictation, key_factory=FakeKey).root
 
@@ -223,6 +248,9 @@ SURFACES = {
     "hands-free voice": (open_handsfree, None),
     "companion displays": (open_displays, None),
     "setup health": (open_setup_health, None),
+    "chat appearance": (open_appearance, None),
+    "resume session": (open_resume, None),
+    "goals and wishlist": (open_goals, None),
 }
 
 
@@ -243,8 +271,78 @@ def test_controls_stay_whole_at_minimum_size(manager_factory, tmp_path, surface,
     root.tk.call("tk", "scaling", scaling)
     try:
         top = opener(manager, tmp_path)
+        if font_size:  # a window the opener created keeps its own default appearance
+            for window in manager.windows:
+                if window.view and window.view.appearance["font_size"] != font_size:
+                    window.view.set_appearance({**window.view.appearance, "font_size": font_size})
+                    settle(window.view)
         top.geometry("%dx%d" % top.minsize())
         cut = cut_on_every_tab(top)
         assert not cut, f"{top.minsize()} wants {top.winfo_reqwidth()}x{top.winfo_reqheight()}: " + "; ".join(cut)
+    finally:
+        root.tk.call("tk", "scaling", original)
+
+
+def themed(manager_factory, theme, font_size=None):
+    manager = manager_factory()
+    manager.interface = {**manager.interface, "theme": theme}
+    manager.preview_interface(None)
+    view = manager.windows[0].view
+    settle(view)
+    if font_size:
+        view.set_appearance({**view.appearance, "font_size": font_size})
+    return manager, view
+
+
+def visible_lines(text):
+    """Whole lines of the text's own font that fit inside its visible area."""
+    inset = 2 * sum(int(text.cget(option)) for option in ("pady", "borderwidth", "highlightthickness"))
+    return (text.winfo_height() - inset) // font.Font(root=text, font=text.cget("font")).metrics("linespace")
+
+
+@pytest.mark.parametrize("theme,scaling", [("classic", 1.33), ("modern", 1.67)])
+def test_chat_appearance_preview_shows_every_line_as_the_font_grows(manager_factory, theme, scaling):
+    # At 20 points the preview kept its 11-point height and cut the second message.
+    manager, view = themed(manager_factory, theme)
+    root = manager.windows[0].root
+    original = root.tk.call("tk", "scaling")
+    root.tk.call("tk", "scaling", scaling)
+    try:
+        view.show_appearance()
+        dialog = view._appearance_dialog
+        top = dialog.root
+        top.update()
+        base = top.minsize()
+        for size in (20, 28, 11):
+            dialog.variables["font_size"].set(str(size))
+            top.update()
+            top.geometry("%dx%d" % top.minsize())
+            top.update()
+            assert dialog.preview.yview() == (0.0, 1.0), (
+                f"{size} pt preview cut at {top.winfo_width()}x{top.winfo_height()}, minimum {top.minsize()}")
+        # Back at the default size, the dialog's own minimum applies again.
+        assert top.minsize() == base
+        dialog.close()
+    finally:
+        root.tk.call("tk", "scaling", original)
+
+
+@pytest.mark.parametrize("opener", [open_resume, open_goals])
+@pytest.mark.parametrize("theme,scaling", [("classic", 1.33), ("modern", 1.67)])
+def test_saved_advice_reading_pane_keeps_three_lines_at_minimum_size(manager_factory, tmp_path, theme, scaling,
+                                                                    opener):
+    # With a 20-point chat font the pane under the buttons showed one line at the minimum size.
+    manager, view = themed(manager_factory, theme, font_size=20)
+    root = manager.windows[0].root
+    original = root.tk.call("tk", "scaling")
+    root.tk.call("tk", "scaling", scaling)
+    try:
+        top = opener(manager, tmp_path)
+        top.update()
+        top.geometry("%dx%d" % top.minsize())
+        top.update()
+        pane = view._resume_dialog.preview
+        assert visible_lines(pane) >= 3, f"{visible_lines(pane)} lines at {top.winfo_width()}x{top.winfo_height()}"
+        assert not cut_controls(top)
     finally:
         root.tk.call("tk", "scaling", original)

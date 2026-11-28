@@ -8,6 +8,7 @@ from .chat import ChatError
 from .journal import identifier
 from .journal_ui import JournalDialog, review_notebook, style_journal_tree
 from .publications import PublicationService
+from .quests import age_span
 
 
 def when(value):
@@ -20,7 +21,7 @@ def when(value):
 def age(value):
     if value is None:
         return "Unknown"
-    return f"{int(value)} seconds" if value < 60 else f"{value / 60:.1f} minutes"
+    return f"{int(value)} seconds" if value < 90 else age_span(value)
 
 
 class ToolAccessDialog(JournalDialog):

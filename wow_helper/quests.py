@@ -216,7 +216,7 @@ def report(snapshot, mtime, *, flavor=None, now=None):
     age = max(0, int(now - mtime))
     warnings = []
     if age > STALE_AFTER:
-        warnings.append(f"The snapshot is {age // 60} minutes old; /reload in game for current quests.")
+        warnings.append(f"The snapshot is {age_span(age)} old; /reload in game for current quests.")
     if snapshot.collapsed:
         warnings.append("Collapsed quest-log headers can hide quests; expand them and /reload: "
                         + ", ".join(snapshot.collapsed) + ".")
@@ -241,12 +241,20 @@ def report(snapshot, mtime, *, flavor=None, now=None):
             "available": nearby, "warnings": warnings}
 
 
-def _age(seconds):
-    if seconds < 90:
-        return "just now"
+def age_span(seconds):
+    """Whole units elapsed, in the largest unit that reads naturally: 20 minutes, 5 hours, 3 days."""
+    seconds = max(0, int(seconds))
     if seconds < 90 * 60:
-        return f"{round(seconds / 60)} minutes ago"
-    return f"{round(seconds / 3600)} hours ago"
+        count, unit = seconds // 60, "minute"
+    elif seconds < 48 * 3600:
+        count, unit = seconds // 3600, "hour"
+    else:
+        count, unit = seconds // 86400, "day"
+    return f"{count} {unit}" + ("" if count == 1 else "s")
+
+
+def age_text(seconds):
+    return "just now" if seconds < 90 else age_span(seconds) + " ago"
 
 
 def as_text(result):
@@ -255,7 +263,7 @@ def as_text(result):
     who = " ".join(str(v) for v in (f"level {player['level']}" if player["level"] else None,
                                     (player["class"] or "").title() or None) if v)
     where = f" in {player['zone']}" if player["zone"] else ""
-    lines = [f"Quest log from {_age(result['age_seconds'])}: {who or 'your character'}{where}, "
+    lines = [f"Quest log from {age_text(result['age_seconds'])}: {who or 'your character'}{where}, "
              f"{result['quest_count']} quests."]
     verbs = {"turn in": "Turn in", "restart": "Restart", "finish": "Finish", "later": "Later"}
     for step in result["plan"]:
