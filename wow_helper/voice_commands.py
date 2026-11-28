@@ -20,6 +20,7 @@ HELP = ("Say a menu item, like open Journal or turn on keep above other windows.
         "For chat, say switch to a session name, new Codex chat, type then send, read the reply, or just talk. "
         "With the gear comparison open and its shortcut enabled, say compare. For the voice browser, say open the "
         "browser, look up and a name, open the first result, read the page, read more, scroll down, or go back. "
+        "For the test walkthrough, say next test, a moment such as fight tests, pass test, skip test, or test status. "
         "Say stop hands free to disconnect.")
 
 
@@ -234,6 +235,16 @@ class Interpreter:
         (r"(?:close|quit|shut) (?:down )?(?:the |my |your )?(?:voice )?browser(?: window)?", "browser_close"),
         (r"(?:start|begin|resume|run) (?:the )?(?:live |in[- ]?game )?tests?(?: walkthrough| guide| checklist)?|next(?: live)? test",
          "live_test_next"),
+        # Moments in play and editions; live_test_guide.MOMENT_WORDS maps the same words.
+        (r"(?:(?:start|begin|run|do|next) )?(?:the |a |an |my )?"
+         r"(login|log in|logging in|reload|play|playing|questing|fights?|combat|boss|pull|town|city|break|downtime|"
+         r"logout|log out|logging out|any ?time) (?:live )?tests?", "live_test_moment"),
+        (r"(?:(?:start|run|next|the) )?(?:live )?tests? (?:for|after|when|while|in|at|during) (?:a |an |the |my )?"
+         r"(login|log in|logging in|reload|play|playing|questing|fights?|combat|boss|pull|town|city|break|downtime|"
+         r"logout|log out|logging out)", "live_test_moment"),
+        (r"(?:i'?m |i am )?(?:playing|on|in|testing) (?:classic )?(retail|forever)(?: now)?"
+         r"|(?:classic )?(retail|forever) (?:live )?tests?", "live_test_edition"),
+        (r"(?:(?:playing|on|in|testing) )?(?:any|either|both|all|every) editions?", "live_test_edition"),
         (r"(?:repeat|read|reread|what(?:'s| is)) (?:the )?(?:current )?(?:live )?test(?: instructions?)?",
          "live_test_repeat"),
         (r"(?:live )?test status|how many tests?(?: are)? left", "live_test_status"),
@@ -342,6 +353,13 @@ class Interpreter:
 
     def live_test_next(self):
         return Outcome("done", self._live_tests().next_prompt())
+
+    def live_test_moment(self, word):
+        from .live_test_guide import MOMENT_WORDS
+        return Outcome("done", self._live_tests().moment(MOMENT_WORDS[word]))
+
+    def live_test_edition(self, first=None, second=None):
+        return Outcome("done", self._live_tests().set_edition(first or second))
 
     def live_test_repeat(self):
         return Outcome("done", self._live_tests().repeat_prompt())

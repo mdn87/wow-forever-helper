@@ -9,6 +9,8 @@ import time
 from .assist import ACTION, Assistant, AssistError
 
 SETTINGS = Path(__file__).resolve().parents[1] / ".runtime" / "companion.json"
+# live_test_guide.MOMENTS keys, listed here so building the parser imports nothing more.
+LIVE_TEST_MOMENTS = ("login", "play", "fight", "town", "logout", "anytime")
 
 
 def main(argv=None):
@@ -82,19 +84,26 @@ def main(argv=None):
     cat_list.add_argument("--cache-only", action="store_true")
     cat_list.add_argument("--force-refresh", action="store_true")
     cat_list.add_argument("--text", action="store_true")
-    live_test = commands.add_parser("live-test", help="Spoken-ready checklist and local result log for remaining in-game tests")
+    live_test = commands.add_parser("live-test", help="Spoken walkthrough and local result log for the runbook's play-time checks")
     live_test_actions = live_test.add_subparsers(dest="live_test_action", required=True)
-    lt_list = live_test_actions.add_parser("list", help="List all in-game tests and current status")
-    lt_list.add_argument("--chip", help="Filter by chip number, for example 30, 21, 22, or 23")
+    lt_list = live_test_actions.add_parser("list", help="List all play-time tests and current status")
+    lt_list.add_argument("--chip", help="Filter by Dias chip number, for example 21, 22, or 23")
+    lt_list.add_argument("--moment", choices=LIVE_TEST_MOMENTS, help="Filter by moment in play")
     lt_list.add_argument("--text", action="store_true")
     lt_next = live_test_actions.add_parser("next", help="Print the spoken instructions for the next pending test")
     lt_next.add_argument("--text", action="store_true")
-    lt_goto = live_test_actions.add_parser("goto", help="Select a test by number (1-12) and print its spoken instructions")
+    lt_goto = live_test_actions.add_parser("goto", help="Select a test by number and print its spoken instructions")
     lt_goto.add_argument("number", type=int)
     lt_goto.add_argument("--text", action="store_true")
+    lt_moment = live_test_actions.add_parser("moment", help="Select the first open test for a moment in play and print it")
+    lt_moment.add_argument("moment", choices=LIVE_TEST_MOMENTS)
+    lt_moment.add_argument("--text", action="store_true")
+    lt_edition = live_test_actions.add_parser("edition", help="Offer one edition's tests and those that need no game, or any")
+    lt_edition.add_argument("edition", choices=("retail", "forever", "any"))
+    lt_edition.add_argument("--text", action="store_true")
     lt_rec = live_test_actions.add_parser("record", help="Record pass, fail, or skipped for a test")
     lt_rec.add_argument("outcome", choices=("pass", "fail", "skipped"))
-    lt_rec.add_argument("--id", dest="item_id", help="Test ID or number (defaults to current test)")
+    lt_rec.add_argument("--id", dest="item_id", help="Test number or runbook ID, for example 7 or 2.15 (defaults to the current test)")
     lt_rec.add_argument("--note", default="", help="Optional short observation note (never include real character names)")
     lt_rec.add_argument("--text", action="store_true")
     lt_status = live_test_actions.add_parser("status", help="Show live-test pass/fail/pending counts")
@@ -282,7 +291,7 @@ def main(argv=None):
         from . import live_test_guide
         guide = live_test_guide.LiveTestGuide()
         if args.live_test_action == "list":
-            info = guide.summary(chip=args.chip)
+            info = guide.summary(chip=args.chip, moment=args.moment)
             print(live_test_guide.as_text(info) if args.text else json.dumps(info, allow_nan=False))
             return 0
         if args.live_test_action == "next":
@@ -291,6 +300,13 @@ def main(argv=None):
             return 0
         if args.live_test_action == "goto":
             spoken = guide.goto(args.number)
+            print(spoken if args.text else json.dumps({"status": "ok", "spoken": spoken}, allow_nan=False))
+            return 0
+        if args.live_test_action in {"moment", "edition"}:
+            if args.live_test_action == "moment":
+                spoken = guide.moment(args.moment)
+            else:
+                spoken = guide.set_edition(None if args.edition == "any" else args.edition)
             print(spoken if args.text else json.dumps({"status": "ok", "spoken": spoken}, allow_nan=False))
             return 0
         if args.live_test_action == "record":
