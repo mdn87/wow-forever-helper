@@ -565,7 +565,7 @@ class WindowManager:
         record = {"id": str(uuid.uuid4()), "number": self.next_number, "kind": kind,
                   "chat": {"activity": {}}}
         self.next_number += 1
-        return self._add(record)
+        return self._add(record, focus=True)
 
     def open_wow_displays(self, quest_area, activity_area):
         areas = display_workareas(self.root)
@@ -784,11 +784,16 @@ class WindowManager:
             return data
         return {}
 
-    def _add(self, record):
+    def _add(self, record, *, focus=False):
         window = CompanionWindow(self, record)
         self.windows.append(window)
         self.refresh_menus()
         self.schedule_save()
+        if focus:
+            # Tk shows every toplevel after the first without activating it, so a window the
+            # player asked for opened unfocused and translucent. A plain focus (never
+            # focus_force) moves the Windows focus only while the companion already has it.
+            window.root.focus_set()
         return window
 
     def new_window(self, source=None, *, kind="chooser"):
@@ -801,7 +806,7 @@ class WindowManager:
                   "bounds": bounds, "topmost": source.topmost.get() if source else True,
                   "remember": source.remember.get() if source else True}
         self.next_number += 1
-        return self._add(record)
+        return self._add(record, focus=True)
 
     def pin_advice(self, selection, objective, next_step, appearance=None):
         if self.closed:
@@ -853,7 +858,7 @@ class WindowManager:
         record = {"id": str(uuid.uuid4()), "number": self.next_number, "kind": "chat",
                   "chat": {"session": {"provider": key[0], "id": key[1]}, "title": "Saved conversation"}}
         self.next_number += 1
-        return self._add(record).view
+        return self._add(record, focus=True).view
 
     def changed(self, window):
         if self.closed or window.closed:

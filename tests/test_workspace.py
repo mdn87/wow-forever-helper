@@ -819,6 +819,68 @@ def test_native_opacity_follows_focus_and_survives_hiding(manager_factory, monke
     assert not errors
 
 
+def translucent_focused_first(manager):
+    first = manager.windows[0]
+    manager.interface = {"theme": "modern", "opacity": 78, "solid_when_active": True}
+    manager.preview_interface(None)
+    first.view.editor.focus_force()
+    manager.root.update()
+    return first
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows shows later Tk toplevels without activating them")
+@pytest.mark.parametrize("opening", ["new button", "search", "resume"])
+def test_a_window_the_player_opens_takes_the_focus_and_stays_solid(manager_factory, opening):
+    # Tk maps every toplevel after the first with SW_SHOWNOACTIVATE, so these windows used to
+    # open behind the focus at the inactive opacity, and search's close handed focus back.
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32")
+    user32.GetActiveWindow.restype = wintypes.HWND
+    manager = manager_factory(service=CreatingService)
+    first = translucent_focused_first(manager)
+    if opening == "new button":
+        for event in ("<Enter>", "<ButtonPress-1>", "<ButtonRelease-1>"):
+            first.new_button.event_generate(event, x=5, y=5)
+    elif opening == "search":
+        manager.show_search(first)
+        manager.root.update()
+        dialog = manager._search_dialog
+        dialog.open_result(next(r for r in dialog.rows if r["kind"] == "command" and r["target"] == "chat"))
+    else:
+        manager.resume_conversation({"provider": "codex", "session_id": str(uuid.UUID(int=902))})
+    opened = manager.windows[-1]
+    if opened.view:
+        settle(opened.view)
+    manager.root.update()
+    assert opened is not first
+    focused = str(manager.root.tk.call("focus", "-displayof", manager.root))
+    assert focused == str(opened.root) or focused.startswith(str(opened.root) + ".")
+    assert user32.GetActiveWindow() == int(opened.root.frame(), 0)
+    assert opened.root.attributes("-alpha") == 1
+    assert first.root.attributes("-alpha") == pytest.approx(.78, abs=.01)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows keyboard focus")
+def test_a_new_window_leaves_the_focus_alone_when_the_companion_lacks_it(manager_factory):
+    # Hands-free voice can open a window while the game holds the focus. Clearing this
+    # thread's focus stands in for that; the new window must not take it back.
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32")
+    user32.SetFocus.argtypes = [wintypes.HWND]
+    user32.GetFocus.restype = wintypes.HWND
+    manager = manager_factory()
+    first = translucent_focused_first(manager)
+    user32.SetFocus(None)
+    manager.root.update()
+    opened = manager.new_window(first)
+    manager.root.update()
+    assert user32.GetFocus() is None
+    assert str(manager.root.tk.call("focus", "-displayof", manager.root)) == ""
+    assert opened.root.attributes("-alpha") == pytest.approx(.78, abs=.01)
+
+
 def test_modern_new_windows_dialogs_and_reports_fit_and_follow_theme(manager_factory):
     from wow_helper.theme import PALETTES
     manager = manager_factory()
