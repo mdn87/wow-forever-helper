@@ -137,3 +137,23 @@ def test_economy_changed_inputs_failed_import_and_duplicate_comparison(manager_f
     assert dialog.packet is not None
     assert "totals_delta_copper" in dialog.preview.get("1.0", "end-1c")
     assert not view.service.sent
+
+
+def test_economy_overview_fits_without_scrolling_at_default_size(manager_factory):
+    manager = manager_factory()
+    view = manager.windows[0].view
+    view._select_session(SESSIONS[0]); settle(view)
+    view.show_economy_notebook()
+    dialog = view._notebooks["economy"]
+    declare(dialog)
+    dialog.editors["csv"].insert("1.0", fixture("by_type_current.csv"))
+    dialog.fields["confirmed"].set("Checked")
+    dialog.prepare()
+    dialog.root.update_idletasks()
+    dialog.root.update()
+    overview = dialog.overview.get("1.0", "end-1c")
+    assert "Net cash movement:" in overview
+    assert "Missing categories" in overview
+    assert "PRIVACY & BOUNDARY" in overview
+    assert dialog.overview.yview()[1] >= 0.999
+    assert not view.service.sent

@@ -257,6 +257,11 @@ class ImageMarkupDialog:
 
     def save(self):
         try:
+            saved_image(self.view.activity.storage, self.source_name)
+        except ChatError:
+            self.notice.set("The source image is no longer available. The original selection is preserved.")
+            return
+        try:
             name = save_edited_image(self.view.activity.storage, self.current)
         except ChatError as error:
             self.notice.set(str(error))

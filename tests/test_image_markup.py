@@ -465,6 +465,20 @@ def test_missing_corrupt_and_oversized_sources_do_not_open(editor, manager_facto
     manager.root.update()
 
 
+def test_save_refuses_when_source_deleted_while_open(editor, no_network):
+    manager, _window, view, dialog, source = editor(coded_image(300, 200))
+    name = view.image_name
+    drag(dialog, "arrow", (20, 20), (120, 100))
+    source.unlink()
+    dialog.save()
+    manager.root.update()
+    assert view._markup_dialog is dialog and not dialog.closed
+    assert "no longer available" in dialog.notice.get()
+    assert view.image_name == name
+    assert not any(source.parent.iterdir())
+    assert view.service.sent == [] and no_network == []
+
+
 # ------------------------------------------------------------ UI layout
 
 def widgets(root):

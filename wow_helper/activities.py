@@ -278,10 +278,24 @@ def packet_overview(packet, *, destination="", model_summary=""):
                 digest = payload.get("digest") or payload.get("attempt_notes") or ""
                 if isinstance(digest, str) and digest.strip():
                     excerpts.append(digest.strip()[:700])
+            elif isinstance(data.get("current"), dict) and isinstance(data["current"].get("payload"), dict):
+                econ = data["current"]["payload"]
+                totals = econ.get("totals") or {}
+                if {"incoming_copper", "outgoing_copper", "net_cash_copper"} <= set(totals):
+                    missing = econ.get("missing_categories") or []
+                    miss_text = ", ".join(missing[:5]) + (f" (+{len(missing) - 5} more)" if len(missing) > 5 else "")
+                    excerpts.append("\n".join([
+                        f"Mode: {data.get('mode', 'One period')} · Profile: {data.get('profile_alias', '')} · Scope: {data.get('filter_scope_alias', '')}",
+                        f"Rows: {len(econ.get('rows') or ())} · In: {totals['incoming_copper']:,}c · Out: {totals['outgoing_copper']:,}c · Net cash movement: {totals['net_cash_copper']:,}c",
+                        f"Missing categories ({len(missing)}): {miss_text or 'none'}",
+                    ]))
         if not excerpts and isinstance(report, dict) and isinstance(report.get("text"), str):
             text = report["text"].strip()
             if text:
-                excerpts.append(text[:600])
+                clipped = "\n".join(text.splitlines()[:6])[:360]
+                if len(clipped) < len(text):
+                    clipped = clipped.rstrip() + "…"
+                excerpts.append(clipped)
     if not excerpts and context_files:
         first_ctx = str(context_files[0].get("text", "")).strip()
         if first_ctx:
