@@ -216,6 +216,33 @@ def test_display_windows_stay_opaque_over_dias(manager_factory, monkeypatch):
     assert quest.root.attributes("-alpha") == cards.root.attributes("-alpha") == 1
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows activates a window it maximizes")
+def test_the_reveal_shortcut_brings_displays_back_maximized_without_the_focus(manager_factory, monkeypatch):
+    # Re-maximizing a display on reveal activated it; a hidden one Windows still keeps
+    # maximized is shown as it is, and a visible maximized one is only raised.
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32")
+    user32.SetFocus.argtypes = [wintypes.HWND]
+    user32.GetFocus.restype = wintypes.HWND
+    manager = manager_factory()
+    chat = manager.windows[0]
+    quest, cards = pair(manager, monkeypatch)
+    manager.root.update()
+    assert quest.root.state() == cards.root.state() == "zoomed"
+    quest.root.withdraw()
+    chat.view.editor.focus_force()
+    manager.root.update()
+    user32.SetFocus(None)  # Stands in for the game holding the focus.
+    manager.root.update()
+    manager.show_all()
+    manager.root.update()
+    assert quest.root.state() == cards.root.state() == "zoomed"
+    assert quest.body.winfo_ismapped()
+    assert user32.GetFocus() is None
+    assert str(manager.root.tk.call("focus", "-displayof", manager.root)) == ""
+
+
 class StubReports:
     """Synthetic quest reports for the display's exit cases; never reads a real snapshot."""
     def __init__(self, data=None, error=None):

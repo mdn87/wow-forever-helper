@@ -11,7 +11,7 @@ from .chat_window import MenuGroups
 from .activities import ActivityService, TYPES, profile_settings
 from .window_state import LayoutLock, MAX_WINDOWS, MIN_HEIGHT, MIN_WIDTH, display_workareas, window_bounds
 from .theme import palette, apply_theme, display_font, settings_icon, menu as themed_menu
-from .window_frame import WindowFrame
+from .window_frame import WindowFrame, show_maximized_without_activating
 from .window_access import start_restart
 from .interface import InterfaceDialog, WindowOpacity, interface_settings
 from .pinned_advice import AdviceCard, PLAY_MINIMUM, pinned_selection, validate_pin
@@ -849,7 +849,7 @@ class WindowManager:
                     window.display.open_activity(activity)
                 if view.book:
                     view.book.select(candidate.root)
-                self.reveal(window)
+                self.reveal(window, focus=True)
                 return candidate
         if len(self.windows) >= MAX_WINDOWS:
             raise ChatError("Eight windows are open. Close one before opening this conversation; notes and drafts are kept.")
@@ -957,7 +957,7 @@ class WindowManager:
         for window in self.windows:
             window.root.withdraw()
 
-    def reveal(self, window):
+    def reveal(self, window, *, focus=False):
         if self.closed or window not in self.windows:
             return
         self.areas = display_workareas(self.root)
@@ -965,13 +965,23 @@ class WindowManager:
             window.set_notice("The selected display is missing. Choose screens again in WoW companion displays.")
             return
         bounds = window_bounds(window.capture_bounds(), self.areas, window.minimum)
-        window.root.deiconify()
+        # Revealing leaves the focus where it is (operator decision, 2026-11-27). wm deiconify
+        # forces the focus onto a window shown before, and maximizing a window activates it.
+        state = window.root.state()
+        if state == "withdrawn" and window.display and show_maximized_without_activating(window.root):
+            state = "zoomed"
+        elif state in ("withdrawn", "iconic"):
+            window.root.state("normal")
+            state = window.root.state()
         window.bounds = bounds
         if window.display:
-            window.fill_display()
+            if state != "zoomed":
+                window.fill_display()
         else:
             window._place()
         window.root.lift()
+        if focus:
+            window.root.focus_set()
 
     def arrange(self, source):
         """Recover all windows on the source monitor through an explicit menu action."""

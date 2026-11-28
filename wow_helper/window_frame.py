@@ -95,6 +95,35 @@ def native_frame_colors(root):
         pass
 
 
+def show_maximized_without_activating(root):
+    """Show a hidden window that Windows still keeps maximized, leaving the focus alone.
+
+    Tk's wm deiconify and wm state zoomed both activate the window. SW_SHOWNA shows it in
+    its current state instead, and Tk reads the new state from the window. Returns False,
+    changing nothing, unless this is a hidden, maximized window of this process.
+    """
+    if os.name != "nt":
+        return False
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    for name in ("IsWindowVisible", "IsZoomed"):
+        getattr(user32, name).argtypes = [wintypes.HWND]
+        getattr(user32, name).restype = wintypes.BOOL
+    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.ShowWindow.restype = wintypes.BOOL
+    handle = int(root.frame(), 0)
+    owner = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(handle, ctypes.byref(owner))
+    if owner.value != os.getpid() or user32.IsWindowVisible(handle) or not user32.IsZoomed(handle):
+        return False
+    user32.ShowWindow(handle, 8)  # SW_SHOWNA
+    root.update_idletasks()
+    return root.state() == "zoomed"
+
+
 def monitor_for(parent, areas):
     """Return the monitor work area containing the parent window's center, or primary."""
     if not areas:

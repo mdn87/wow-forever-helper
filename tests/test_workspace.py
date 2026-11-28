@@ -881,6 +881,55 @@ def test_a_new_window_leaves_the_focus_alone_when_the_companion_lacks_it(manager
     assert opened.root.attributes("-alpha") == pytest.approx(.78, abs=.01)
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows keyboard focus")
+def test_revealing_windows_leaves_the_focus_where_it_is(manager_factory):
+    # Operator decision, 2026-11-27: the reveal shortcut and Open windows show and raise
+    # windows without moving the focus. wm deiconify used to force it onto each one.
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32")
+    user32.SetFocus.argtypes = [wintypes.HWND]
+    user32.GetFocus.restype = wintypes.HWND
+    manager = manager_factory()
+    first = translucent_focused_first(manager)
+    second = manager.new_window(first)
+    second.root.withdraw()
+    first.view.editor.focus_force()
+    manager.root.update()
+    first.windows_menu.invoke(1)
+    manager.root.update()
+    assert second.root.state() == "normal"
+    assert str(manager.root.tk.call("focus", "-displayof", manager.root)) == str(first.view.editor)
+    assert second.root.attributes("-alpha") == pytest.approx(.78, abs=.01)
+    for window in manager.windows:
+        window.root.withdraw()
+    manager.root.update()
+    user32.SetFocus(None)  # Stands in for the game holding the focus.
+    manager.root.update()
+    manager.show_all()
+    manager.root.update()
+    assert [window.root.state() for window in manager.windows] == ["normal", "normal"]
+    assert user32.GetFocus() is None
+    assert str(manager.root.tk.call("focus", "-displayof", manager.root)) == ""
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows keyboard focus")
+def test_resuming_an_open_conversation_moves_the_focus_to_its_window(manager_factory):
+    manager = manager_factory()
+    first = translucent_focused_first(manager)
+    choose(first, 0)
+    other = new_chat(manager, first)
+    other.view.editor.focus_force()
+    manager.root.update()
+    provider, session_id = first.view.selection_key
+    assert manager.resume_conversation({"provider": provider, "session_id": session_id}) is first.view
+    manager.root.update()
+    focused = str(manager.root.tk.call("focus", "-displayof", manager.root))
+    assert focused == str(first.root) or focused.startswith(str(first.root) + ".")
+    assert first.root.attributes("-alpha") == 1
+    assert other.root.attributes("-alpha") == pytest.approx(.78, abs=.01)
+
+
 def test_modern_new_windows_dialogs_and_reports_fit_and_follow_theme(manager_factory):
     from wow_helper.theme import PALETTES
     manager = manager_factory()
